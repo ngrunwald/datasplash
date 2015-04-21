@@ -2,6 +2,11 @@
   (:require [clojure.test :refer :all]
             [datasplash.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(let [p (make-pipeline [])
+      final (->> p
+                 (generate-input [1 2 3])
+                 (dmap inc)
+                 (to-edn)
+                 (write-file "ptest"))]
+
+  (.run p))
