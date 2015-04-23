@@ -54,26 +54,25 @@
 
 (defmacro with-opts
   [schema opts & body]
-  `(let [pcoll# (do ~@body)]
+  `(let [transform# (do ~@body)]
      (reduce
-      (fn [pc# [k# f#]]
+      (fn [f# [k# apply#]]
         (if-let [v# (get ~opts k#)]
-          (f# pc# v#)
-          pc#))
-      pcoll# ~schema)))
+          (apply# f# v#)
+          f#))
+      transform# ~schema)))
 
 (def base-schema
-  {:named (fn [pcoll n] (.setName pcoll n))
-   :coder (fn [pcoll coder] (.setCoder pcoll coder))})
+  {:name (fn [transform n] (.withName transform n))})
 
 (defn map-op
   ([transform coder]
    (fn
      [f opts ^PCollection pcoll]
-     (with-opts base-schema opts
-       (-> pcoll
-           (.apply (ParDo/of (dofn (transform f))))
-           (.setCoder coder)))))
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (ParDo/of (dofn (transform f)))))
+         (.setCoder (or (:coder opts) coder)))))
   ([transform]
    (map-op transform (make-transit-coder))))
 
@@ -83,14 +82,14 @@
 
 (defn generate-input
   [coll opts ^Pipeline p]
-  (with-opts base-schema opts
-    (-> p
-        (.apply (Create/of (seq coll)))
-        (.setCoder (make-transit-coder)))))
+  (-> p
+      (.apply (with-opts base-schema opts
+                (Create/of (seq coll))))
+      (.setCoder (or (:coder opts) (make-transit-coder)))))
 
 (defn- to-edn*
   [^DoFn$Context c]
-  (let [^ClojureVal elt (.element c)
+  (let [elt (.element c)
         result (pr-str elt)]
     (.output c result)))
 
@@ -98,28 +97,32 @@
 
 (defn to-edn
   ([opts ^PCollection pcoll]
-   (with-opts base-schema opts
-     (-> pcoll
-         (.apply (ParDo/of (dofn to-edn*)))
-         (.setCoder (StringUtf8Coder/of)))))
+   (-> pcoll
+       (.apply (ParDo/of
+                (with-opts base-schema opts
+                  (dofn to-edn*))))
+       (.setCoder (StringUtf8Coder/of))))
   ([pcoll] (to-edn {} pcoll)))
 
 (defn make-pipeline
   [str-args]
-  (let [builder (PipelineOptionsFactory/fromArgs (into-array String str-args))
+  (let [builder (PipelineOptionsFactory/fromArgs
+                 (into-array String str-args))
         options (.create builder)]
     (Pipeline/create options)))
 
 (defn load-text-file
   [from opts ^Pipeline p]
   (-> p
-      (.apply (TextIO$Read/from from))
+      (.apply (with-opts base-schema opts
+                (TextIO$Read/from from)))
       (.setCoder (StringUtf8Coder/of))))
 
 (defn write-text-file
   ([to opts ^PCollection pcoll]
    (-> pcoll
-       (.apply (-> (TextIO$Write/to to)))))
+       (.apply (with-opts base-schema opts
+                 (TextIO$Write/to to)))))
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (comment
