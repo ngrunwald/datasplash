@@ -52,13 +52,28 @@
       (let [rdr (transit/reader in :msgpack)]
         (transit/read rdr)))))
 
+(defmacro with-opts
+  [schema opts & body]
+  `(let [pcoll# (do ~@body)]
+     (reduce
+      (fn [pc# [k# f#]]
+        (if-let [v# (get ~opts k#)]
+          (f# pc# v#)
+          pc#))
+      pcoll# ~schema)))
+
+(def base-schema
+  {:named (fn [pcoll n] (.setName pcoll n))
+   :coder (fn [pcoll coder] (.setCoder pcoll coder))})
+
 (defn map-op
   ([transform coder]
    (fn
-     [f ^PCollection pcoll]
-     (-> pcoll
-         (.apply (ParDo/of (dofn (transform f))))
-         (.setCoder coder))))
+     [f opts ^PCollection pcoll]
+     (with-opts base-schema opts
+       (-> pcoll
+           (.apply (ParDo/of (dofn (transform f))))
+           (.setCoder coder)))))
   ([transform]
    (map-op transform (make-transit-coder))))
 
@@ -67,10 +82,11 @@
 (def dfilter (map-op filter-fn))
 
 (defn generate-input
-  [coll p]
-  (-> p
-      (.apply (Create/of (seq coll)))
-      (.setCoder (make-transit-coder))))
+  [coll opts ^Pipeline p]
+  (with-opts base-schema opts
+    (-> p
+        (.apply (Create/of (seq coll)))
+        (.setCoder (make-transit-coder)))))
 
 (defn- to-edn*
   [^DoFn$Context c]
@@ -81,10 +97,12 @@
 (def to-edn (partial (map-op identity (StringUtf8Coder/of)) to-edn*))
 
 (defn to-edn
-  [^PCollection pcoll]
-  (-> pcoll
-      (.apply (ParDo/of (dofn to-edn*)))
-      (.setCoder (StringUtf8Coder/of))))
+  ([opts ^PCollection pcoll]
+   (with-opts base-schema opts
+     (-> pcoll
+         (.apply (ParDo/of (dofn to-edn*)))
+         (.setCoder (StringUtf8Coder/of)))))
+  ([pcoll] (to-edn {} pcoll)))
 
 (defn make-pipeline
   [str-args]
@@ -92,11 +110,17 @@
         options (.create builder)]
     (Pipeline/create options)))
 
-(defn write-file
+(defn load-text-file
+  [from opts ^Pipeline p]
+  (-> p
+      (.apply (TextIO$Read/from from))
+      (.setCoder (StringUtf8Coder/of))))
+
+(defn write-text-file
   ([to opts ^PCollection pcoll]
    (-> pcoll
        (.apply (-> (TextIO$Write/to to)))))
-  ([to pcoll] (write-file to {} pcoll)))
+  ([to pcoll] (write-text-file to {} pcoll)))
 
 (comment
   (compile 'datasplash.core))
@@ -105,10 +129,10 @@
   [& args]
   (let [p (make-pipeline args)
         final (->> p
-                   (generate-input (range 10000))
-                   (dmap inc)
-                   (dfilter even?)
-                   (to-edn)
-                   (write-file "tee"))]
+                   (generate-input (range 10000) {:named "gengen"})
+                   (dmap inc {:named "map"})
+                   (dfilter even? {:named "filter"})
+                   (to-edn {:named "edn"})
+                   (write-text-file "tee"))]
 
     (.run p)))
