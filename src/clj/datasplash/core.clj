@@ -95,15 +95,6 @@
 
 (def to-edn (partial (map-op identity (StringUtf8Coder/of)) to-edn*))
 
-(defn to-edn
-  ([opts ^PCollection pcoll]
-   (-> pcoll
-       (.apply (ParDo/of
-                (with-opts base-schema opts
-                  (dofn to-edn*))))
-       (.setCoder (StringUtf8Coder/of))))
-  ([pcoll] (to-edn {} pcoll)))
-
 (defn make-pipeline
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
