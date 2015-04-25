@@ -16,7 +16,7 @@
            [datasplash.coders ClojureCoder])
   (:gen-class))
 
-(def ops-counter (atom 0))
+(def ops-counter (atom {}))
 
 (defn dofn
   [f & {:keys [start-bundle finish-bundle] :as opts}]
@@ -61,18 +61,21 @@
 
 (defmacro with-opts
   [schema opts & body]
-  (let [full-name (name
-                   (or (:name opts)
-                       (do
-                         (swap! ops-counter inc)
-                         (str (name (get opts :label "cljfn")) "_" @ops-counter))))]
-    `(let [transform# (do ~@body)]
-       (reduce
-        (fn [f# [k# apply#]]
-          (if-let [v# (get (assoc ~opts :name ~full-name) k#)]
-            (apply# f# v#)
-            f#))
-        transform# ~schema))))
+  `(let [transform# (do ~@body)
+         full-name# (name
+                     (or (:name ~opts)
+                         (let [label# (name (get ~opts :label "cljfn"))
+                               new-idx# (get
+                                         (swap! ~'ops-counter update-in [label#]
+                                                (fn [i#] (if i# (inc i#) 1)))
+                                         label#)]
+                           (str (name (get ~opts :label "cljfn")) "_"  new-idx#))))]
+     (reduce
+      (fn [f# [k# apply#]]
+        (if-let [v# (get (assoc ~opts :name full-name#) k#)]
+          (apply# f# v#)
+          f#))
+      transform# ~schema)))
 
 (def base-schema
   {:name (fn [transform n] (.withName transform n))})
@@ -186,7 +189,8 @@
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-edn-file)]
      (-> pcoll
-         (.apply (write-edn-file-transform to opts)))))
+         (.apply (with-opts base-schema opts
+                   (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (comment
@@ -197,8 +201,8 @@
   (let [p (make-pipeline args)
         final (->> p
                    (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-                   (dgroup-by :key)
-                   (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) )
+                   (dgroup-by :key {:name :group-by})
+                   (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) {:name :normalize})
                    (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))]
 
     (.run p)))
