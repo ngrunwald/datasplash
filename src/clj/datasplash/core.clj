@@ -1,13 +1,15 @@
 (ns datasplash.core
   (:require [taoensso.nippy :as nippy :refer [thaw freeze]]
             [cognitect.transit :as transit])
-  (:import [datasplash.fns ClojureDoFn]
+  (:import [datasplash.fns ClojureDoFn ClojureSerializableFn]
            [java.io InputStream OutputStream]
            [java.util UUID]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
-           [com.google.cloud.dataflow.sdk.transforms DoFn DoFn$Context ParDo DoFnTester Create]
+           [com.google.cloud.dataflow.sdk.transforms
+            DoFn DoFn$Context ParDo DoFnTester Create
+            SerializableFunction WithKeys]
            [com.google.cloud.dataflow.sdk.values PCollection]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [datasplash.vals ClojureVal]
@@ -57,7 +59,6 @@
 
 (defmacro with-opts
   [schema opts & body]
-  (println opts)
   (let [full-name (name
                    (or (:name opts)
                        (do
@@ -76,13 +77,14 @@
 
 (defn map-op
   ([transform label coder]
-   (fn
-     [f options ^PCollection pcoll]
-     (let [opts (assoc options :label label)]
-       (-> pcoll
-           (.apply (with-opts base-schema opts
-                     (ParDo/of (dofn (transform f)))))
-           (.setCoder (or (:coder opts) coder))))))
+   (fn make-map-op
+     ([f options ^PCollection pcoll]
+      (let [opts (assoc options :label label)]
+        (-> pcoll
+            (.apply (with-opts base-schema opts
+                      (ParDo/of (dofn (transform f)))))
+            (.setCoder (or (:coder opts) coder)))))
+     ([f pcoll] (make-map-op f {} pcoll))))
   ([transform label]
    (map-op transform label (make-transit-coder))))
 
@@ -106,12 +108,29 @@
 
 (def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
 
+(defn sfn
+  ^SerializableFunction [f]
+  (ClojureSerializableFn. f))
+
+(defn with-keys
+  ([f options ^PCollection pcoll]
+   (let [opts (assoc options :label :with-keys)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (WithKeys/of (sfn f)))))))
+  ([f pcoll] (with-keys f {} pcoll)))
+
 (defn make-pipeline
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
                  (into-array String str-args))
-        options (.create builder)]
-    (Pipeline/create options)))
+        options (.create builder)
+        pipeline (Pipeline/create options)
+        coder-registry (.getCoderRegistry pipeline)]
+    (doto coder-registry
+      (.registerCoder clojure.lang.IPersistentCollection (make-transit-coder))
+      (.registerCoder clojure.lang.Keyword (make-transit-coder)))
+    pipeline))
 
 (defn load-text-file
   [from options ^Pipeline p]
@@ -136,9 +155,9 @@
   [& args]
   (let [p (make-pipeline args)
         final (->> p
-                   (generate-input (range 10000) {:name "gengen"})
-                   (dmap inc {:name "map"})
-                   (dfilter even? {:name "filter"})
+                   (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
+                   (with-keys :key {:name :group-by-key})
+                   (dmap (fn [kv] (vector (.getKey kv) (.getValue kv))) )
                    (to-edn {:name "edn"})
                    (write-text-file "tee"))]
 
