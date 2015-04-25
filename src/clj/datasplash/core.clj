@@ -8,7 +8,7 @@
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
            [com.google.cloud.dataflow.sdk.transforms
-            DoFn DoFn$Context ParDo DoFnTester Create
+            DoFn DoFn$Context ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey]
            [com.google.cloud.dataflow.sdk.values PCollection]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
@@ -129,6 +129,22 @@
          (.apply (GroupByKey/create)))))
   ([pcoll] (group-by-key {} pcoll)))
 
+(defn- group-by-transform
+  [f options]
+  (let [safe-opts (dissoc options :name)]
+    (proxy [PTransform] []
+      (apply [^PCollection pcoll]
+        (->> pcoll
+             (with-keys f safe-opts)
+             (group-by-key safe-opts))))))
+
+(defn dgroup-by
+  ([f options ^PCollection pcoll]
+   (let [opts (assoc options :label :group-by)]
+     (.apply pcoll (with-opts base-schema opts
+                     (group-by-transform f options)))))
+  ([f pcoll] (dgroup-by f {} pcoll)))
+
 (defn make-pipeline
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
@@ -157,6 +173,22 @@
                    (TextIO$Write/to to))))))
   ([to pcoll] (write-text-file to {} pcoll)))
 
+(defn- write-edn-file-transform
+  [to options]
+  (let [safe-opts (dissoc options :name)]
+    (proxy [PTransform] []
+      (apply [^PCollection pcoll]
+        (->> pcoll
+             (to-edn)
+             (write-text-file to options))))))
+
+(defn write-edn-file
+  ([to options ^PCollection pcoll]
+   (let [opts (assoc options :label :write-edn-file)]
+     (-> pcoll
+         (.apply (write-edn-file-transform to opts)))))
+  ([to pcoll] (write-edn-file to {} pcoll)))
+
 (comment
   (compile 'datasplash.core))
 
@@ -165,10 +197,8 @@
   (let [p (make-pipeline args)
         final (->> p
                    (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-                   (with-keys :key {:name :group-by-key})
-                   (group-by-key)
-                   (dmap (fn [kv] (vector (.getKey kv) (.getValue kv))) )
-                   (to-edn {:name "edn"})
-                   (write-text-file "tee"))]
+                   (dgroup-by :key)
+                   (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) )
+                   (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))]
 
     (.run p)))
