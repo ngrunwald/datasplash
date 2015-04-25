@@ -9,7 +9,7 @@
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create
-            SerializableFunction WithKeys]
+            SerializableFunction WithKeys GroupByKey]
            [com.google.cloud.dataflow.sdk.values PCollection]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [datasplash.vals ClojureVal]
@@ -55,7 +55,9 @@
     (decode [^InputStream in ^Coder$Context context]
       (require '[cognitect.transit :as transit])
       (let [rdr (transit/reader in :msgpack)]
-        (transit/read rdr)))))
+        (transit/read rdr)))
+    (verifyDeterministic [] nil)
+    (consistentWithEquals [] true)))
 
 (defmacro with-opts
   [schema opts & body]
@@ -120,6 +122,13 @@
                    (WithKeys/of (sfn f)))))))
   ([f pcoll] (with-keys f {} pcoll)))
 
+(defn group-by-key
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :group-by-keys)]
+     (-> pcoll
+         (.apply (GroupByKey/create)))))
+  ([pcoll] (group-by-key {} pcoll)))
+
 (defn make-pipeline
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
@@ -157,6 +166,7 @@
         final (->> p
                    (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
                    (with-keys :key {:name :group-by-key})
+                   (group-by-key)
                    (dmap (fn [kv] (vector (.getKey kv) (.getValue kv))) )
                    (to-edn {:name "edn"})
                    (write-text-file "tee"))]
