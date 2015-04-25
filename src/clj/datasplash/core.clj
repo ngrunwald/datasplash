@@ -3,6 +3,7 @@
             [cognitect.transit :as transit])
   (:import [datasplash.fns ClojureDoFn]
            [java.io InputStream OutputStream]
+           [java.util UUID]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
@@ -12,6 +13,8 @@
            [datasplash.vals ClojureVal]
            [datasplash.coders ClojureCoder])
   (:gen-class))
+
+(def ops-counter (atom 0))
 
 (defn dofn
   [f & {:keys [start-bundle finish-bundle] :as opts}]
@@ -54,38 +57,46 @@
 
 (defmacro with-opts
   [schema opts & body]
-  `(let [transform# (do ~@body)]
-     (reduce
-      (fn [f# [k# apply#]]
-        (if-let [v# (get ~opts k#)]
-          (apply# f# v#)
-          f#))
-      transform# ~schema)))
+  (println opts)
+  (let [full-name (name
+                   (or (:name opts)
+                       (do
+                         (swap! ops-counter inc)
+                         (str (name (get opts :label "cljfn")) "_" @ops-counter))))]
+    `(let [transform# (do ~@body)]
+       (reduce
+        (fn [f# [k# apply#]]
+          (if-let [v# (get (assoc ~opts :name ~full-name) k#)]
+            (apply# f# v#)
+            f#))
+        transform# ~schema))))
 
 (def base-schema
   {:name (fn [transform n] (.withName transform n))})
 
 (defn map-op
-  ([transform coder]
+  ([transform label coder]
    (fn
-     [f opts ^PCollection pcoll]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (ParDo/of (dofn (transform f)))))
-         (.setCoder (or (:coder opts) coder)))))
-  ([transform]
-   (map-op transform (make-transit-coder))))
+     [f options ^PCollection pcoll]
+     (let [opts (assoc options :label label)]
+       (-> pcoll
+           (.apply (with-opts base-schema opts
+                     (ParDo/of (dofn (transform f)))))
+           (.setCoder (or (:coder opts) coder))))))
+  ([transform label]
+   (map-op transform label (make-transit-coder))))
 
-(def dmap (map-op map-fn))
-(def dmapcat (map-op mapcat-fn))
-(def dfilter (map-op filter-fn))
+(def dmap (map-op map-fn :map))
+(def dmapcat (map-op mapcat-fn :mapcat))
+(def dfilter (map-op filter-fn :filter))
 
 (defn generate-input
-  [coll opts ^Pipeline p]
-  (-> p
-      (.apply (with-opts base-schema opts
-                (Create/of (seq coll))))
-      (.setCoder (or (:coder opts) (make-transit-coder)))))
+  [coll options ^Pipeline p]
+  (let [opts (assoc options :label :generate-input)]
+    (-> p
+        (.apply (with-opts base-schema opts
+                  (Create/of (seq coll))))
+        (.setCoder (or (:coder opts) (make-transit-coder))))))
 
 (defn- to-edn*
   [^DoFn$Context c]
@@ -93,7 +104,7 @@
         result (pr-str elt)]
     (.output c result)))
 
-(def to-edn (partial (map-op identity (StringUtf8Coder/of)) to-edn*))
+(def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
 
 (defn make-pipeline
   [str-args]
@@ -103,17 +114,19 @@
     (Pipeline/create options)))
 
 (defn load-text-file
-  [from opts ^Pipeline p]
-  (-> p
-      (.apply (with-opts base-schema opts
-                (TextIO$Read/from from)))
-      (.setCoder (StringUtf8Coder/of))))
+  [from options ^Pipeline p]
+  (let [opts (assoc options :label :load-text-file)]
+    (-> p
+        (.apply (with-opts base-schema opts
+                  (TextIO$Read/from from)))
+        (.setCoder (StringUtf8Coder/of)))))
 
 (defn write-text-file
-  ([to opts ^PCollection pcoll]
-   (-> pcoll
-       (.apply (with-opts base-schema opts
-                 (TextIO$Write/to to)))))
+  ([to options ^PCollection pcoll]
+   (let [opts (assoc options :label :write-text-file)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (TextIO$Write/to to))))))
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (comment
@@ -123,10 +136,10 @@
   [& args]
   (let [p (make-pipeline args)
         final (->> p
-                   (generate-input (range 10000) {:named "gengen"})
-                   (dmap inc {:named "map"})
-                   (dfilter even? {:named "filter"})
-                   (to-edn {:named "edn"})
+                   (generate-input (range 10000) {:name "gengen"})
+                   (dmap inc {:name "map"})
+                   (dfilter even? {:name "filter"})
+                   (to-edn {:name "edn"})
                    (write-text-file "tee"))]
 
     (.run p)))
