@@ -218,17 +218,32 @@
                                  (let [k (.getKey elt)
                                        raw-values (.getValue elt)
                                        values (for [tag ordered-tags]
-                                                (seq (.getAll raw-values tag)))]
-                                   (conj values k))) opts rel)]
+                                                (into [] (first (.getAll raw-values tag))))]
+                                   (into [] (conj values k)))) opts rel)]
            final-rel))))))
 
-(defn raw-cogroup
+(defn cogroup
   [options pcolls]
-  (let [opts (assoc options :label :raw-cogroup)
+  (let [opts (assoc options :label :cogroup)
         pcolltuple (make-keyed-pcollection-tuple pcolls)]
     (-> pcolltuple
         (.apply (with-opts base-schema opts
                   (cogroup-transform opts))))))
+
+(defn cogroup-by
+  [options specs]
+  (let [operations (for [[pcoll f type] specs]
+                     [(dgroup-by f options pcoll) type])
+        required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
+        pcolls (map first operations)
+        grouped-coll (cogroup options pcolls)]
+    (if (empty? required-idx)
+      grouped-coll
+      (dfilter (fn [[_ all-vals]]
+                 (let [idx-vals (into [] all-vals)]
+                   (every? #(not (empty? (get idx-vals %))) required-idx)))
+               options
+               grouped-coll))))
 
 (comment
   (compile 'datasplash.core))
@@ -237,13 +252,19 @@
   [& args]
   (let [p (make-pipeline args)
         first-in (->> p
-                      (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
-                      (dgroup-by :key {:name :group-by-fi}))
+                      (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42} {:key :c :val "never"}] {:name "gengen1"}))
         second-in (->> p
-                       (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-                       (dgroup-by :key {:name :group-by}))
-        final (->> (raw-cogroup {:name :join} [first-in second-in])
-                   (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
+                       (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"}))
+        final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key ]])
+                   (write-edn-file "tessst.edn" {:name :output-edn}))
+        ;; first-in (->> p
+        ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
+        ;;               (dgroup-by :key {:name :group-by-fi}))
+        ;; second-in (->> p
+        ;;                (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
+        ;;                (dgroup-by :key {:name :group-by}))
+        ;; final (->> (cogroup {:name :join} [first-in second-in])
+        ;;            (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
         ;; final (->> p
         ;;            (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
         ;;            (dgroup-by :key {:name :group-by})
