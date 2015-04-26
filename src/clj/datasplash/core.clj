@@ -10,10 +10,9 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey]
-           [com.google.cloud.dataflow.sdk.values PCollection]
+           [com.google.cloud.dataflow.sdk.values PCollection TupleTag]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
-           [datasplash.vals ClojureVal]
-           [datasplash.coders ClojureCoder])
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
 
 (def ops-counter (atom {}))
@@ -193,16 +192,63 @@
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
+(defn make-keyed-pcollection-tuple
+  [pcolls]
+  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
+    (reduce
+     (fn [coll-tuple [idx pcoll]]
+       (let [tag (TupleTag. (str idx))
+             new-coll-tuple (.and coll-tuple tag pcoll)]
+         new-coll-tuple))
+     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
+
+(defn cogroup-transform
+  ([options]
+   (let [opts (-> options
+                  (assoc :label :raw-cogroup)
+                  (dissoc :name))]
+     (proxy [PTransform] []
+       (apply [^KeyedPCollectionTuple pcolltuple]
+         (let [ordered-tags (->> pcolltuple
+                                 (.getKeyedCollections)
+                                 (map #(.getTupleTag %))
+                                 (sort-by #(.getId %)))
+               rel (.apply pcolltuple (with-opts base-schema opts (CoGroupByKey/create)))
+               final-rel (dmap (fn [elt]
+                                 (let [k (.getKey elt)
+                                       raw-values (.getValue elt)
+                                       values (for [tag ordered-tags]
+                                                (seq (.getAll raw-values tag)))]
+                                   (conj values k))) opts rel)]
+           final-rel))))))
+
+(defn raw-cogroup
+  [options pcolls]
+  (let [opts (assoc options :label :raw-cogroup)
+        pcolltuple (make-keyed-pcollection-tuple pcolls)]
+    (-> pcolltuple
+        (.apply (with-opts base-schema opts
+                  (cogroup-transform opts))))))
+
 (comment
   (compile 'datasplash.core))
 
 (defn -main
   [& args]
   (let [p (make-pipeline args)
-        final (->> p
-                   (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-                   (dgroup-by :key {:name :group-by})
-                   (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) {:name :normalize})
-                   (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))]
+        first-in (->> p
+                      (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
+                      (dgroup-by :key {:name :group-by-fi}))
+        second-in (->> p
+                       (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
+                       (dgroup-by :key {:name :group-by}))
+        final (->> (raw-cogroup {:name :join} [first-in second-in])
+                   (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
+        ;; final (->> p
+        ;;            (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
+        ;;            (dgroup-by :key {:name :group-by})
+        ;;            (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) {:name :normalize})
+        ;;            (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
+        ]
 
     (.run p)))
