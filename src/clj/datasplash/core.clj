@@ -9,7 +9,7 @@
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
-            SerializableFunction WithKeys GroupByKey]
+            SerializableFunction WithKeys GroupByKey RemoveDuplicates]
            [com.google.cloud.dataflow.sdk.values PCollection TupleTag PBegin]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
@@ -273,3 +273,10 @@
        (dmap reduce-fn options filtered-coll)
        filtered-coll)))
   ([options specs] (cogroup-by options specs nil)))
+
+(defn ddistinct
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :distinct)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (RemoveDuplicates/create)))))))
