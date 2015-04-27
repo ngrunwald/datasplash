@@ -181,7 +181,8 @@
    (let [opts (assoc options :label :read-text-file)]
      (-> p
          (.apply (with-opts base-schema opts
-                   (TextIO$Read/from from))))))
+                   (TextIO$Read/from from)))
+         (.setCoder (StringUtf8Coder/of)))))
   ([from p] (read-text-file from {} p)))
 
 (defn- read-edn-file-transform
@@ -272,35 +273,3 @@
        (dmap reduce-fn options filtered-coll)
        filtered-coll)))
   ([options specs] (cogroup-by options specs nil)))
-
-(comment
-  (compile 'datasplash.core))
-
-(defn -main
-  [& args]
-  (let [p (make-pipeline args)
-        proc (->> p
-                  (read-edn-file "sample.edn" {:name :input-edn})
-                  (dfilter (fn [{:keys [last-state] :as all}] (println all) (= last-state :sent)))
-                  (write-edn-file "tessst.edn" {:name :output-edn}))
-        ;; first-in (->> p
-        ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42} {:key :c :val "never"}] {:name "gengen1"}))
-        ;; second-in (->> p
-        ;;                (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"}))
-        ;; final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key :required]] (fn [[k res]] (apply merge res)))
-        ;;            (write-edn-file "tessst.edn" {:name :output-edn}))
-        ;; first-in (->> p
-        ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
-        ;;               (dgroup-by :key {:name :group-by-fi}))
-        ;; second-in (->> p
-        ;;                (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-        ;;                (dgroup-by :key {:name :group-by}))
-        ;; final (->> (cogroup {:name :join} [first-in second-in])
-        ;;            (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
-        ;; final (->> p
-        ;;            (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"})
-        ;;            (dgroup-by :key {:name :group-by})
-        ;;            (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) {:name :normalize})
-        ;;            (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
-        ]
-    (.run p)))
