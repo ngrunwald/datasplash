@@ -231,19 +231,23 @@
                   (cogroup-transform opts))))))
 
 (defn cogroup-by
-  [options specs]
-  (let [operations (for [[pcoll f type] specs]
-                     [(dgroup-by f options pcoll) type])
-        required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
-        pcolls (map first operations)
-        grouped-coll (cogroup options pcolls)]
-    (if (empty? required-idx)
-      grouped-coll
-      (dfilter (fn [[_ all-vals]]
-                 (let [idx-vals (into [] all-vals)]
-                   (every? #(not (empty? (get idx-vals %))) required-idx)))
-               options
-               grouped-coll))))
+  ([options specs reduce-fn]
+   (let [operations (for [[pcoll f type] specs]
+                      [(dgroup-by f options pcoll) type])
+         required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
+         pcolls (map first operations)
+         grouped-coll (cogroup options pcolls)
+         filtered-coll (if (empty? required-idx)
+                         grouped-coll
+                         (dfilter (fn [[_ all-vals]]
+                                    (let [idx-vals (into [] all-vals)]
+                                      (every? #(not (empty? (get idx-vals %))) required-idx)))
+                                  options
+                                  grouped-coll))]
+     (if reduce-fn
+       (dmap reduce-fn options filtered-coll)
+       filtered-coll)))
+  ([options specs] (cogroup-by options specs nil)))
 
 (comment
   (compile 'datasplash.core))
@@ -255,7 +259,7 @@
                       (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42} {:key :c :val "never"}] {:name "gengen1"}))
         second-in (->> p
                        (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"}))
-        final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key ]])
+        final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key :required]] (fn [[k res]] (apply merge res)))
                    (write-edn-file "tessst.edn" {:name :output-edn}))
         ;; first-in (->> p
         ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
@@ -271,5 +275,4 @@
         ;;            (dmap (fn [kv] (vector (.getKey kv) (seq (.getValue kv)))) {:name :normalize})
         ;;            (write-edn-file "gs://oscaro-test-dataflow/results/group-by.edn" {:name :output-edn}))
         ]
-
     (.run p)))
