@@ -1,6 +1,6 @@
 (ns datasplash.core
-  (:require [taoensso.nippy :as nippy :refer [thaw freeze]]
-            [cognitect.transit :as transit])
+  (:require [cognitect.transit :as transit]
+            [clojure.edn :as edn])
   (:import [datasplash.fns ClojureDoFn ClojureSerializableFn]
            [java.io InputStream OutputStream]
            [java.util UUID]
@@ -10,7 +10,7 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey]
-           [com.google.cloud.dataflow.sdk.values PCollection TupleTag]
+           [com.google.cloud.dataflow.sdk.values PCollection TupleTag PBegin]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
@@ -111,6 +111,7 @@
     (.output c result)))
 
 (def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
+(def from-edn (partial dmap #(edn/read-string %)))
 
 (defn sfn
   ^SerializableFunction [f]
@@ -175,13 +176,38 @@
                    (TextIO$Write/to to))))))
   ([to pcoll] (write-text-file to {} pcoll)))
 
+(defn read-text-file
+  ([from options ^PBegin p]
+   (let [opts (assoc options :label :read-text-file)]
+     (-> p
+         (.apply (with-opts base-schema opts
+                   (TextIO$Read/from from))))))
+  ([from p] (read-text-file from {} p)))
+
+(defn- read-edn-file-transform
+  [from options]
+  (let [safe-opts (dissoc options :name)]
+    (proxy [PTransform] []
+      (apply [p]
+        (->> p
+             (read-text-file from options)
+             (from-edn options))))))
+
+(defn read-edn-file
+  ([from options ^Pipeline p]
+   (let [opts (assoc options :label :read-edn-file)]
+     (-> p
+         (.apply (with-opts base-schema opts
+                   (read-edn-file-transform from opts))))))
+  ([from p] (read-edn-file from {} p)))
+
 (defn- write-edn-file-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
     (proxy [PTransform] []
       (apply [^PCollection pcoll]
         (->> pcoll
-             (to-edn)
+             (to-edn options)
              (write-text-file to options))))))
 
 (defn write-edn-file
@@ -204,9 +230,7 @@
 
 (defn cogroup-transform
   ([options]
-   (let [opts (-> options
-                  (assoc :label :raw-cogroup)
-                  (dissoc :name))]
+   (let [opts (assoc options :label :raw-cogroup)]
      (proxy [PTransform] []
        (apply [^KeyedPCollectionTuple pcolltuple]
          (let [ordered-tags (->> pcolltuple
@@ -255,12 +279,16 @@
 (defn -main
   [& args]
   (let [p (make-pipeline args)
-        first-in (->> p
-                      (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42} {:key :c :val "never"}] {:name "gengen1"}))
-        second-in (->> p
-                       (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"}))
-        final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key :required]] (fn [[k res]] (apply merge res)))
-                   (write-edn-file "tessst.edn" {:name :output-edn}))
+        proc (->> p
+                  (read-edn-file "sample.edn" {:name :input-edn})
+                  (dfilter (fn [{:keys [last-state] :as all}] (println all) (= last-state :sent)))
+                  (write-edn-file "tessst.edn" {:name :output-edn}))
+        ;; first-in (->> p
+        ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42} {:key :c :val "never"}] {:name "gengen1"}))
+        ;; second-in (->> p
+        ;;                (generate-input [{:key :a :val 10} {:key :b :val 5} {:key :a :val 42}] {:name "gengen"}))
+        ;; final (->> (cogroup-by {:name :join} [[first-in :key] [second-in :key :required]] (fn [[k res]] (apply merge res)))
+        ;;            (write-edn-file "tessst.edn" {:name :output-edn}))
         ;; first-in (->> p
         ;;               (generate-input [{:key :a :foo 12} {:key :b :foo 5} {:key :a :foo 42}] {:name "gengen1"})
         ;;               (dgroup-by :key {:name :group-by-fi}))
