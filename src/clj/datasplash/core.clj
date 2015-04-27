@@ -9,8 +9,9 @@
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
-            SerializableFunction WithKeys GroupByKey RemoveDuplicates]
-           [com.google.cloud.dataflow.sdk.values PCollection TupleTag PBegin]
+            SerializableFunction WithKeys GroupByKey RemoveDuplicates
+            Flatten]
+           [com.google.cloud.dataflow.sdk.values PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
@@ -279,4 +280,27 @@
    (let [opts (assoc options :label :distinct)]
      (-> pcoll
          (.apply (with-opts base-schema opts
-                   (RemoveDuplicates/create)))))))
+                   (RemoveDuplicates/create))))))
+  ([pcoll] (ddistinct {} pcoll)))
+
+(defn dflatten
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :flatten)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (Flatten/iterables))))))
+  ([pcoll] (dflatten {} pcoll)))
+
+(defn dconcat
+  [options & colls]
+  (let [[real-options ^Iterable all-colls]
+        (if (map? options)
+          [options colls]
+          [{} (conj colls options)])
+        opts (assoc real-options :label :concat)
+        coll-list (if (and (= 1 (count all-colls)) (instance? PCollectionList (first all-colls)))
+                    (first all-colls)
+                    (PCollectionList/of all-colls))]
+    (-> coll-list
+        (.apply (with-opts base-schema opts
+                  (Flatten/pCollections))))))
