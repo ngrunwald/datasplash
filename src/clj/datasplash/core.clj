@@ -10,13 +10,17 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten]
-           [com.google.cloud.dataflow.sdk.values PCollection TupleTag PBegin PCollectionList]
+            Flatten Combine$CombineFn]
+           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
 
 (def ops-counter (atom {}))
+
+
+(defmethod print-method KV [^KV kv ^java.io.Writer w]
+  (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
 
 (defn dofn
   [f & {:keys [start-bundle finish-bundle] :as opts}]
@@ -98,12 +102,13 @@
 (def dfilter (map-op filter-fn :filter))
 
 (defn generate-input
-  [coll options ^Pipeline p]
-  (let [opts (assoc options :label :generate-input)]
-    (-> p
-        (.apply (with-opts base-schema opts
-                  (Create/of (seq coll))))
-        (.setCoder (or (:coder opts) (make-transit-coder))))))
+  ([coll options ^Pipeline p]
+   (let [opts (assoc options :label :generate-input)]
+     (-> p
+         (.apply (with-opts base-schema opts
+                   (Create/of (seq coll))))
+         (.setCoder (or (:coder opts) (make-transit-coder))))))
+  ([coll p] (generate-input coll {} p)))
 
 (defn- to-edn*
   [^DoFn$Context c]
@@ -117,6 +122,18 @@
 (defn sfn
   ^SerializableFunction [f]
   (ClojureSerializableFn. f))
+
+(defn combine-fn
+  ([reducef extractf combinef initf]
+   (proxy [Combine$CombineFn] []
+     (createAccumulator [] (volatile! (initf)))
+     (addInput [acc elt] (let [res (reducef @acc elt)]
+                           (vreset! acc res)))
+     (mergeAccumulators [accs] (volatile! (apply combinef (map deref accs))))
+     (extractOutput [acc] (extractf @acc))))
+  ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
+  ([reducef extractf] (combine-fn reducef extractf reducef))
+  ([reducef] (combine-fn reducef identity)))
 
 (defn with-keys
   ([f options ^PCollection pcoll]

@@ -4,6 +4,7 @@
   (:require [datasplash.core :as dt])
   (:gen-class))
 
+(def generate-input dt/generate-input)
 (def map dt/dmap)
 (def filter dt/dfilter)
 (def mapcat dt/dmapcat)

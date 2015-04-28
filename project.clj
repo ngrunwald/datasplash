@@ -6,7 +6,11 @@
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :aot :all
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.7.0-beta2"]
                  [com.google.cloud.dataflow/google-cloud-dataflow-java-sdk-all "0.4.150414"]
                  [com.taoensso/nippy "2.8.0"]
-                 [com.cognitect/transit-clj "0.8.271"]])
+                 [com.cognitect/transit-clj "0.8.271"]]
+  :profiles {:dev {:dependencies [[org.hamcrest/hamcrest-all "1.3"]
+                                  [junit/junit "4.12"]
+                                  [me.raynes/fs "1.4.6"]]
+                   :aot [datasplash.api-test]}})
