@@ -7,7 +7,7 @@
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
            [com.google.cloud.dataflow.sdk.transforms
-            DoFn DoFn$Context ParDo DoFnTester Create PTransform
+            DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
             Flatten Combine$CombineFn Combine Sum]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
@@ -17,26 +17,29 @@
 
 (def ops-counter (atom {}))
 
-
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
 
 (defn dofn
-  ^DoFn  [f & {:keys [start-bundle finish-bundle] :as opts}]
+  ^DoFn [f & {:keys [start-bundle finish-bundle]
+              :or {start-bundle (fn [_] nil)
+                   finish-bundle (fn [_] nil)}
+              :as opts}]
   (proxy [DoFn] []
-    (processElement [context]
-      (f context))))
+    (processElement [^DoFn$ProcessContext context] (f context))
+    (startBundle [^DoFn$Context context] (start-bundle context))
+    (finishBundle [^DoFn$Context context] (finish-bundle context))))
 
 (defn map-fn
   [f]
-  (fn [^DoFn$Context c]
+  (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
           result (f elt)]
       (.output c result))))
 
 (defn mapcat-fn
   [f]
-  (fn [^DoFn$Context c]
+  (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
           result (f elt)]
       (doseq [atm result]
@@ -44,7 +47,7 @@
 
 (defn filter-fn
   [f]
-  (fn [^DoFn$Context c]
+  (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
           result (f elt)]
       (when result
