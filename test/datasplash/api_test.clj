@@ -54,3 +54,17 @@
       (let [res (into #{} (read-file (first (glob-file group-test))))]
         (is (res [:a [{:key :a :lue 65} {:key :a :val 42}]]))
         (is (res [:b [{:key :b :val 56}]]))))))
+
+(deftest cogroup-test
+  (with-files [cogroup-test]
+    (let [p (TestPipeline/create)
+          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
+          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] p)
+          grouped (ds/cogroup-by {:name "cogroup-test"}
+                                 [[input1 :key] [input2 :key]])
+          output (ds/write-edn-file cogroup-test grouped)]
+      (.run p)
+      (is "cogroup-test" (.getName grouped))
+      (let [res (into #{} (read-file (first (glob-file cogroup-test))))]
+        (is (= res #{[:a [{:key :a, :lue 65} {:key :a, :val 42}] [{:key :a, :uel 65} {:key :a, :lav 42}]]
+                     [:c [] [{:key :c, :foo 42}]] [:b [{:key :b, :val 56}] []]}))))))
