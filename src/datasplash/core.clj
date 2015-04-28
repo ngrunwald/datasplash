@@ -1,8 +1,7 @@
 (ns datasplash.core
   (:require [cognitect.transit :as transit]
             [clojure.edn :as edn])
-  (:import [datasplash.fns ClojureDoFn ClojureSerializableFn]
-           [java.io InputStream OutputStream]
+  (:import [java.io InputStream OutputStream]
            [java.util UUID]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
@@ -12,7 +11,7 @@
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
             Flatten Combine$CombineFn Combine Sum]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
-           [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
+           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
 
@@ -23,8 +22,10 @@
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
 
 (defn dofn
-  [f & {:keys [start-bundle finish-bundle] :as opts}]
-  (ClojureDoFn. f))
+  ^DoFn  [f & {:keys [start-bundle finish-bundle] :as opts}]
+  (proxy [DoFn] []
+    (processElement [context]
+      (f context))))
 
 (defn map-fn
   [f]
@@ -120,10 +121,14 @@
 (def from-edn (partial dmap #(edn/read-string %)))
 
 (defn sfn
-  ^SerializableFunction [f]
-  (ClojureSerializableFn. f))
+  ^SerializableFunction
+  [f]
+  (proxy [SerializableFunction] []
+    (apply [input]
+      (f input))))
 
 (defn combine-fn
+  ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
    (proxy [Combine$CombineFn] []
      (createAccumulator [] (initf))
@@ -139,11 +144,14 @@
   ([reducef] (combine-fn reducef identity)))
 
 (defn with-keys
-  ([f options ^PCollection pcoll]
+  ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label :with-keys)]
      (-> pcoll
          (.apply (with-opts base-schema opts
-                   (WithKeys/of (sfn f)))))))
+                   (WithKeys/of (sfn f))))
+         (.setCoder (KvCoder/of
+                     (or key-coder (make-transit-coder))
+                     (or value-coder (make-transit-coder)))))))
   ([f pcoll] (with-keys f {} pcoll)))
 
 (defn group-by-key

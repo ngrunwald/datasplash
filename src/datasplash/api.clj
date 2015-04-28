@@ -4,6 +4,7 @@
   (:require [datasplash.core :as dt])
   (:gen-class))
 
+(def make-transit-coder dt/make-transit-coder)
 (def generate-input dt/generate-input)
 (def map dt/dmap)
 (def filter dt/dfilter)

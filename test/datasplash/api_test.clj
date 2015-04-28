@@ -32,8 +32,17 @@
           acc
           (recur (conj acc line)))))))
 
-(deftest basic-pipeline
+(defn make-test-pipeline
+  []
   (let [p (TestPipeline/create)
+        coder-registry (.getCoderRegistry p)]
+    (doto coder-registry
+      (.registerCoder clojure.lang.IPersistentCollection (ds/make-transit-coder))
+      (.registerCoder clojure.lang.Keyword (ds/make-transit-coder)))
+    p))
+
+(deftest basic-pipeline
+  (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
         proc (ds/map inc {:name "increment"} input)
         filter (ds/filter even? proc)]
@@ -45,7 +54,7 @@
 
 (deftest group-test
   (with-files [group-test]
-    (let [p (TestPipeline/create)
+    (let [p (make-test-pipeline)
           input (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
           grouped (ds/group-by :key {:name "group"} input)
           output (ds/write-edn-file group-test grouped)]
@@ -57,7 +66,7 @@
 
 (deftest cogroup-test
   (with-files [cogroup-test]
-    (let [p (TestPipeline/create)
+    (let [p (make-test-pipeline)
           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
           input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] p)
           grouped (ds/cogroup-by {:name "cogroup-test"}
@@ -70,7 +79,7 @@
                      [:c [] [{:key :c, :foo 42}]] [:b [{:key :b, :val 56}] []]}))))))
 
 (deftest combine-pipeline
-  (let [p (TestPipeline/create)
+  (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
         proc (ds/combine-globally + {:name "combine"} input)]
     ;; (.. DataflowAssert (that input) (containsInAnyOrder #{1 2 3 4 5}))
