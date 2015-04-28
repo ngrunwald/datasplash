@@ -10,7 +10,7 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten Combine$CombineFn]
+            Flatten Combine$CombineFn Combine Sum]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.coders ByteArrayCoder StringUtf8Coder CustomCoder Coder$Context]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
@@ -124,13 +124,16 @@
   (ClojureSerializableFn. f))
 
 (defn combine-fn
-  ([reducef extractf combinef initf]
+  ([reducef extractf combinef initf output-coder acc-coder]
    (proxy [Combine$CombineFn] []
-     (createAccumulator [] (volatile! (initf)))
-     (addInput [acc elt] (let [res (reducef @acc elt)]
-                           (vreset! acc res)))
-     (mergeAccumulators [accs] (volatile! (apply combinef (map deref accs))))
-     (extractOutput [acc] (extractf @acc))))
+     (createAccumulator [] (initf))
+     (addInput [acc elt] (reducef acc elt))
+     (mergeAccumulators [accs] (apply combinef accs))
+     (extractOutput [acc] (extractf acc))
+     (getDefaultOutputCoder [_ _] output-coder)
+     (getAccumulatorCoder [_ _] acc-coder)))
+  ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-transit-coder)))
+  ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-transit-coder)))
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
   ([reducef extractf] (combine-fn reducef extractf reducef))
   ([reducef] (combine-fn reducef identity)))
@@ -321,3 +324,20 @@
     (-> coll-list
         (.apply (with-opts base-schema opts
                   (Flatten/pCollections))))))
+
+(defn combine-globally
+  ([f options ^PCollection pcoll]
+   (let [opts (assoc options :label :combine-globally)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (Combine/globally (combine-fn f))))
+         (.setCoder (make-transit-coder)))))
+  ([f pcoll] (combine-globally f {} pcoll)))
+
+(defn sum
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :sum)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (Sum/longsGlobally))))))
+  ([pcoll] (sum {} pcoll)))

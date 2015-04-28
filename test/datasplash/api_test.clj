@@ -68,3 +68,13 @@
       (let [res (into #{} (read-file (first (glob-file cogroup-test))))]
         (is (= res #{[:a [{:key :a, :lue 65} {:key :a, :val 42}] [{:key :a, :uel 65} {:key :a, :lav 42}]]
                      [:c [] [{:key :c, :foo 42}]] [:b [{:key :b, :val 56}] []]}))))))
+
+(deftest combine-pipeline
+  (let [p (TestPipeline/create)
+        input (ds/generate-input [1 2 3 4 5] p)
+        proc (ds/combine-globally + {:name "combine"} input)]
+    ;; (.. DataflowAssert (that input) (containsInAnyOrder #{1 2 3 4 5}))
+    ;; (.. DataflowAssert (that proc) (containsInAnyOrder #{2 3 4 5 6}))
+    (.. DataflowAssert (that proc) (containsInAnyOrder #{15}))
+    (is "combine" (.getName proc))
+    (.run p)))

@@ -23,3 +23,5 @@
 (def distinct dt/ddistinct)
 (def flatten dt/dflatten)
 (def concat dt/dconcat)
+(def combine-globally dt/combine-globally)
+(def sum dt/sum)
