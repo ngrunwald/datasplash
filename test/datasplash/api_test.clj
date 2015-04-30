@@ -52,6 +52,18 @@
     (is "increment" (.getName proc))
     (.run p)))
 
+
+(deftest side-test
+  (with-files [side-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] p)
+          side-input (ds/make-singleton-view (ds/generate-input {1 :toto 2 :tata 3 :hello 4 :bye } p))
+          proc (ds/map-side (fn [x side] (concat (get side x) x)) {:name "concat"} input side-input)
+          output (ds/write-edn-file side-test proc)]
+      (.run p))
+    (let [res (read-file (first (glob-file side-test)))]
+      (println res))))
+
 (deftest group-test
   (with-files [group-test]
     (let [p (make-test-pipeline)

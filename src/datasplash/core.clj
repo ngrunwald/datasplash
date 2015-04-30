@@ -6,10 +6,11 @@
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
+
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten Combine$CombineFn Combine Sum]
+            Flatten Combine$CombineFn Combine Sum View]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
@@ -35,6 +36,14 @@
   (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
           result (f elt)]
+      (.output c result))))
+
+(defn map-side-fn
+  [f side-obj]
+  (fn [^DoFn$ProcessContext c]
+    (let [elt (.element c)
+          side (.sideinput c side-obj)
+          result (f elt side)]
       (.output c result))))
 
 (defn mapcat-fn
@@ -86,7 +95,23 @@
       transform# ~schema)))
 
 (def base-schema
-  {:name (fn [transform n] (.withName transform n))})
+  {:name (fn [transform n] (.withName transform n))
+   :side-input (fn [transform side] (.withSideInputs transform side))})
+
+
+
+(defn make-map-side
+  ([coder]
+   (fn make-map-op
+     ([f options ^PCollection pcoll ^PCollection side-coll]
+      (let [opts (assoc options :label :map-side :side-input side-coll)]
+        (-> pcoll
+            (.apply (with-opts base-schema opts
+                      (ParDo/of (dofn (map-side-fn f side-coll)))))
+            (.setCoder (or (:coder opts) coder)))))
+     ([f pcoll] (make-map-op f {} pcoll))))
+  ([]
+   (make-map-side (make-transit-coder))))
 
 (defn map-op
   ([transform label coder]
@@ -102,6 +127,7 @@
    (map-op transform label (make-transit-coder))))
 
 (def dmap (map-op map-fn :map))
+(def dmap-side (make-map-side))
 (def dmapcat (map-op mapcat-fn :mapcat))
 (def dfilter (map-op filter-fn :filter))
 
@@ -113,6 +139,14 @@
                    (Create/of (seq coll))))
          (.setCoder (or (:coder opts) (make-transit-coder))))))
   ([coll p] (generate-input coll {} p)))
+
+(defn make-singleton-view
+  ([pcoll options]
+   (let [opts (assoc options :label :singleton-view)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (View/asSingleton))))))
+  ([pcoll] (make-singleton-view pcoll {})))
 
 (defn- to-edn*
   [^DoFn$Context c]

@@ -6,6 +6,8 @@
 
 (def make-transit-coder dt/make-transit-coder)
 (def generate-input dt/generate-input)
+(def make-singleton-view dt/make-singleton-view)
+(def map-side dt/dmap-side)
 (def map dt/dmap)
 (def filter dt/dfilter)
 (def mapcat dt/dmapcat)
