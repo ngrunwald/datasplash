@@ -38,21 +38,18 @@
           result (f elt)]
       (.output c result))))
 
-(defn map-side-fn
-  [f side-obj]
-  (fn [^DoFn$ProcessContext c]
-    (let [elt (.element c)
-          side (.sideinput c side-obj)
-          result (f elt side)]
-      (.output c result))))
-
 (defn mapcat-fn
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
           result (f elt)]
-      (doseq [atm result]
-        (.output c atm)))))
+      (doseq [res result]
+        (.output c res)))))
+
+(defn pardo-fn
+  [f]
+  (fn [^DoFn$ProcessContext c]
+    (f c)))
 
 (defn filter-fn
   [f]
@@ -95,23 +92,12 @@
       transform# ~schema)))
 
 (def base-schema
-  {:name (fn [transform n] (.withName transform n))
-   :side-input (fn [transform side] (.withSideInputs transform side))})
+  {:name (fn [transform n] (.withName transform n))})
 
-
-
-(defn make-map-side
-  ([coder]
-   (fn make-map-op
-     ([f options ^PCollection pcoll ^PCollection side-coll]
-      (let [opts (assoc options :label :map-side :side-input side-coll)]
-        (-> pcoll
-            (.apply (with-opts base-schema opts
-                      (ParDo/of (dofn (map-side-fn f side-coll)))))
-            (.setCoder (or (:coder opts) coder)))))
-     ([f pcoll] (make-map-op f {} pcoll))))
-  ([]
-   (make-map-side (make-transit-coder))))
+(def pardo-schema
+  (merge
+   base-schema
+   {:side-inputs (fn [transform inputs] (.withSideInputs transform inputs))}))
 
 (defn map-op
   ([transform label coder]
@@ -119,7 +105,7 @@
      ([f options ^PCollection pcoll]
       (let [opts (assoc options :label label)]
         (-> pcoll
-            (.apply (with-opts base-schema opts
+            (.apply (with-opts pardo-schema opts
                       (ParDo/of (dofn (transform f)))))
             (.setCoder (or (:coder opts) coder)))))
      ([f pcoll] (make-map-op f {} pcoll))))
@@ -127,7 +113,7 @@
    (map-op transform label (make-transit-coder))))
 
 (def dmap (map-op map-fn :map))
-(def dmap-side (make-map-side))
+(def pardo (map-op pardo-fn :raw-pardo))
 (def dmapcat (map-op mapcat-fn :mapcat))
 (def dfilter (map-op filter-fn :filter))
 
@@ -140,13 +126,19 @@
          (.setCoder (or (:coder opts) (make-transit-coder))))))
   ([coll p] (generate-input coll {} p)))
 
-(defn make-singleton-view
-  ([pcoll options]
-   (let [opts (assoc options :label :singleton-view)]
+(defn view
+  ([pcoll {:keys [view-type]
+           :or {view-type :singleton}
+           :as options}]
+   (let [opts (assoc options :label :view)]
      (-> pcoll
          (.apply (with-opts base-schema opts
-                   (View/asSingleton))))))
-  ([pcoll] (make-singleton-view pcoll {})))
+                   (case view-type
+                     :singleton (View/asSingleton)
+                     :iterable (View/asIterable)
+                     :map (View/asMap))))
+         (.setCoder (or (:coder opts) (make-transit-coder))))))
+  ([pcoll] (view pcoll {})))
 
 (defn- to-edn*
   [^DoFn$Context c]
