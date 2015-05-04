@@ -8,6 +8,7 @@
 (def generate-input dt/generate-input)
 (def view dt/view)
 (def pardo dt/pardo)
+(def identity dt/didentity)
 (def map dt/dmap)
 (def filter dt/dfilter)
 (def mapcat dt/dmapcat)

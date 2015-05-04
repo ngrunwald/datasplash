@@ -59,6 +59,10 @@
       (when result
         (.output c elt)))))
 
+(defn didentity [c]
+  (.output c (.element c)))
+
+
 (defn make-transit-coder
   []
   (proxy [CustomCoder] []
@@ -97,7 +101,7 @@
 (def pardo-schema
   (merge
    base-schema
-   {:side-inputs (fn [transform inputs] (.withSideInputs transform inputs))}))
+   {:side-inputs (fn [transform ^Iterable inputs] (.withSideInputs transform inputs))}))
 
 (defn map-op
   ([transform label coder]
@@ -126,6 +130,13 @@
          (.setCoder (or (:coder opts) (make-transit-coder))))))
   ([coll p] (generate-input coll {} p)))
 
+
+;; (defn- make-view-transform
+;;   [options]
+;;   (let [safe-opts (dissoc options :name)]
+;;     (proxy [View$AsSingleton] []
+;;       (getDefaultOutputCoder [_ _] (make-transit-coder)))))
+
 (defn view
   ([pcoll {:keys [view-type]
            :or {view-type :singleton}
@@ -137,8 +148,10 @@
                      :singleton (View/asSingleton)
                      :iterable (View/asIterable)
                      :map (View/asMap))))
-         (.setCoder (or (:coder opts) (make-transit-coder))))))
+         )))
   ([pcoll] (view pcoll {})))
+
+
 
 (defn- to-edn*
   [^DoFn$Context c]
