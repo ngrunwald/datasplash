@@ -28,4 +28,5 @@
 (def flatten dt/dflatten)
 (def concat dt/dconcat)
 (def combine-globally dt/combine-globally)
+(def juxt dt/djuxt)
 (def sum dt/sum)

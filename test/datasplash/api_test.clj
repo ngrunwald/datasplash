@@ -57,12 +57,12 @@
   (with-files [side-test]
     (let [p (make-test-pipeline)
           input (ds/generate-input [1 2 3 4 5] p)
-          side-input (ds/view (ds/generate-input [{1 :toto 2 :tata 3 :hello 4 :bye }] p))
+          side-input (ds/view (ds/generate-input ["side"] p))
           proc (ds/pardo ds/identity {:side-inputs [side-input] :name "concat"}  input )
           output (ds/write-edn-file side-test proc)]
       (.run p))
     (let [res (read-file (first (glob-file side-test)))]
-      (println res))))
+      println "side" res)))
 
 (deftest group-test
   (with-files [group-test]
@@ -97,3 +97,14 @@
     (.. DataflowAssert (that proc) (containsInAnyOrder #{15}))
     (is "combine" (.getName proc))
     (.run p)))
+
+(deftest combine-juxt
+  (with-files [combine-juxt-test]
+    (let [p (make-test-pipeline)
+                   input (ds/generate-input [1 2 3 4 5] p)
+          proc (ds/combine-globally (ds/juxt + *) {:name "combine"} input)
+          output (ds/write-edn-file combine-juxt-test proc)]
+      (is "combine" (.getName proc))
+      (.run p)
+      (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
+        (is (= res #{'(15 120)}))))))

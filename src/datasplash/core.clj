@@ -169,21 +169,58 @@
     (apply [input]
       (f input))))
 
+(definterface ICombineFn
+  (getReduceFn [])
+  (getExtractFn [])
+  (getMergeFn [])
+  (getInitFn []))
+
 (defn combine-fn
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
-   (proxy [Combine$CombineFn] []
+   (proxy [Combine$CombineFn ICombineFn] []
      (createAccumulator [] (initf))
      (addInput [acc elt] (reducef acc elt))
      (mergeAccumulators [accs] (apply combinef accs))
      (extractOutput [acc] (extractf acc))
      (getDefaultOutputCoder [_ _] output-coder)
-     (getAccumulatorCoder [_ _] acc-coder)))
+     (getAccumulatorCoder [_ _] acc-coder)
+     (getReduceFn [] reducef)
+     (getExtractFn [] extractf)
+     (getMergeFn [] combinef)
+     (getInitFn [] initf)))
   ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-transit-coder)))
   ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-transit-coder)))
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
   ([reducef extractf] (combine-fn reducef extractf reducef))
   ([reducef] (combine-fn reducef identity)))
+
+(defn ->combine-fn
+  [f]
+  (if (instance? Combine$CombineFn f) f (combine-fn f)))
+
+(defn djuxt
+  [& fns]
+  (let [cfs (map ->combine-fn fns)]
+    (combine-fn
+     (fn [accs elt]
+       (map-indexed
+        (fn [idx acc] (let [f (.getReduceFn (nth cfs idx))]
+                        (f acc elt))) accs))
+     (fn [accs]
+       (map-indexed
+        (fn [idx acc] (let [f (.getExtractFn (nth cfs idx))]
+                        (f acc))) accs))
+     (fn [& accs]
+       (map-indexed
+        (fn [idx cf] (let [f (.getMergeFn cf)]
+                       (println "ACCS" accs)
+                       (apply f (map #(nth % idx) accs)))) cfs))
+     (fn []
+       (map (fn [cf] (let [f (.getInitFn cf)]
+                       (f))) cfs))
+     (.getDefaultOutputCoder (first cfs) nil nil)
+     (.getAccumulatorCoder (first cfs) nil nil))))
 
 (defn with-keys
   ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
@@ -377,12 +414,41 @@
 
 (defn combine-globally
   ([f options ^PCollection pcoll]
-   (let [opts (assoc options :label :combine-globally)]
+   (let [opts (assoc options :label :combine-globally)
+         cf (->combine-fn f)]
      (-> pcoll
          (.apply (with-opts base-schema opts
-                   (Combine/globally (combine-fn f))))
+                   (Combine/globally cf)))
          (.setCoder (make-transit-coder)))))
   ([f pcoll] (combine-globally f {} pcoll)))
+
+
+(defn combine-by-key
+  ([f options ^PCollection pcoll]
+   (let [opts (assoc options :label :combine-by-keys)]
+     (-> pcoll
+         (.apply (Combine/perKey (combine-fn f)))
+         (.setCoder (make-transit-coder)))))
+  ([f pcoll] (combine-by-key f {} pcoll)))
+
+
+(defn- combine-by-transform
+  [key-fn f options]
+  (let [safe-opts (dissoc options :name)]
+    (proxy [PTransform] []
+      (apply [^PCollection pcoll]
+        (->> pcoll
+             (with-keys key-fn safe-opts)
+             (combine-by-key f safe-opts))))))
+
+(defn combine-by
+  ([key-fn f options ^PCollection pcoll]
+   (let [opts (assoc options :label :combine-by)]
+     (.apply pcoll (with-opts base-schema opts
+                     (combine-by-transform key-fn f options)))))
+  ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
+
+
 
 (defn sum
   ([options ^PCollection pcoll]
