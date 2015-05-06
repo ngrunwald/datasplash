@@ -1,6 +1,7 @@
 (ns datasplash.core
   (:require [cognitect.transit :as transit]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [clojure.math.combinatorics :as combo])
   (:import [java.io InputStream OutputStream]
            [java.util UUID]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
@@ -381,6 +382,15 @@
        (dmap reduce-fn options filtered-coll)
        filtered-coll)))
   ([options specs] (cogroup-by options specs nil)))
+
+(defn join-by
+  ([options specs join-fn]
+   (->> (cogroup-by options specs)
+        (dmapcat (fn [[k & results]]
+                   (let [results-ok (map #(if (empty? %) [nil] %) results)
+                         raw-res (apply combo/cartesian-product results-ok)
+                         res (map (fn [prod] (apply join-fn prod)) raw-res)]
+                     res))))))
 
 (defn ddistinct
   ([options ^PCollection pcoll]
