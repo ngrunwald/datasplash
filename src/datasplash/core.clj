@@ -161,7 +161,7 @@
     (.output c result)))
 
 (def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
-(def from-edn (partial dmap #(edn/read-string %)))
+(def from-edn (partial dmap #(read-string %)))
 
 (defn sfn
   ^SerializableFunction
@@ -269,13 +269,6 @@
       (.registerCoder clojure.lang.Keyword (make-transit-coder)))
     pipeline))
 
-(defn load-text-file
-  [from options ^Pipeline p]
-  (let [opts (assoc options :label :load-text-file)]
-    (-> p
-        (.apply (with-opts base-schema opts
-                  (TextIO$Read/from from)))
-        (.setCoder (StringUtf8Coder/of)))))
 
 (defn write-text-file
   ([to options ^PCollection pcoll]
@@ -286,9 +279,10 @@
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (defn read-text-file
-  ([from options ^PBegin p]
+  ([from options p]
    (let [opts (assoc options :label :read-text-file)]
      (-> p
+         (cond-> (instance? Pipeline p) (PBegin/in))
          (.apply (with-opts base-schema opts
                    (TextIO$Read/from from)))
          (.setCoder (StringUtf8Coder/of)))))
@@ -390,7 +384,8 @@
                    (let [results-ok (map #(if (empty? %) [nil] %) results)
                          raw-res (apply combo/cartesian-product results-ok)
                          res (map (fn [prod] (apply join-fn prod)) raw-res)]
-                     res))))))
+                     res)))))
+  ([specs join-fn] (join-by {} specs join-fn)))
 
 (defn ddistinct
   ([options ^PCollection pcoll]
