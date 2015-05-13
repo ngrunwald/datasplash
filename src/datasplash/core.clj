@@ -1,5 +1,6 @@
 (ns datasplash.core
   (:require [cognitect.transit :as transit]
+            [datasplash.code :as code]
             [clojure.edn :as edn]
             [clojure.math.combinatorics :as combo])
   (:import [java.io InputStream OutputStream]
@@ -111,11 +112,22 @@
       (let [opts (assoc options :label label)]
         (-> pcoll
             (.apply (with-opts pardo-schema opts
-                      (ParDo/of (dofn (transform f)))))
+                      (ParDo/of (dofn (code/trap f)))))
             (.setCoder (or (:coder opts) coder)))))
      ([f pcoll] (make-map-op f {} pcoll))))
   ([transform label]
    (map-op transform label (make-transit-coder))))
+
+
+;; (defmacro dmap
+;;   ([f options ^PCollection pcoll]
+;;    (let [opts (assoc options :label :map)]
+;;      (-> pcoll
+;;          (.apply (with-opts pardo-schema opts
+;;                    (ParDo/of (dofn f))))
+;;          (.setCoder (or (:coder opts) (make-transit-coder) )))))
+;;   ([f pcoll] (dmap f {} pcoll))
+;;   )
 
 (def dmap (map-op map-fn :map))
 (def pardo (map-op pardo-fn :raw-pardo))
