@@ -1,7 +1,8 @@
 (ns datasplash.core
   (:require [cognitect.transit :as transit]
             [clojure.edn :as edn]
-            [clojure.math.combinatorics :as combo])
+            [clojure.math.combinatorics :as combo]
+            [clj-stacktrace.core :as st])
   (:import [java.io InputStream OutputStream]
            [java.util UUID]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
@@ -19,8 +20,41 @@
 
 (def ops-counter (atom {}))
 
+(def required-ns (atom #{}))
+
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
+
+(defn unloaded-ns-from-ex
+  [e]
+  (let [{:keys [class message trace-elems]} (st/parse-exception e)]
+    (when (re-find #"clojure\.lang\.Var\$Unbound" message)
+      (->> trace-elems
+           (filter #(:clojure %))
+           (map :ns)
+           (remove nil?)
+           (distinct)
+           (map symbol)))))
+
+(defmacro safe-exec
+  [& body]
+  `(try
+     ~@body
+     (catch Exception e#
+       (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
+         (require 'datasplash.core)
+         (swap! required-ns conj 'datasplash.core))
+       (if-let [nss# (unloaded-ns-from-ex e#)]
+         (let [already-required# (deref required-ns)
+               missing# (first (remove already-required# nss#))]
+           (if missing#
+             (do
+               (require missing#)
+               (swap! required-ns conj missing#))
+             (throw (ex-info (format "Dynamic reloading of namespace %s seems not to work" (name missing#))
+                             {:last-namespace missing#}
+                             e#))))
+         (throw e#)))))
 
 (defn dofn
   ^DoFn [f & {:keys [start-bundle finish-bundle]
@@ -36,7 +70,7 @@
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
-          result (f elt)]
+          result (safe-exec (f elt))]
       (.output c result))))
 
 (defn mapcat-fn
