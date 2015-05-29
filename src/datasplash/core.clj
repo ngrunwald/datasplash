@@ -5,6 +5,7 @@
             [clojure.math.combinatorics :as combo])
   (:import [java.io InputStream OutputStream]
            [java.util UUID]
+           [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
@@ -86,7 +87,7 @@
                      (or (:name ~opts)
                          (let [label# (name (get ~opts :label "cljfn"))
                                new-idx# (get
-                                         (swap! ~'ops-counter update-in [label#]
+                                         (swap! ops-counter update-in [label#]
                                                 (fn [i#] (if i# (inc i#) 1)))
                                          label#)]
                            (str (name (get ~opts :label "cljfn")) "_"  new-idx#))))]
@@ -112,22 +113,31 @@
       (let [opts (assoc options :label label)]
         (-> pcoll
             (.apply (with-opts pardo-schema opts
-                      (ParDo/of (dofn (code/trap f)))))
+                      (ParDo/of (dofn (transform f)))))
             (.setCoder (or (:coder opts) coder)))))
      ([f pcoll] (make-map-op f {} pcoll))))
   ([transform label]
    (map-op transform label (make-transit-coder))))
 
 
-;; (defmacro dmap
-;;   ([f options ^PCollection pcoll]
-;;    (let [opts (assoc options :label :map)]
-;;      (-> pcoll
-;;          (.apply (with-opts pardo-schema opts
-;;                    (ParDo/of (dofn f))))
-;;          (.setCoder (or (:coder opts) (make-transit-coder) )))))
-;;   ([f pcoll] (dmap f {} pcoll))
-;;   )
+(defmacro mapm
+  [f options ^PCollection pcoll]
+  `(let [opts# (assoc ~options :label :map)]
+    (-> ~pcoll
+        (.apply (with-opts pardo-schema opts#
+                  (ParDo/of (dofn (map-fn (code/eval-from-var (code/trap ~f)))))))
+        (.setCoder (or (:coder opts#) (make-transit-coder) ))))
+  ;; ([f pcoll] (dmapm f {} pcoll))
+  )
+(defmacro filterm
+  [f options ^PCollection pcoll]
+  `(let [opts# (assoc ~options :label :filter)]
+     (-> ~pcoll
+         (.apply (with-opts pardo-schema opts#
+                   (ParDo/of (dofn (filter-fn (code/eval-from-var (code/trap ~f)))))))
+         (.setCoder (or (:coder opts#) (make-transit-coder) ))))
+  ;; ([f pcoll] (dmapm f {} pcoll))
+  )
 
 (def dmap (map-op map-fn :map))
 (def pardo (map-op pardo-fn :raw-pardo))

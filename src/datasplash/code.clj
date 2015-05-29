@@ -22,7 +22,7 @@
     (instance? PCollection v) false
     (sequential? v) (every? freezable? v)
     (map? v) (every? (partial every? freezable?) v)
-    :else true))
+    :else false))
 
 ;; TODO if something is freezable, but not EDN friendly, maybe use a base64 string?
                                         ;(nippy/freezeable? v) [k `(thaw (decode ~(encode (freeze v))))]
@@ -93,6 +93,15 @@ namespace, *ns*, is used.
   ([ns f]
    (let [keys# (vec (keys &env))]
      `(trap* '~keys# ~keys# ~ns '~f))))
+
+(defmacro eval-from-var
+  [exprs]
+  `(let [f# (eval ~exprs)
+         nam# (gensym "datasplash-fn-hidden")]
+     (intern 'datasplash.core nam# f#)
+     ;; (println (var-get (find-var (symbol "datasplash.core" (name nam#)))))
+     ;; (println (symbol "datasplash.core" (name nam#)))
+     (symbol "datasplash.core" (name nam#))))
 
 (defn trap-values
   "Takes a sequence of options , converts them into a map (if not already), and

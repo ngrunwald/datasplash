@@ -3,7 +3,9 @@
             [datasplash.api :as ds]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [datasplash.core :as dt]
+            [datasplash.code :as code])
   (:import [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
            [java.io PushbackReader]))
 
@@ -44,8 +46,8 @@
 (deftest basic-pipeline
   (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
-        proc (ds/map inc {:name "increment"} input)
-        filter (ds/filter even? proc)]
+        proc (dt/mapm inc {:name "increment"} input)
+        filter (dt/filterm even? {:name "even?"}proc)]
     (.. DataflowAssert (that input) (containsInAnyOrder #{1 2 3 4 5}))
     (.. DataflowAssert (that proc) (containsInAnyOrder #{2 3 4 5 6}))
     (.. DataflowAssert (that filter) (containsInAnyOrder #{2 4 6}))

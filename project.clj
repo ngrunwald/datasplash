@@ -11,4 +11,4 @@
   :profiles {:dev {:dependencies [[org.hamcrest/hamcrest-all "1.3"]
                                   [junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]]
-                   :aot [datasplash.api-test]}})
+                   :aot [datasplash.api-test datasplash.api datasplash.core]}})
