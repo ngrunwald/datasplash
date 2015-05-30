@@ -463,17 +463,22 @@
 
 (defn combine
   ([f
-    {:keys [scope]
+    {:keys [scope fanout view no-defaults]
      :or {scope :global}
      :as options}
     ^PCollection pcoll]
    (let [opts (assoc options :label (keyword (str "combine-" scope)))
-         cf (->combine-fn f)]
+         cfn (->combine-fn f)]
      (-> pcoll
          (.apply (with-opts base-schema opts
                    (cond
-                     (#{:local :per-key} scope) (Combine/perKey (->combine-fn f))
-                     (#{:global :globally} scope) (Combine/globally (->combine-fn f))
+                     (#{:local :per-key} scope) (-> (Combine/perKey cfn)
+                                                    (cond-> fanout (.withHotKeyFanout
+                                                                    (if (fn? fanout) (sfn fanout) fanout))))
+                     (#{:global :globally} scope) (-> (Combine/globally cfn)
+                                                      (cond-> fanout (.withFanout fanout))
+                                                      (cond-> view (.asSingletonView))
+                                                      (cond-> no-defaults (.withoutDefaults)))
                      :else (throw (ex-info (format "Option %s is not recognized" scope)
                                            {:scope-given scope :allowed-scopes #{:global :per-key}})))))
          (.setCoder (make-transit-coder)))))
@@ -497,6 +502,10 @@
      (.apply pcoll (with-opts base-schema opts
                      (combine-by-transform key-fn f options)))))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
+
+(defmacro defcombiner
+  [nam method]
+  )
 
 (defn sum
   ([options ^PCollection pcoll]
