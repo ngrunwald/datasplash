@@ -110,7 +110,7 @@
 (deftest combine-pipeline
   (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
-        proc (ds/combine-globally + {:name "combine"} input)]
+        proc (ds/combine + {:name "combine" :scope :global} input)]
     (.. DataflowAssert (that proc) (containsInAnyOrder #{15}))
     (is "combine" (.getName proc))
     (.run p)))
@@ -118,8 +118,8 @@
 (deftest combine-juxt
   (with-files [combine-juxt-test]
     (let [p (make-test-pipeline)
-                   input (ds/generate-input [1 2 3 4 5] p)
-          proc (ds/combine-globally (ds/juxt + *) {:name "combine"} input)
+          input (ds/generate-input [1 2 3 4 5] p)
+          proc (ds/combine (ds/juxt + *) {:name "combine"} input)
           output (ds/write-edn-file combine-juxt-test proc)]
       (is "combine" (.getName proc))
       (.run p)

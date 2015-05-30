@@ -28,7 +28,7 @@
 (def distinct dt/ddistinct)
 (def flatten dt/dflatten)
 (def concat dt/dconcat)
-(def combine-globally dt/combine-globally)
+(def combine dt/combine)
 (def combine-by dt/combine-by)
 (def combine-fn dt/combine-fn)
 (def juxt dt/djuxt)

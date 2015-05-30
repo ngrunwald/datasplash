@@ -8,7 +8,6 @@
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.io TextIO$Read TextIO$Write]
-
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
@@ -101,7 +100,6 @@
 (defn didentity [c]
   (.output c (.element c)))
 
-
 (defn make-transit-coder
   []
   (proxy [CustomCoder] []
@@ -169,7 +167,6 @@
          (.setCoder (or (:coder opts) (make-transit-coder))))))
   ([coll p] (generate-input coll {} p)))
 
-
 ;; (defn- make-view-transform
 ;;   [options]
 ;;   (let [safe-opts (dissoc options :name)]
@@ -190,8 +187,6 @@
          )))
   ([pcoll] (view pcoll {})))
 
-
-
 (defn- to-edn*
   [^DoFn$Context c]
   (let [elt (.element c)
@@ -204,8 +199,10 @@
 (defn sfn
   ^SerializableFunction
   [f]
-  (proxy [SerializableFunction] []
+  (proxy [SerializableFunction clojure.lang.IFn] []
     (apply [input]
+      (safe-exec (f input)))
+    (invoke [input]
       (safe-exec (f input)))))
 
 (definterface ICombineFn
@@ -217,7 +214,7 @@
 (defn combine-fn
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
-   (proxy [Combine$CombineFn ICombineFn] []
+   (proxy [Combine$CombineFn ICombineFn clojure.lang.IFn] []
      (createAccumulator [] (safe-exec (initf)))
      (addInput [acc elt] (safe-exec (reducef acc elt)))
      (mergeAccumulators [accs] (safe-exec (apply combinef accs)))
@@ -227,7 +224,17 @@
      (getReduceFn [] reducef)
      (getExtractFn [] extractf)
      (getMergeFn [] combinef)
-     (getInitFn [] initf)))
+     (getInitFn [] initf)
+     (invoke [& args] (let [args-nb (count args)]
+                        (cond
+                          (= args-nb 0) (safe-exec (initf))
+                          (= args-nb 2) (safe-exec (reducef (first args) (second args)))
+                          (> args-nb 2) (throw (ex-info "Cannot call a combineFn with more than 2 arguments"
+                                                        {:args-number args-nb
+                                                         :args args}))
+                          :else (if (sequential? (first args))
+                                  (safe-exec (apply combinef (first args)))
+                                  (safe-exec (extractf (first args)))))))))
   ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-transit-coder)))
   ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-transit-coder)))
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
@@ -454,43 +461,42 @@
         (.apply (with-opts base-schema opts
                   (Flatten/pCollections))))))
 
-(defn combine-globally
-  ([f options ^PCollection pcoll]
-   (let [opts (assoc options :label :combine-globally)
+(defn combine
+  ([f
+    {:keys [scope]
+     :or {scope :global}
+     :as options}
+    ^PCollection pcoll]
+   (let [opts (assoc options :label (keyword (str "combine-" scope)))
          cf (->combine-fn f)]
      (-> pcoll
          (.apply (with-opts base-schema opts
-                   (Combine/globally cf)))
+                   (cond
+                     (#{:local :per-key} scope) (Combine/perKey (->combine-fn f))
+                     (#{:global :globally} scope) (Combine/globally (->combine-fn f))
+                     :else (throw (ex-info (format "Option %s is not recognized" scope)
+                                           {:scope-given scope :allowed-scopes #{:global :per-key}})))))
          (.setCoder (make-transit-coder)))))
-  ([f pcoll] (combine-globally f {} pcoll)))
-
-
-(defn combine-by-key
-  ([f options ^PCollection pcoll]
-   (let [opts (assoc options :label :combine-by-keys)]
-     (-> pcoll
-         (.apply (Combine/perKey (combine-fn f)))
-         (.setCoder (make-transit-coder)))))
-  ([f pcoll] (combine-by-key f {} pcoll)))
-
+  ([f pcoll] (combine f {} pcoll)))
 
 (defn- combine-by-transform
   [key-fn f options]
-  (let [safe-opts (dissoc options :name)]
+  (let [safe-opts (-> options
+                      (dissoc :name)
+                      (assoc :scope :per-key))]
     (proxy [PTransform] []
       (apply [^PCollection pcoll]
         (->> pcoll
              (with-keys key-fn safe-opts)
-             (combine-by-key f safe-opts))))))
+             (combine f safe-opts))))))
 
 (defn combine-by
   ([key-fn f options ^PCollection pcoll]
-   (let [opts (assoc options :label :combine-by)]
+   (let [opts (-> options
+                  (assoc :label :combine-by :scope :per-key))]
      (.apply pcoll (with-opts base-schema opts
                      (combine-by-transform key-fn f options)))))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
-
-
 
 (defn sum
   ([options ^PCollection pcoll]
