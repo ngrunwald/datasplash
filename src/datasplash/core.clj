@@ -28,13 +28,15 @@
 (defn unloaded-ns-from-ex
   [e]
   (let [{:keys [class message trace-elems]} (st/parse-exception e)]
-    (when (re-find #"clojure\.lang\.Var\$Unbound" message)
-      (->> trace-elems
-           (filter #(:clojure %))
-           (map :ns)
-           (remove nil?)
-           (distinct)
-           (map symbol)))))
+    (when (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
+      (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)]
+        (->> trace-elems
+             (filter #(:clojure %))
+             (map :ns)
+             (concat (list missing-ns))
+             (remove nil?)
+             (distinct)
+             (map symbol))))))
 
 (defmacro safe-exec
   [& body]
@@ -52,8 +54,9 @@
                (require missing#)
                (swap! required-ns conj missing#)
                ~@body)
-             (throw (ex-info (format "Dynamic reloading of namespace %s seems not to work" (name missing#))
-                             {:last-namespace missing#}
+             (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                             {:ns-from-exception nss#
+                              :ns-load-attempted already-required#}
                              e#))))
          (throw e#)))))
 
@@ -103,13 +106,13 @@
   []
   (proxy [CustomCoder] []
     (encode [obj ^OutputStream out ^Coder$Context context]
-      (require '[cognitect.transit :as transit])
-      (let [wrt (transit/writer out :msgpack)]
-        (transit/write wrt obj)))
+      (safe-exec
+       (let [wrt (transit/writer out :msgpack)]
+         (transit/write wrt obj))))
     (decode [^InputStream in ^Coder$Context context]
-      (require '[cognitect.transit :as transit])
-      (let [rdr (transit/reader in :msgpack)]
-        (transit/read rdr)))
+      (safe-exec
+       (let [rdr (transit/reader in :msgpack)]
+         (transit/read rdr))))
     (verifyDeterministic [] nil)
     (consistentWithEquals [] true)))
 
