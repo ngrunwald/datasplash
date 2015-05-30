@@ -206,7 +206,7 @@
   [f]
   (proxy [SerializableFunction] []
     (apply [input]
-      (f input))))
+      (safe-exec (f input)))))
 
 (definterface ICombineFn
   (getReduceFn [])
@@ -218,10 +218,10 @@
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
    (proxy [Combine$CombineFn ICombineFn] []
-     (createAccumulator [] (initf))
-     (addInput [acc elt] (reducef acc elt))
-     (mergeAccumulators [accs] (apply combinef accs))
-     (extractOutput [acc] (extractf acc))
+     (createAccumulator [] (safe-exec (initf)))
+     (addInput [acc elt] (safe-exec (reducef acc elt)))
+     (mergeAccumulators [accs] (safe-exec (apply combinef accs)))
+     (extractOutput [acc] (safe-exec (extractf acc)))
      (getDefaultOutputCoder [_ _] output-coder)
      (getAccumulatorCoder [_ _] acc-coder)
      (getReduceFn [] reducef)
@@ -306,7 +306,6 @@
       (.registerCoder clojure.lang.IPersistentCollection (make-transit-coder))
       (.registerCoder clojure.lang.Keyword (make-transit-coder)))
     pipeline))
-
 
 (defn write-text-file
   ([to options ^PCollection pcoll]
