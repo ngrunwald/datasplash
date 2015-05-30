@@ -50,7 +50,8 @@
            (if missing#
              (do
                (require missing#)
-               (swap! required-ns conj missing#))
+               (swap! required-ns conj missing#)
+               ~@body)
              (throw (ex-info (format "Dynamic reloading of namespace %s seems not to work" (name missing#))
                              {:last-namespace missing#}
                              e#))))
@@ -62,15 +63,15 @@
                    finish-bundle (fn [_] nil)}
               :as opts}]
   (proxy [DoFn] []
-    (processElement [^DoFn$ProcessContext context] (f context))
-    (startBundle [^DoFn$Context context] (start-bundle context))
-    (finishBundle [^DoFn$Context context] (finish-bundle context))))
+    (processElement [^DoFn$ProcessContext context] (safe-exec (f context)))
+    (startBundle [^DoFn$Context context] (safe-exec (start-bundle context)))
+    (finishBundle [^DoFn$Context context] (safe-exec (finish-bundle context)))))
 
 (defn map-fn
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (.element c)
-          result (safe-exec (f elt))]
+          result (f elt)]
       (.output c result))))
 
 (defn mapcat-fn
