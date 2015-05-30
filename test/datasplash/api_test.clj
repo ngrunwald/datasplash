@@ -125,3 +125,21 @@
       (.run p)
       (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
         (is (= res #{'(15 120)}))))))
+
+(deftest math-and-diamond
+  (with-files [math-and-diamond-test sample-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] p)
+          p1 (ds/mean input)
+          p2 (ds/max input)
+          p3 (ds/min input)
+          p4 (ds/sum input)
+          all (ds/concat p1 p2 p3 p4)
+          ps (ds/sample 2 input)
+          output1 (ds/write-edn-file math-and-diamond-test all)
+          output2 (ds/write-edn-file sample-test ps)]
+      (.run p)
+      (let [res (read-file (first (glob-file math-and-diamond-test)))]
+        (is (= '(1 3.0 5 15) (sort res))))
+      (let [res (read-file (first (glob-file sample-test)))]
+        (is (= 2 (count res)))))))

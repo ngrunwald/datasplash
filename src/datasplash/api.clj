@@ -1,6 +1,7 @@
 (ns datasplash.api
   (:refer-clojure :exclude [map filter mapcat group-by
-                            distinct flatten concat juxt identity])
+                            distinct flatten concat juxt identity
+                            max min])
   (:require [datasplash.core :as dt])
   (:gen-class))
 
@@ -26,6 +27,7 @@
 (def cogroup-by dt/cogroup-by)
 (def join-by dt/join-by)
 (def distinct dt/ddistinct)
+(def sample dt/sample)
 (def flatten dt/dflatten)
 (def concat dt/dconcat)
 (def combine dt/combine)
@@ -33,3 +35,6 @@
 (def combine-fn dt/combine-fn)
 (def juxt dt/djuxt)
 (def sum dt/sum)
+(def max dt/dmax)
+(def min dt/dmin)
+(def mean dt/mean)

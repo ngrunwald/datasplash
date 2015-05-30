@@ -11,7 +11,11 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten Combine$CombineFn Combine Sum View]
+            Flatten Combine$CombineFn Combine View
+            Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
+            Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
+            Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
+            Mean$MeanFn Sample]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
@@ -260,7 +264,6 @@
      (fn [& accs]
        (map-indexed
         (fn [idx cf] (let [f (.getMergeFn cf)]
-                       (println "ACCS" accs)
                        (apply f (map #(nth % idx) accs)))) cfs))
      (fn []
        (map (fn [cf] (let [f (.getInitFn cf)]
@@ -439,6 +442,17 @@
                    (RemoveDuplicates/create))))))
   ([pcoll] (ddistinct {} pcoll)))
 
+(defn sample
+  ([size {:keys [scope] :as options} ^PCollection pcoll]
+   (let [opts (assoc options :label (keyword "sample-" (if scope (name scope) "any")))]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (cond
+                     (#{:global :globally} scope) (Sample/fixedSizeGlobally size)
+                     (#{:local :per-key} scope) (Sample/fixedSizePerKey size)
+                     :else (Sample/any size)))))))
+  ([size pcoll] (sample size {} pcoll)))
+
 (defn dflatten
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :flatten)]
@@ -461,27 +475,35 @@
         (.apply (with-opts base-schema opts
                   (Flatten/pCollections))))))
 
+(def combine-globally-schema
+  (merge
+   base-schema
+   {:fanout (fn [transform fanout] (.withHotKeyFanout transform
+                                                      (if (fn? fanout) (sfn fanout) fanout)))
+    :as-singleton-view (fn [transform] (.asSingletonView transform))
+    :without-defaults (fn [transform] (.withoutDefaults transform))}))
+
+(def combine-per-key-schema
+  (merge
+   base-schema
+   {:fanout (fn [transform fanout] (.withHotKeyFanout transform
+                                                      (if (fn? fanout) (sfn fanout) fanout)))}))
+
 (defn combine
-  ([f
-    {:keys [scope fanout view no-defaults]
-     :or {scope :global}
-     :as options}
-    ^PCollection pcoll]
-   (let [opts (assoc options :label (keyword (str "combine-" scope)))
-         cfn (->combine-fn f)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (cond
-                     (#{:local :per-key} scope) (-> (Combine/perKey cfn)
-                                                    (cond-> fanout (.withHotKeyFanout
-                                                                    (if (fn? fanout) (sfn fanout) fanout))))
-                     (#{:global :globally} scope) (-> (Combine/globally cfn)
-                                                      (cond-> fanout (.withFanout fanout))
-                                                      (cond-> view (.asSingletonView))
-                                                      (cond-> no-defaults (.withoutDefaults)))
-                     :else (throw (ex-info (format "Option %s is not recognized" scope)
-                                           {:scope-given scope :allowed-scopes #{:global :per-key}})))))
-         (.setCoder (make-transit-coder)))))
+  ([f options ^PCollection pcoll]
+   (let [scope (or (:scope options) :global)
+         opts (assoc options
+                     :label (or (:label options) (keyword (str "combine-" scope)))
+                     :scope scope)
+         cfn (->combine-fn f)
+         ready-pcoll (cond
+                       (#{:local :per-key} scope) (.apply pcoll (with-opts combine-per-key-schema opts
+                                                                  (Combine/perKey cfn)))
+                       (#{:global :globally} scope) (.apply pcoll (with-opts combine-globally-schema opts
+                                                                    (Combine/globally cfn)))
+                       :else (throw (ex-info (format "Option %s is not recognized" scope)
+                                             {:scope-given scope :allowed-scopes #{:global :per-key}})))]
+     (.setCoder ready-pcoll (make-transit-coder))))
   ([f pcoll] (combine f {} pcoll)))
 
 (defn- combine-by-transform
@@ -503,14 +525,41 @@
                      (combine-by-transform key-fn f options)))))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
 
-(defmacro defcombiner
-  [nam method]
-  )
-
 (defn sum
-  ([options ^PCollection pcoll]
-   (let [opts (assoc options :label :sum)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (Sum/longsGlobally))))))
+  ([{:keys [type] :as options} ^PCollection pcoll]
+   (let [opts (assoc options :label :sum)
+         cfn (case type
+               :double  (Sum$SumDoubleFn.)
+               :long    (Sum$SumLongFn.)
+               :integer (Sum$SumIntegerFn.)
+               +)]
+     (combine cfn opts pcoll)))
   ([pcoll] (sum {} pcoll)))
+
+(defn dmax
+  ([{:keys [type initial-value] :as options} ^PCollection pcoll]
+   (let [opts (assoc options :label :max)
+         cfn (case type
+               :double  (Max$MaxDoubleFn.)
+               :long    (Max$MaxLongFn.)
+               :integer (Max$MaxIntegerFn.)
+               (Max$MaxFn. initial-value))]
+     (combine cfn opts pcoll)))
+  ([pcoll] (dmax {} pcoll)))
+
+(defn dmin
+  ([{:keys [type initial-value] :as options} ^PCollection pcoll]
+   (let [opts (assoc options :label :max)
+         cfn (case type
+               :double  (Min$MinDoubleFn.)
+               :long    (Min$MinLongFn.)
+               :integer (Min$MinIntegerFn.)
+               (Min$MinFn. initial-value))]
+     (combine cfn opts pcoll)))
+  ([pcoll] (dmin {} pcoll)))
+
+(defn mean
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :mean)]
+     (combine (Mean$MeanFn.) opts pcoll)))
+  ([pcoll] (mean {} pcoll)))
