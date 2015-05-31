@@ -23,6 +23,7 @@
 (def read-edn-file dt/read-edn-file)
 (def write-text-file dt/write-text-file)
 (def write-edn-file dt/write-edn-file)
+(def read-big-query-table dt/read-big-query-table)
 (def cogroup dt/cogroup)
 (def cogroup-by dt/cogroup-by)
 (def join-by dt/join-by)
