@@ -1,27 +1,27 @@
 (ns datasplash.core
-  (:require [cognitect.transit :as transit]
-            [clojure.edn :as edn]
-            [clojure.math.combinatorics :as combo]
-            [clj-stacktrace.core :as st])
-  (:import [java.io InputStream OutputStream]
-           [java.util UUID]
-           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
-           [com.google.cloud.dataflow.sdk Pipeline]
-           [com.google.cloud.dataflow.sdk.io
-            TextIO$Read TextIO$Write
-            BigQueryIO$Read BigQueryIO$Write]
-           [com.google.api.services.bigquery.model TableRow]
-           [com.google.cloud.dataflow.sdk.transforms
-            DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
-            SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten Combine$CombineFn Combine View
-            Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
-            Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
-            Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
-            Mean$MeanFn Sample]
-           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
-           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
+  (:require
+   [cognitect.transit :as transit]
+   [clojure.edn :as edn]
+   [clojure.math.combinatorics :as combo]
+   [clj-stacktrace.core :as st])
+  (:import
+   [java.io InputStream OutputStream]
+   [java.util UUID]
+   [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
+   [com.google.cloud.dataflow.sdk Pipeline]
+   [com.google.cloud.dataflow.sdk.io
+    TextIO$Read TextIO$Write]
+   [com.google.cloud.dataflow.sdk.transforms
+    DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
+    SerializableFunction WithKeys GroupByKey RemoveDuplicates
+    Flatten Combine$CombineFn Combine View
+    Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
+    Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
+    Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
+    Mean$MeanFn Sample]
+   [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
+   [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
+   [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
   (:gen-class))
 
 (def ops-counter (atom {}))
@@ -387,45 +387,6 @@
          (.apply (with-opts base-schema opts
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
-
-;;;;;;;;;;;;;;;;;;
-;; Big Query IO ;;
-;;;;;;;;;;;;;;;;;;
-
-(defn read-big-query-table-raw
-  ([from options p]
-   (let [opts (assoc options :label :read-big-query-table-raw)]
-     (-> p
-         (cond-> (instance? Pipeline p) (PBegin/in))
-         (.apply (with-opts base-schema opts
-                   (BigQueryIO$Read/from from))))))
-  ([from p] (read-big-query-table-raw from {} p)))
-
-(defn table-row->edn
-  [^TableRow row]
-  (let [keyset (.keySet row)]
-    (persistent!
-     (reduce
-      (fn [acc k]
-        (assoc! acc (keyword k) (.get row k)))
-      (transient {}) keyset))))
-
-(defn- read-big-query-table-transform
-  [from options]
-  (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [p]
-        (->> p
-             (read-big-query-table-raw from options)
-             (dmap table-row->edn options))))))
-
-(defn read-big-query-table
-  ([from options ^Pipeline p]
-   (let [opts (assoc options :label :read-big-query-table)]
-     (-> p
-         (.apply (with-opts base-schema opts
-                   (read-big-query-table-transform from opts))))))
-  ([from p] (read-big-query-table from {} p)))
 
 (defn make-keyed-pcollection-tuple
   [pcolls]

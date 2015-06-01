@@ -2,7 +2,9 @@
   (:refer-clojure :exclude [map filter mapcat group-by
                             distinct flatten concat juxt identity
                             max min])
-  (:require [datasplash.core :as dt])
+  (:require [datasplash
+             [core :as dt]
+             [bq :as bq]])
   (:gen-class))
 
 (def make-transit-coder dt/make-transit-coder)
@@ -19,11 +21,6 @@
 (def group-by-key dt/group-by-key)
 (def group-by dt/dgroup-by)
 (def make-pipeline dt/make-pipeline)
-(def read-text-file dt/read-text-file)
-(def read-edn-file dt/read-edn-file)
-(def write-text-file dt/write-text-file)
-(def write-edn-file dt/write-edn-file)
-(def read-big-query-table dt/read-big-query-table)
 (def cogroup dt/cogroup)
 (def cogroup-by dt/cogroup-by)
 (def join-by dt/join-by)
@@ -39,3 +36,12 @@
 (def max dt/dmax)
 (def min dt/dmin)
 (def mean dt/mean)
+
+;;;;;;;;;;;;;
+;; File IO ;;
+;;;;;;;;;;;;;
+
+(def read-text-file dt/read-text-file)
+(def read-edn-file dt/read-edn-file)
+(def write-text-file dt/write-text-file)
+(def write-edn-file dt/write-edn-file)
