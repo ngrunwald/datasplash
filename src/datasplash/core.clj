@@ -33,13 +33,19 @@
 
 (defn unloaded-ns-from-ex
   [e]
-  (let [{:keys [class message trace-elems]} (st/parse-exception e)]
-    (when (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
-      (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)]
-        (->> trace-elems
-             (filter #(:clojure %))
-             (map :ns)
-             (concat (list missing-ns))
+  (let [parsed (st/parse-exception e)]
+    (loop [todo parsed
+           nss (list)]
+      (if-let [{:keys [message trace-elems cause] :as current-ex} todo]
+        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
+          (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)
+                ns-to-add (->> trace-elems
+                               (filter #(:clojure %))
+                               (map :ns)
+                               (concat (list missing-ns)))]
+            (recur cause (concat ns-to-add nss)))
+          (recur cause nss))
+        (->> nss
              (remove nil?)
              (distinct)
              (map symbol))))))
