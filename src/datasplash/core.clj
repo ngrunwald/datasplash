@@ -33,44 +33,50 @@
 
 (defn unloaded-ns-from-ex
   [e]
-  (let [parsed (st/parse-exception e)]
-    (loop [todo parsed
-           nss (list)]
-      (if-let [{:keys [message trace-elems cause] :as current-ex} todo]
-        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
-          (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)
-                ns-to-add (->> trace-elems
-                               (filter #(:clojure %))
-                               (map :ns)
-                               (concat (list missing-ns)))]
-            (recur cause (concat ns-to-add nss)))
-          (recur cause nss))
-        (->> nss
-             (remove nil?)
-             (distinct)
-             (map symbol))))))
+  (loop [todo (st/parse-exception e)
+         nss (list)]
+    (if-let [{:keys [message trace-elems cause] :as current-ex} todo]
+      (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
+        (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)
+              ns-to-add (->> trace-elems
+                             (filter #(:clojure %))
+                             (map :ns)
+                             (concat (list missing-ns)))]
+          (recur cause (concat ns-to-add nss)))
+        (recur cause nss))
+      (->> nss
+           (remove nil?)
+           (distinct)
+           (map symbol)))))
 
 (defmacro safe-exec
   [& body]
   `(try
      ~@body
      (catch Exception e#
-       (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
-         (require 'datasplash.core)
-         (swap! required-ns conj 'datasplash.core))
-       (if-let [nss# (unloaded-ns-from-ex e#)]
-         (let [already-required# (deref required-ns)
-               missing# (first (remove already-required# nss#))]
-           (if missing#
-             (do
-               (require missing#)
-               (swap! required-ns conj missing#)
-               ~@body)
-             (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                             {:ns-from-exception nss#
-                              :ns-load-attempted already-required#}
-                             e#))))
-         (throw e#)))))
+       ;; lock on something that should exist!
+       (locking #'locking
+         (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
+           (require 'datasplash.core)
+           (swap! required-ns conj 'datasplash.core)))
+       (let [required-at-start# (deref required-ns)]
+         (locking required-ns
+           (if-let [nss# (unloaded-ns-from-ex e#)]
+             (let [already-required# (deref required-ns)
+                   missing# (first (remove already-required# nss#))
+                   missing-at-start# (first (remove required-at-start# nss#))]
+               (if missing#
+                 (do
+                   (require missing#)
+                   (swap! required-ns conj missing#)
+                   ~@body)
+                 (if missing-at-start#
+                   ~@body
+                   (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                   {:ns-from-exception nss#
+                                    :ns-load-attempted already-required#}
+                                   e#)))))
+             (throw e#)))))))
 
 (defn dofn
   ^DoFn [f & {:keys [start-bundle finish-bundle]
