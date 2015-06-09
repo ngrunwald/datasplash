@@ -1,27 +1,27 @@
 (ns datasplash.core
-  (:require
-   [cognitect.transit :as transit]
-   [clojure.edn :as edn]
-   [clojure.math.combinatorics :as combo]
-   [clj-stacktrace.core :as st])
-  (:import
-   [java.io InputStream OutputStream]
-   [java.util UUID]
-   [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
-   [com.google.cloud.dataflow.sdk Pipeline]
-   [com.google.cloud.dataflow.sdk.io
-    TextIO$Read TextIO$Write]
-   [com.google.cloud.dataflow.sdk.transforms
-    DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
-    SerializableFunction WithKeys GroupByKey RemoveDuplicates
-    Flatten Combine$CombineFn Combine View
-    Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
-    Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
-    Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
-    Mean$MeanFn Sample]
-   [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
-   [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
-   [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey])
+  (:require [clj-stacktrace.core :as st]
+            [clojure.edn :as edn]
+            [clojure.java.shell :refer [sh]]
+            [clojure.math.combinatorics :as combo]
+            [clojure.string :as str]
+            [cognitect.transit :as transit])
+  (:import [com.google.cloud.dataflow.sdk Pipeline]
+           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
+           [com.google.cloud.dataflow.sdk.io
+            TextIO$Read TextIO$Write]
+           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
+           [com.google.cloud.dataflow.sdk.transforms
+            DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
+            SerializableFunction WithKeys GroupByKey RemoveDuplicates
+            Flatten Combine$CombineFn Combine View
+            Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
+            Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
+            Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
+            Mean$MeanFn Sample]
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
+           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
+           [java.io InputStream OutputStream]
+           [java.util UUID])
   (:gen-class))
 
 (def ops-counter (atom {}))
@@ -49,6 +49,13 @@
            (distinct)
            (map symbol)))))
 
+(def get-hostname (memoize
+                   (fn []
+                     (try
+                       (str/trim-newline (:out (sh "hostname")))
+                       (catch Exception e
+                         "unknown-hostname")))))
+
 (defmacro safe-exec
   [& body]
   `(try
@@ -61,22 +68,24 @@
            (swap! required-ns conj 'datasplash.core)))
        (let [required-at-start# (deref required-ns)]
          (locking required-ns
-           (if-let [nss# (unloaded-ns-from-ex e#)]
-             (let [already-required# (deref required-ns)
-                   missing# (first (remove already-required# nss#))
-                   missing-at-start# (first (remove required-at-start# nss#))]
-               (if missing#
-                 (do
-                   (require missing#)
-                   (swap! required-ns conj missing#)
-                   ~@body)
-                 (if missing-at-start#
-                   ~@body
-                   (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                   {:ns-from-exception nss#
-                                    :ns-load-attempted already-required#}
-                                   e#)))))
-             (throw e#)))))))
+           (let [nss# (unloaded-ns-from-ex e#)]
+             (if (empty? nss#)
+               (throw (ex-info "Runtime exception intercepted" {:hostname (get-hostname)} e#))
+               (let [already-required# (deref required-ns)
+                                    missing# (first (remove already-required# nss#))
+                                    missing-at-start# (first (remove required-at-start# nss#))]
+                                (if missing#
+                                  (do
+                                    (require missing#)
+                                    (swap! required-ns conj missing#)
+                                    ~@body)
+                                  (if missing-at-start#
+                                    ~@body
+                                    (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                                    {:ns-from-exception nss#
+                                                     :ns-load-attempted already-required#
+                                                     :hostname (get-hostname)}
+                                                    e#))))))))))))
 
 (defn dofn
   ^DoFn [f & {:keys [start-bundle finish-bundle]
@@ -309,9 +318,12 @@
   (let [safe-opts (dissoc options :name)]
     (proxy [PTransform] []
       (apply [^PCollection pcoll]
-        (->> pcoll
-             (with-keys f safe-opts)
-             (group-by-key safe-opts))))))
+        (let [raw-pcoll (->> pcoll
+                             (with-keys f safe-opts)
+                             (group-by-key safe-opts))]
+          (if-not (:as-kv-output safe-opts)
+            (dmap (fn [^KV y] [(.getKey y) (into (list) (.getValue y))]) safe-opts raw-pcoll)
+            raw-pcoll))))))
 
 (defn dgroup-by
   ([f options ^PCollection pcoll]
@@ -336,9 +348,14 @@
 ;; Text IO ;;
 ;;;;;;;;;;;;;
 
+(defn clean-filename
+  [s]
+  (str/replace s #"\w+:/" ""))
+
 (defn write-text-file
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-text-file)]
+   (let [opts (assoc options :label (str "write-text-file-to-"
+                                         (clean-filename to)))]
      (-> pcoll
          (.apply (with-opts base-schema opts
                    (TextIO$Write/to to))))))
@@ -346,7 +363,8 @@
 
 (defn read-text-file
   ([from options p]
-   (let [opts (assoc options :label :read-text-file)]
+   (let [opts (assoc options :label (str "read-text-file-from"
+                                         (clean-filename from)))]
      (-> p
          (cond-> (instance? Pipeline p) (PBegin/in))
          (.apply (with-opts base-schema opts
@@ -365,7 +383,8 @@
 
 (defn read-edn-file
   ([from options ^Pipeline p]
-   (let [opts (assoc options :label :read-edn-file)]
+   (let [opts (assoc options :label (str "read-edn-file-from-"
+                                         (clean-filename from)))]
      (-> p
          (.apply (with-opts base-schema opts
                    (read-edn-file-transform from opts))))))
@@ -382,7 +401,7 @@
 
 (defn write-edn-file
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-edn-file)]
+   (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to)))]
      (-> pcoll
          (.apply (with-opts base-schema opts
                    (write-edn-file-transform to opts))))))
@@ -427,7 +446,7 @@
 (defn cogroup-by
   ([options specs reduce-fn]
    (let [operations (for [[pcoll f type] specs]
-                      [(dgroup-by f options pcoll) type])
+                      [(dgroup-by f (assoc options :as-kv-output true) pcoll) type])
          required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
          pcolls (map first operations)
          grouped-coll (cogroup options pcolls)
@@ -532,9 +551,12 @@
                       (assoc :scope :per-key))]
     (proxy [PTransform] []
       (apply [^PCollection pcoll]
-        (->> pcoll
-             (with-keys key-fn safe-opts)
-             (combine f safe-opts))))))
+        (let [raw-pcoll (->> pcoll
+                             (with-keys key-fn safe-opts)
+                             (combine f safe-opts))]
+          (if-not (:as-kv-output safe-opts)
+            (dmap (fn [^KV y] [(.getKey y) (.getValue y)]) safe-opts raw-pcoll)
+            raw-pcoll))))))
 
 (defn combine-by
   ([key-fn f options ^PCollection pcoll]
