@@ -4,7 +4,7 @@
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
             [clojure.string :as str]
-            [cognitect.transit :as transit])
+            [taoensso.nippy :as nippy])
   (:import [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
@@ -20,7 +20,7 @@
             Mean$MeanFn Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
-           [java.io InputStream OutputStream]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [java.util UUID])
   (:gen-class))
 
@@ -67,25 +67,25 @@
            (require 'datasplash.core)
            (swap! required-ns conj 'datasplash.core)))
        (let [required-at-start# (deref required-ns)]
-         (locking required-ns
+         (locking #'locking
            (let [nss# (unloaded-ns-from-ex e#)]
              (if (empty? nss#)
                (throw (ex-info "Runtime exception intercepted" {:hostname (get-hostname)} e#))
                (let [already-required# (deref required-ns)
-                                    missing# (first (remove already-required# nss#))
-                                    missing-at-start# (first (remove required-at-start# nss#))]
-                                (if missing#
-                                  (do
-                                    (require missing#)
-                                    (swap! required-ns conj missing#)
-                                    ~@body)
-                                  (if missing-at-start#
-                                    ~@body
-                                    (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                                    {:ns-from-exception nss#
-                                                     :ns-load-attempted already-required#
-                                                     :hostname (get-hostname)}
-                                                    e#))))))))))))
+                     missing# (first (remove already-required# nss#))
+                     missing-at-start# (first (remove required-at-start# nss#))]
+                 (if missing#
+                   (do
+                     (require missing#)
+                     (swap! required-ns conj missing#)
+                     ~@body)
+                   (if missing-at-start#
+                     ~@body
+                     (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                     {:ns-from-exception nss#
+                                      :ns-load-attempted already-required#
+                                      :hostname (get-hostname)}
+                                     e#))))))))))))
 
 (defn dofn
   ^DoFn [f & {:keys [start-bundle finish-bundle]
@@ -133,12 +133,12 @@
   (proxy [CustomCoder] []
     (encode [obj ^OutputStream out ^Coder$Context context]
       (safe-exec
-       (let [wrt (transit/writer out :msgpack)]
-         (transit/write wrt obj))))
+       (let [dos (DataOutputStream. out)]
+         (nippy/freeze-to-out! dos obj))))
     (decode [^InputStream in ^Coder$Context context]
       (safe-exec
-       (let [rdr (transit/reader in :msgpack)]
-         (transit/read rdr))))
+       (let [dis (DataInputStream. in)]
+         (nippy/thaw-from-in! dis))))
     (verifyDeterministic [] nil)
     (consistentWithEquals [] true)))
 
