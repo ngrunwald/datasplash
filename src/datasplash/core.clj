@@ -21,8 +21,7 @@
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [java.io InputStream OutputStream DataInputStream DataOutputStream]
-           [java.util UUID])
-  (:gen-class))
+           [java.util UUID]))
 
 (def ops-counter (atom {}))
 
@@ -128,7 +127,7 @@
 (defn didentity [c]
   (.output c (.element c)))
 
-(defn make-transit-coder
+(defn make-nippy-coder
   []
   (proxy [CustomCoder] []
     (encode [obj ^OutputStream out ^Coder$Context context]
@@ -179,7 +178,7 @@
             (.setCoder (or (:coder opts) coder)))))
      ([f pcoll] (make-map-op f {} pcoll))))
   ([transform label]
-   (map-op transform label (make-transit-coder))))
+   (map-op transform label (make-nippy-coder))))
 
 (def dmap (map-op map-fn :map))
 (def pardo (map-op pardo-fn :raw-pardo))
@@ -192,14 +191,14 @@
      (-> p
          (.apply (with-opts base-schema opts
                    (Create/of (seq coll))))
-         (.setCoder (or (:coder opts) (make-transit-coder))))))
+         (.setCoder (or (:coder opts) (make-nippy-coder))))))
   ([coll p] (generate-input coll {} p)))
 
 ;; (defn- make-view-transform
 ;;   [options]
 ;;   (let [safe-opts (dissoc options :name)]
 ;;     (proxy [View$AsSingleton] []
-;;       (getDefaultOutputCoder [_ _] (make-transit-coder)))))
+;;       (getDefaultOutputCoder [_ _] (make-nippy-coder)))))
 
 (defn view
   ([pcoll {:keys [view-type]
@@ -263,8 +262,8 @@
                           :else (if (sequential? (first args))
                                   (safe-exec (apply combinef (first args)))
                                   (safe-exec (extractf (first args)))))))))
-  ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-transit-coder)))
-  ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-transit-coder)))
+  ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-nippy-coder)))
+  ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-nippy-coder)))
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
   ([reducef extractf] (combine-fn reducef extractf reducef))
   ([reducef] (combine-fn reducef identity)))
@@ -302,8 +301,8 @@
          (.apply (with-opts base-schema opts
                    (WithKeys/of (sfn f))))
          (.setCoder (KvCoder/of
-                     (or key-coder (make-transit-coder))
-                     (or value-coder (make-transit-coder)))))))
+                     (or key-coder (make-nippy-coder))
+                     (or value-coder (make-nippy-coder)))))))
   ([f pcoll] (with-keys f {} pcoll)))
 
 (defn group-by-key
@@ -340,8 +339,8 @@
         pipeline (Pipeline/create options)
         coder-registry (.getCoderRegistry pipeline)]
     (doto coder-registry
-      (.registerCoder clojure.lang.IPersistentCollection (make-transit-coder))
-      (.registerCoder clojure.lang.Keyword (make-transit-coder)))
+      (.registerCoder clojure.lang.IPersistentCollection (make-nippy-coder))
+      (.registerCoder clojure.lang.Keyword (make-nippy-coder)))
     pipeline))
 
 ;;;;;;;;;;;;;
@@ -541,7 +540,7 @@
                                                                     (Combine/globally cfn)))
                        :else (throw (ex-info (format "Option %s is not recognized" scope)
                                              {:scope-given scope :allowed-scopes #{:global :per-key}})))]
-     (.setCoder ready-pcoll (make-transit-coder))))
+     (.setCoder ready-pcoll (make-nippy-coder))))
   ([f pcoll] (combine f {} pcoll)))
 
 (defn- combine-by-transform

@@ -4,8 +4,7 @@
                             max min])
   (:require [datasplash
              [core :as dt]
-             [bq :as bq]])
-  (:gen-class))
+             [bq :as bq]]))
 
 (def make-transit-coder dt/make-transit-coder)
 (def generate-input dt/generate-input)
