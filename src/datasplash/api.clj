@@ -10,7 +10,7 @@
 ;; Coders ;;
 ;;;;;;;;;;;;
 
-(def make-nippy-coder dt/make-transit-coder)
+(def make-nippy-coder dt/make-nippy-coder)
 
 ;;;;;;;;;;;;;;;
 ;; Operators ;;

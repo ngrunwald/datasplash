@@ -37,8 +37,8 @@
   (let [p (TestPipeline/create)
         coder-registry (.getCoderRegistry p)]
     (doto coder-registry
-      (.registerCoder clojure.lang.IPersistentCollection (ds/make-transit-coder))
-      (.registerCoder clojure.lang.Keyword (ds/make-transit-coder)))
+      (.registerCoder clojure.lang.IPersistentCollection (ds/make-nippy-coder))
+      (.registerCoder clojure.lang.Keyword (ds/make-nippy-coder)))
     p))
 
 (deftest basic-pipeline
