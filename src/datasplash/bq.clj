@@ -92,24 +92,22 @@
 (def write-bq-table-schema
   (merge
    base-schema
-   {:schema (fn [transform schema] (.withSchema transform (->schema schema)))
-    :write-disposition (fn [transform c]
-                         (let [enum (get write-disposition-enum c
-                                         (throw
-                                          (ex-info (format ":write-disposition must be one of %s, %s given"
-                                                           (keys write-disposition-enum) c)
-                                                   {:expected (keys write-disposition-enum)
-                                                    :given c})))]
-                           (.withWriteDisposition transform enum)))
-    :create-disposition (fn [transform c]
-                          (let [enum (get create-disposition-enum c
-                                          (throw
-                                           (ex-info (format ":create-disposition must be one of %s, %s given"
-                                                            (keys create-disposition-enum) c)
-                                                    {:expected (keys create-disposition-enum)
-                                                     :given c})))]
-                            (.withCreateDisposition transform enum)))
-    :without-validation (fn [transform] (.withoutValidation transform))}))
+   {:schema {:docstr "Specifies bq schema."
+             :action (fn [transform schema] (.withSchema transform (->schema schema)))}
+    :write-disposition {:docstr "Choose write disposition."
+                        :enum write-disposition-enum
+                        :action (select-enum-option-fn
+                                 :write-disposition
+                                 write-disposition-enum
+                                 (fn [transform enum] (.withWriteDisposition transform enum)))}
+    :create-disposition {:docstr "Choose create disposition"
+                         :enum create-disposition-enum
+                         :action (select-enum-option-fn
+                                  :create-disposition
+                                  create-disposition-enum
+                                  (fn [transform enum] (.withCreateDisposition transform enum)))}
+    :without-validation {:docstr "Disables validation until runtime."
+                         :action (fn [transform] (.withoutValidation transform))}}))
 
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]

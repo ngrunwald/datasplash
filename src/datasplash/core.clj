@@ -9,7 +9,7 @@
   (:import [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
-            TextIO$Read TextIO$Write]
+            TextIO$Read TextIO$Write TextIO$CompressionType]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
@@ -99,7 +99,8 @@
   (MapEntry. (.getKey kv) (.getValue kv)))
 
 (defn dofn
-  "Returns an Instance of DoFn from given Clojure fn"
+  {:doc "Returns an Instance of DoFn from given Clojure fn"
+   :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
               side-inputs]
@@ -165,12 +166,14 @@
         (.output c elt)))))
 
 (defn didentity
-  "Identity function for use in a ParDo"
+  {:doc "Identity function for use in a ParDo"
+   :added "0.1.0"}
   [^DoFn$ProcessContext c]
   (.output c (.element c)))
 
 (defn make-nippy-coder
-  "Returns an instance of a CustomCoder using nippy for serialization"
+  {:doc "Returns an instance of a CustomCoder using nippy for serialization"
+   :added "0.1.0"}
   []
   (proxy [CustomCoder] []
     (encode [obj ^OutputStream out ^Coder$Context context]
@@ -208,10 +211,24 @@
   [doc-string & schemas]
   (apply str doc-string "\n\nAvailable options:\n"
          (->> (for [schema schemas
-                    [k {:keys [docstr]}] schema]
-                (str k " => " docstr "\n"))
+                    [k {:keys [docstr enum]}] schema]
+                (-> (str k " => " docstr)
+                    (cond-> enum (str " one of " (keys enum) "."))
+                    (str "\n")))
               (distinct)
               (sort))))
+
+(defn select-enum-option-fn
+  [option-name enum-map action]
+  (fn [transform kw]
+    (let [enum (get enum-map (keyword kw))]
+      (if enum
+        (action transform enum)
+        (throw
+         (ex-info (format "%s must be one of %s, %s given"
+                          option-name (keys enum-map) kw)
+                  {:expected (keys enum-map)
+                   :given kw}))))))
 
 (def base-schema
   {:name {:docstr "Adds a name to the Transform."
@@ -241,6 +258,7 @@
 
 (def
   ^{:arglists [['f 'pcoll]]
+    :added "0.1.0"
     :doc
     (with-opts-docstr
       "Returns a PCollection of f applied to every item in the source PCollection.
@@ -250,9 +268,7 @@ Function f should be a function of one argument.
     (ds/map inc foo)
     (ds/map (fn [x] (* x x)) foo)
 
-  Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection.
-
-Added 0.1.0"
+  Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection."
       pardo-schema)}
   dmap (map-op map-fn :map))
 
@@ -260,20 +276,20 @@ Added 0.1.0"
 
 (def
   ^{:arglists [['f 'pcoll]]
+    :added "0.1.0"
     :doc (with-opts-docstr
            "Returns the result of applying concat, or flattening, the result of applying
 f to each item in the PCollection. Thus f should return a Clojure or Java collection.
 
   Example:
 
-    (ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)
-
-Added 0.1.0"
+    (ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)"
            pardo-schema)}
   dmapcat (map-op mapcat-fn :mapcat))
 
 (def
   ^{:arglists [['pred 'pcoll]]
+    :added "0.1.0"
     :doc (with-opts-docstr
            "Returns a PCollection that only contains the items for which (pred item)
 returns true.
@@ -281,9 +297,7 @@ returns true.
   Example:
 
     (ds/filter even? foo)
-    (ds/filter (fn [x] (even? (* x x))) foo)
-
-Added 0.1.0"
+    (ds/filter (fn [x] (even? (* x x))) foo)"
            pardo-schema)}
   dfilter (map-op filter-fn :filter))
 
@@ -293,10 +307,9 @@ Added 0.1.0"
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
 
   Example:
-    (ds/generate-input (range 0 1000) pipeline)
-
-Added 0.1.0"
-          base-schema)}
+    (ds/generate-input (range 0 1000) pipeline)"
+          base-schema)
+   :added "0.1.0"}
   ([coll options ^Pipeline p]
    (let [opts (assoc options :label :generate-input)]
      (-> p
@@ -344,7 +357,8 @@ Added 0.1.0"
   (getInitFn []))
 
 (defn combine-fn
-  "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html"
+  {:doc "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html"
+   :added "0.1.0"}
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
    (proxy [Combine$CombineFn ICombineFn clojure.lang.IFn] []
@@ -381,6 +395,13 @@ Added 0.1.0"
   (if (instance? Combine$CombineFn f) f (combine-fn f)))
 
 (defn djuxt
+  {:doc "Creates a CombineFn that applies multiple combiners in one go. Produces a vector of combined results.
+'sibling fusion' in Dataflow optimizes multiple independant combiners in the same way, but you might find juxt more concise.
+Only works with functions created with combine-fn or native clojure functions, and not with native Dataflow CombineFn
+
+  Example:
+    (ds/combine (ds/juxt + *) pcoll)"
+   :added "0.1.0"}
   [& fns]
   (let [cfs (map ->combine-fn fns)]
     (combine-fn
@@ -423,8 +444,10 @@ Added 0.1.0"
           "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
   See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/WithKeys.html
 
-  Added 0.1.0"
-          base-schema kv-coder-schema)}
+  Example:
+    (with-keys even? pcoll)"
+          base-schema kv-coder-schema)
+   :added "0.1.0"}
   ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label :with-keys)]
      (-> pcoll
@@ -438,10 +461,9 @@ Added 0.1.0"
   ([f pcoll] (with-keys f {} pcoll)))
 
 (defn group-by-key
-  "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html
-
-Added 0.1.0"
+  {:doc "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
+  See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
+   :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :group-by-keys)]
      (-> pcoll
@@ -466,10 +488,9 @@ map. Each value will be a list of the values that match key.
   Example:
 
     (ds/group-by :a foo)
-    (ds/group-by count foo)
-
-Added 0.1.0"
-          base-schema)}
+    (ds/group-by count foo)"
+          base-schema)
+   :added "0.1.0"}
   ([f options ^PCollection pcoll]
    (let [opts (assoc options :label :group-by)]
      (-> pcoll
@@ -478,7 +499,8 @@ Added 0.1.0"
   ([f pcoll] (dgroup-by f {} pcoll)))
 
 (defn make-pipeline
-  "Builds a Pipeline from command lines args"
+  {:doc "Builds a Pipeline from command lines args"
+   :added "0.1.0"}
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
                  (into-array String str-args))
@@ -501,7 +523,29 @@ Added 0.1.0"
       (str/replace #"^\w+:/" "")
       (str/replace #"/" "\\")))
 
+(def compression-type-enum
+  {:auto TextIO$CompressionType/AUTO
+   :bzip2 TextIO$CompressionType/BZIP2
+   :gzip TextIO$CompressionType/GZIP
+   :uncompressed TextIO$CompressionType/UNCOMPRESSED})
+
+(def text-reader-schema
+  {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
+                        :action (fn [transform] (.withoutValidation transform))}
+   :compression-type {:docstr "Choose compression type. :auto by default."
+                      :enum compression-type-enum
+                      :action (select-enum-option-fn
+                               :compression-type
+                               compression-type-enum
+                               (fn [transform enum] (.withCompressionType transform enum)))}})
+
 (defn write-text-file
+  {:doc "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
+
+  Example:
+    (write-text-file \"gs://target/path\" pcoll)"
+   :added "0.1.0"}
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label (str "write-text-file-to-"
                                          (clean-filename to)))]
@@ -511,6 +555,13 @@ Added 0.1.0"
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (defn read-text-file
+  {:doc (with-opts-docstr "Reads a PCollection of Strings from disk or Google Storage, with records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
+
+  Example:
+    (read-text-file \"gs://target/path\" pcoll)"
+          base-schema text-reader-schema)
+   :added "0.1.0"}
   ([from options p]
    (let [opts (assoc options :label (str "read-text-file-from"
                                          (clean-filename from)))]
