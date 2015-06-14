@@ -469,16 +469,12 @@ map. Each value will be a list of the values that match key.
     (ds/group-by count foo)
 
 Added 0.1.0"
-          base-schema kv-coder-schema)}
-  ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
+          base-schema)}
+  ([f options ^PCollection pcoll]
    (let [opts (assoc options :label :group-by)]
-     (.apply pcoll (with-opts base-schema opts
-                     (group-by-transform f options)))
-     (.setCoder (or
-                 (:coder opts)
-                 (KvCoder/of
-                  (or key-coder (make-nippy-coder))
-                  (or value-coder (make-nippy-coder)))))))
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (group-by-transform f options))))))
   ([f pcoll] (dgroup-by f {} pcoll)))
 
 (defn make-pipeline
