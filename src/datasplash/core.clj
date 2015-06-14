@@ -4,7 +4,8 @@
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
             [clojure.string :as str]
-            [taoensso.nippy :as nippy])
+            [taoensso.nippy :as nippy]
+            [datasplash.dv :as dv])
   (:import [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
@@ -21,11 +22,12 @@
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [java.io InputStream OutputStream DataInputStream DataOutputStream]
-           [java.util UUID]))
+           [java.util UUID]
+           [clojure.lang MapEntry ExceptionInfo]))
 
 (def ops-counter (atom {}))
 
-(def required-ns (atom #{}))
+(def ^{:private true} required-ns (atom #{}))
 
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
@@ -48,17 +50,22 @@
            (distinct)
            (map symbol)))))
 
-(def get-hostname (memoize
-                   (fn []
-                     (try
-                       (str/trim-newline (:out (sh "hostname")))
-                       (catch Exception e
-                         "unknown-hostname")))))
+(def get-hostname
+  ^{:doc "Try to guess local hostname"}
+  (memoize
+   (fn []
+     (try
+       (str/trim-newline (:out (sh "hostname")))
+       (catch Exception e
+         "unknown-hostname")))))
 
 (defmacro safe-exec
+  "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure"
   [& body]
   `(try
      ~@body
+     (catch ExceptionInfo e#
+       (throw e#))
      (catch Exception e#
        ;; lock on something that should exist!
        (locking #'locking
@@ -86,48 +93,84 @@
                                       :hostname (get-hostname)}
                                      e#))))))))))))
 
+(defn kv->clj
+  "Coerce from KV to Clojure MapEntry"
+  [^KV kv]
+  (MapEntry. (.getKey kv) (.getValue kv)))
+
 (defn dofn
-  ^DoFn [f & {:keys [start-bundle finish-bundle]
-              :or {start-bundle (fn [_] nil)
-                   finish-bundle (fn [_] nil)}
-              :as opts}]
-  (proxy [DoFn] []
-    (processElement [^DoFn$ProcessContext context] (safe-exec (f context)))
-    (startBundle [^DoFn$Context context] (safe-exec (start-bundle context)))
-    (finishBundle [^DoFn$Context context] (safe-exec (finish-bundle context)))))
+  "Returns an Instance of DoFn from given Clojure fn"
+  ^DoFn
+  ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
+              side-inputs]
+       :or {start-bundle (fn [_] nil)
+            finish-bundle (fn [_] nil)}
+       :as opts}]
+   (proxy [DoFn] []
+     (processElement [^DoFn$ProcessContext context]
+       (safe-exec
+        (let [side-vals (persistent!
+                         (reduce
+                          (fn [acc [k pview]]
+                            (assoc! acc k (.sideInput context pview)))
+                          (transient {}) side-inputs))]
+          (binding [dv/*context* context
+                    dv/*coerce-to-clj* (not without-coercion-to-clj)
+                    dv/*side-inputs* side-vals]
+            (f context)))))
+     (startBundle [^DoFn$Context context] (safe-exec (start-bundle context)))
+     (finishBundle [^DoFn$Context context] (safe-exec (finish-bundle context)))))
+  ([f] (dofn f {})))
+
+(defn get-element-from-context
+  "Get element from context in ParDo while applying relevent Clojure type conversions"
+  [^DoFn$ProcessContext c]
+  (let [element (.element c)]
+    (if dv/*coerce-to-clj*
+      (if (instance? KV element)
+        (kv->clj element)
+        element)
+      element)))
 
 (defn map-fn
+  "Returns a function that corresponds to a Clojure map operation inside a ParDo"
   [f]
   (fn [^DoFn$ProcessContext c]
-    (let [elt (.element c)
+    (let [elt (get-element-from-context c)
           result (f elt)]
       (.output c result))))
 
 (defn mapcat-fn
+  "Returns a function that corresponds to a Clojure mapcat operation inside a ParDo"
   [f]
   (fn [^DoFn$ProcessContext c]
-    (let [elt (.element c)
+    (let [elt (get-element-from-context c)
           result (f elt)]
       (doseq [res result]
         (.output c res)))))
 
 (defn pardo-fn
+  "Returns a function that uses the raw ProcessContext from ParDo"
   [f]
   (fn [^DoFn$ProcessContext c]
     (f c)))
 
 (defn filter-fn
+  "Returns a function that corresponds to a Clojure filter operation inside a ParDo"
   [f]
   (fn [^DoFn$ProcessContext c]
-    (let [elt (.element c)
+    (let [elt (get-element-from-context c)
           result (f elt)]
       (when result
         (.output c elt)))))
 
-(defn didentity [c]
+(defn didentity
+  "Identity function for use in a ParDo"
+  [^DoFn$ProcessContext c]
   (.output c (.element c)))
 
 (defn make-nippy-coder
+  "Returns an instance of a CustomCoder using nippy for serialization"
   []
   (proxy [CustomCoder] []
     (encode [obj ^OutputStream out ^Coder$Context context]
@@ -153,19 +196,35 @@
                                          label#)]
                            (str (name (get ~opts :label "cljfn")) "_"  new-idx#))))]
      (reduce
-      (fn [f# [k# apply#]]
+      (fn [f# [k# specs#]]
         (if-let [v# (get (assoc ~opts :name full-name#) k#)]
-          (apply# f# v#)
+          (if-let [action# (get specs# :action)]
+            (action# f# v#)
+            f#)
           f#))
       transform# ~schema)))
 
+(defn with-opts-docstr
+  [doc-string & schemas]
+  (apply str doc-string "\n\nAvailable options:\n"
+         (->> (for [schema schemas
+                    [k {:keys [docstr]}] schema]
+                (str k " => " docstr "\n"))
+              (distinct)
+              (sort))))
+
 (def base-schema
-  {:name (fn [transform n] (.withName transform n))})
+  {:name {:docstr "Adds a name to the Transform."
+          :action (fn [transform n] (.withName transform n))}
+   :coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}})
 
 (def pardo-schema
   (merge
    base-schema
-   {:side-inputs (fn [transform ^Iterable inputs] (.withSideInputs transform inputs))}))
+   {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the datasplash.dv/*side-inputs* var."
+                  :action (fn [transform inputs]
+                            (.withSideInputs transform (map val (sort-by key inputs))))}
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happe, by default"}}))
 
 (defn map-op
   ([transform label coder]
@@ -174,18 +233,70 @@
       (let [opts (assoc options :label label)]
         (-> pcoll
             (.apply (with-opts pardo-schema opts
-                      (ParDo/of (dofn (transform f)))))
+                      (ParDo/of (dofn (transform f) opts))))
             (.setCoder (or (:coder opts) coder)))))
      ([f pcoll] (make-map-op f {} pcoll))))
   ([transform label]
    (map-op transform label (make-nippy-coder))))
 
-(def dmap (map-op map-fn :map))
+(def
+  ^{:arglists [['f 'pcoll]]
+    :doc
+    (with-opts-docstr
+      "Returns a PCollection of f applied to every item in the source PCollection.
+Function f should be a function of one argument.
+
+  Example:
+    (ds/map inc foo)
+    (ds/map (fn [x] (* x x)) foo)
+
+  Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection.
+
+Added 0.1.0"
+      pardo-schema)}
+  dmap (map-op map-fn :map))
+
 (def pardo (map-op pardo-fn :raw-pardo))
-(def dmapcat (map-op mapcat-fn :mapcat))
-(def dfilter (map-op filter-fn :filter))
+
+(def
+  ^{:arglists [['f 'pcoll]]
+    :doc (with-opts-docstr
+           "Returns the result of applying concat, or flattening, the result of applying
+f to each item in the PCollection. Thus f should return a Clojure or Java collection.
+
+  Example:
+
+    (ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)
+
+Added 0.1.0"
+           pardo-schema)}
+  dmapcat (map-op mapcat-fn :mapcat))
+
+(def
+  ^{:arglists [['pred 'pcoll]]
+    :doc (with-opts-docstr
+           "Returns a PCollection that only contains the items for which (pred item)
+returns true.
+
+  Example:
+
+    (ds/filter even? foo)
+    (ds/filter (fn [x] (even? (* x x))) foo)
+
+Added 0.1.0"
+           pardo-schema)}
+  dfilter (map-op filter-fn :filter))
 
 (defn generate-input
+  {:doc (with-opts-docstr
+          "Generates a pcollection from the given collection.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
+
+  Example:
+    (ds/generate-input (range 0 1000) pipeline)
+
+Added 0.1.0"
+          base-schema)}
   ([coll options ^Pipeline p]
    (let [opts (assoc options :label :generate-input)]
      (-> p
@@ -193,12 +304,6 @@
                    (Create/of (seq coll))))
          (.setCoder (or (:coder opts) (make-nippy-coder))))))
   ([coll p] (generate-input coll {} p)))
-
-;; (defn- make-view-transform
-;;   [options]
-;;   (let [safe-opts (dissoc options :name)]
-;;     (proxy [View$AsSingleton] []
-;;       (getDefaultOutputCoder [_ _] (make-nippy-coder)))))
 
 (defn view
   ([pcoll {:keys [view-type]
@@ -210,8 +315,7 @@
                    (case view-type
                      :singleton (View/asSingleton)
                      :iterable (View/asIterable)
-                     :map (View/asMap))))
-         )))
+                     :map (View/asMap)))))))
   ([pcoll] (view pcoll {})))
 
 (defn- to-edn*
@@ -224,6 +328,7 @@
 (def from-edn (partial dmap #(read-string %)))
 
 (defn sfn
+  "Returns an instance of SerializableFunction equivalent to f."
   ^SerializableFunction
   [f]
   (proxy [SerializableFunction clojure.lang.IFn] []
@@ -239,6 +344,7 @@
   (getInitFn []))
 
 (defn combine-fn
+  "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html"
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
    (proxy [Combine$CombineFn ICombineFn clojure.lang.IFn] []
@@ -269,6 +375,8 @@
   ([reducef] (combine-fn reducef identity)))
 
 (defn ->combine-fn
+  "Returns a CombineFn if f is not one already."
+  ^Combine$CombineFn
   [f]
   (if (instance? Combine$CombineFn f) f (combine-fn f)))
 
@@ -294,18 +402,46 @@
      (.getDefaultOutputCoder (first cfs) nil nil)
      (.getAccumulatorCoder (first cfs) nil nil))))
 
+(defn clj->kv
+  "Coerce from Clojure data to KV objects"
+  ^KV
+  [obj]
+  (cond
+    (instance? KV obj) obj
+    (and (sequential? obj) (= 2 (count obj))) (KV/of (first obj) (second obj))
+    :else (throw (ex-info "Cannot coerce given object to KV"
+                          {:hostname (get-hostname)
+                           :input-object obj
+                           :input-object-type (type obj)}))))
+
+(def kv-coder-schema
+  {:key-coder {:docstr "Coder to be used for encoding keys in the resulting KV PColl."}
+   :value-coder {:docstr "Coder to be used for encoding values in the resulting KV PColl."}})
+
 (defn with-keys
+  {:doc (with-opts-docstr
+          "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
+  See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/WithKeys.html
+
+  Added 0.1.0"
+          base-schema kv-coder-schema)}
   ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label :with-keys)]
      (-> pcoll
          (.apply (with-opts base-schema opts
                    (WithKeys/of (sfn f))))
-         (.setCoder (KvCoder/of
-                     (or key-coder (make-nippy-coder))
-                     (or value-coder (make-nippy-coder)))))))
+         (.setCoder (or
+                     (:coder opts)
+                     (KvCoder/of
+                      (or key-coder (make-nippy-coder))
+                      (or value-coder (make-nippy-coder))))))))
   ([f pcoll] (with-keys f {} pcoll)))
 
 (defn group-by-key
+  "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html
+
+Added 0.1.0"
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :group-by-keys)]
      (-> pcoll
@@ -317,21 +453,36 @@
   (let [safe-opts (dissoc options :name)]
     (proxy [PTransform] []
       (apply [^PCollection pcoll]
-        (let [raw-pcoll (->> pcoll
-                             (with-keys f safe-opts)
-                             (group-by-key safe-opts))]
-          (if-not (:as-kv-output safe-opts)
-            (dmap (fn [^KV y] [(.getKey y) (into (list) (.getValue y))]) safe-opts raw-pcoll)
-            raw-pcoll))))))
+        (->> pcoll
+             (with-keys f safe-opts)
+             (group-by-key safe-opts))))))
 
 (defn dgroup-by
-  ([f options ^PCollection pcoll]
+  {:doc (with-opts-docstr
+          "Groups a Pcollection by the result of calling (f item) for each item.
+This produces a sequence of KV values, similar to using seq with a
+map. Each value will be a list of the values that match key.
+
+  Example:
+
+    (ds/group-by :a foo)
+    (ds/group-by count foo)
+
+Added 0.1.0"
+          base-schema kv-coder-schema)}
+  ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label :group-by)]
      (.apply pcoll (with-opts base-schema opts
-                     (group-by-transform f options)))))
+                     (group-by-transform f options)))
+     (.setCoder (or
+                 (:coder opts)
+                 (KvCoder/of
+                  (or key-coder (make-nippy-coder))
+                  (or value-coder (make-nippy-coder)))))))
   ([f pcoll] (dgroup-by f {} pcoll)))
 
 (defn make-pipeline
+  "Builds a Pipeline from command lines args"
   [str-args]
   (let [builder (PipelineOptionsFactory/fromArgs
                  (into-array String str-args))
@@ -348,8 +499,11 @@
 ;;;;;;;;;;;;;
 
 (defn clean-filename
+  "Clean filename for transform name building purpose."
   [s]
-  (str/replace s #"\w+:/" ""))
+  (-> s
+      (str/replace #"^\w+:/" "")
+      (str/replace #"/" "\\")))
 
 (defn write-text-file
   ([to options ^PCollection pcoll]
@@ -368,7 +522,9 @@
          (cond-> (instance? Pipeline p) (PBegin/in))
          (.apply (with-opts base-schema opts
                    (TextIO$Read/from from)))
-         (.setCoder (StringUtf8Coder/of)))))
+         (.setCoder (or
+                     (:coder opts)
+                     (StringUtf8Coder/of))))))
   ([from p] (read-text-file from {} p)))
 
 (defn- read-edn-file-transform
@@ -431,7 +587,9 @@
                                        raw-values (.getValue elt)
                                        values (for [tag ordered-tags]
                                                 (into [] (first (.getAll raw-values tag))))]
-                                   (into [] (conj values k)))) opts rel)]
+                                   (into [] (conj values k))))
+                               (assoc opts :without-coercion-to-clj true)
+                               rel)]
            final-rel))))))
 
 (defn cogroup
@@ -445,7 +603,7 @@
 (defn cogroup-by
   ([options specs reduce-fn]
    (let [operations (for [[pcoll f type] specs]
-                      [(dgroup-by f (assoc options :as-kv-output true) pcoll) type])
+                      [(dgroup-by f options pcoll) type])
          required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
          pcolls (map first operations)
          grouped-coll (cogroup options pcolls)
@@ -512,19 +670,18 @@
         (.apply (with-opts base-schema opts
                   (Flatten/pCollections))))))
 
-(def combine-globally-schema
-  (merge
-   base-schema
-   {:fanout (fn [transform fanout] (.withHotKeyFanout transform
-                                                      (if (fn? fanout) (sfn fanout) fanout)))
-    :as-singleton-view (fn [transform] (.asSingletonView transform))
-    :without-defaults (fn [transform] (.withoutDefaults transform))}))
+;; https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.Globally
 
-(def combine-per-key-schema
+(def combine-schema
   (merge
    base-schema
-   {:fanout (fn [transform fanout] (.withHotKeyFanout transform
-                                                      (if (fn? fanout) (sfn fanout) fanout)))}))
+   {:fanout {:docstr "Uses an intermediate node to combine parts of the data to reduce load on the final global combine step. Can be either an integer or a fn from key to integer (for combine-by-key scope)."
+             :action (fn [transform fanout] (.withHotKeyFanout transform
+                                                               (if (fn? fanout) (sfn fanout) fanout)))}
+    :as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
+                        :action (fn [transform] (.asSingletonView transform))}
+    :without-defaults {:docstr "Boolean indicating if the transform should attempt to provide a default value in the case of empty input."
+                       :action (fn [transform] (.withoutDefaults transform))}}))
 
 (defn combine
   ([f options ^PCollection pcoll]
@@ -534,13 +691,15 @@
                      :scope scope)
          cfn (->combine-fn f)
          ready-pcoll (cond
-                       (#{:local :per-key} scope) (.apply pcoll (with-opts combine-per-key-schema opts
+                       (#{:local :per-key} scope) (.apply pcoll (with-opts combine-schema opts
                                                                   (Combine/perKey cfn)))
-                       (#{:global :globally} scope) (.apply pcoll (with-opts combine-globally-schema opts
+                       (#{:global :globally} scope) (.apply pcoll (with-opts combine-schema opts
                                                                     (Combine/globally cfn)))
                        :else (throw (ex-info (format "Option %s is not recognized" scope)
                                              {:scope-given scope :allowed-scopes #{:global :per-key}})))]
-     (.setCoder ready-pcoll (make-nippy-coder))))
+     (.setCoder ready-pcoll (or
+                             (:coder opts)
+                             (make-nippy-coder)))))
   ([f pcoll] (combine f {} pcoll)))
 
 (defn- combine-by-transform

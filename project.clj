@@ -1,9 +1,8 @@
 (defproject datasplash "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
+  :description "Clojure API for a more dynamic Google Dataflow"
+  :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  ;; :aot :all
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.google.cloud.dataflow/google-cloud-dataflow-java-sdk-all "0.4.150602" ]
                  [com.taoensso/nippy "2.9.0"]

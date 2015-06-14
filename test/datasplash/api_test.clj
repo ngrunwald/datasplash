@@ -1,6 +1,8 @@
 (ns datasplash.api-test
   (:require [clojure.test :refer :all]
-            [datasplash.api :as ds]
+            [datasplash
+             [api :as ds]
+             [dv :as dv]]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
@@ -57,12 +59,13 @@
   (with-files [side-test]
     (let [p (make-test-pipeline)
           input (ds/generate-input [1 2 3 4 5] p)
-          side-input (ds/view (ds/generate-input ["side"] p))
-          proc (ds/pardo ds/identity {:side-inputs [side-input] :name "concat"}  input )
+          side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] p))
+          proc (ds/map (fn [x] (get (:mapping dv/*side-inputs*) x))
+                       {:side-inputs {:mapping side-input}} input)
           output (ds/write-edn-file side-test proc)]
       (.run p))
-    (let [res (read-file (first (glob-file side-test)))]
-      println "side" res)))
+    (let [res (into #{} (read-file (first (glob-file side-test))))]
+      (is (= res #{:a :b :c :d :e})))))
 
 (deftest group-test
   (with-files [group-test]
@@ -72,9 +75,11 @@
           output (ds/write-edn-file group-test grouped)]
       (is "group" (.getName grouped))
       (.run p)
-      (let [res (into #{} (read-file (first (glob-file group-test))))]
-        (is (res [:a [{:key :a :lue 65} {:key :a :val 42}]]))
-        (is (res [:b [{:key :b :val 56}]]))))))
+      (let [res (->> (read-file (first (glob-file group-test)))
+                     (map (fn [[k v]] [k (into #{} v)]))
+                     (into #{}))]
+        (is (res [:a #{{:key :a :lue 65} {:key :a :val 42}}]))
+        (is (res [:b #{{:key :b :val 56}}]))))))
 
 (deftest cogroup-test
   (with-files [cogroup-test]
