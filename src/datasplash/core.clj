@@ -241,7 +241,7 @@
    {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the datasplash.dv/*side-inputs* var."
                   :action (fn [transform inputs]
                             (.withSideInputs transform (map val (sort-by key inputs))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happe, by default"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op
   ([transform label coder]
@@ -539,18 +539,32 @@ map. Each value will be a list of the values that match key.
                                compression-type-enum
                                (fn [transform enum] (.withCompressionType transform enum)))}})
 
+(def text-writer-schema
+  {:num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
+                :action (fn [transform shards] (.withNumShards transform shards))}
+   :without-sharding {:docstr "Forces a single file output."
+                      :action (fn [transform] (.withoutSharding transform))}
+   :without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
+                        :action (fn [transform] (.withoutValidation transform))}
+   :shard-name-template {:docstr "Uses the given shard name template."
+                         :action (fn [transform tpl] (.withShardNameTemplate transform tpl))}
+   :suffix {:docstr "Uses the given filename suffix."
+            :action (fn [transform suffix] (.withSuffix transform suffix))}})
+
 (defn write-text-file
-  {:doc "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
+  {:doc (with-opts-docstr
+          "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
 
   Example:
     (write-text-file \"gs://target/path\" pcoll)"
+          base-schema text-writer-schema)
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label (str "write-text-file-to-"
                                          (clean-filename to)))]
      (-> pcoll
-         (.apply (with-opts base-schema opts
+         (.apply (with-opts (merge base-schema text-writer-schema) opts
                    (TextIO$Write/to to))))))
   ([to pcoll] (write-text-file to {} pcoll)))
 
@@ -584,11 +598,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
              (from-edn options))))))
 
 (defn read-edn-file
+  {:doc (with-opts-docstr "Reads a PCollection of edn strings from disk or Google Storage, with records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
+
+  Example:
+    (read-edn-file \"gs://target/path\" pcoll)"
+          base-schema text-reader-schema)
+   :added "0.1.0"}
   ([from options ^Pipeline p]
    (let [opts (assoc options :label (str "read-edn-file-from-"
                                          (clean-filename from)))]
      (-> p
-         (.apply (with-opts base-schema opts
+         (.apply (with-opts (merge base-schema text-reader-schema) opts
                    (read-edn-file-transform from opts))))))
   ([from p] (read-edn-file from {} p)))
 
@@ -602,10 +623,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
              (write-text-file to options))))))
 
 (defn write-edn-file
+  {:doc (with-opts-docstr
+          "Writes a PCollection of edn strings to disk or Google Storage, with records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
+
+  Example:
+    (write-edn-file \"gs://target/path\" pcoll)"
+          base-schema text-writer-schema)
+   :added "0.1.0"}
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to)))]
      (-> pcoll
-         (.apply (with-opts base-schema opts
+         (.apply (with-opts (merge base-schema text-writer-schema) opts
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
@@ -677,6 +706,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([specs join-fn] (join-by {} specs join-fn)))
 
 (defn ddistinct
+  {:doc (with-opts-docstr
+          "Removes duplicate element from PCollection.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/RemoveDuplicates.html
+  Example:
+    (ds/distinct pcoll)"
+          base-schema)
+   :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :distinct)]
      (-> pcoll
@@ -684,7 +720,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                    (RemoveDuplicates/create))))))
   ([pcoll] (ddistinct {} pcoll)))
 
+(def scoped-ops-schema
+  {:scope {:docstr "Scope given to the combinating operation. One of (:globally :per-key)."}})
+
 (defn sample
+  {:doc (with-opts-docstr
+          "Takes samples of the elements in a PCollection, or samples of the values associated with each key in a PCollection of KVs.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Sample.html
+
+  Example:
+    (ds/sample 100 {:scope :per-key} pcoll)"
+          base-schema scoped-ops-schema)
+   :added "0.1.0"}
   ([size {:keys [scope] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label (keyword "sample-" (if scope (name scope) "any")))]
      (-> pcoll
@@ -692,7 +739,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                    (cond
                      (#{:global :globally} scope) (Sample/fixedSizeGlobally size)
                      (#{:local :per-key} scope) (Sample/fixedSizePerKey size)
-                     :else (Sample/any size)))))))
+                     :else (Sample/any size))))
+         (cond-> (:coder opts) (.setCoder (:coder opts))))))
   ([size pcoll] (sample size {} pcoll)))
 
 (defn dflatten
