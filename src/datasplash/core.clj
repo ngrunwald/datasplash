@@ -744,6 +744,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([size pcoll] (sample size {} pcoll)))
 
 (defn dflatten
+  {:doc "Returns a single Pcollection containing all the pcolls in the given pcolls iterable.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Flatten.html
+
+  Example:
+    (ds/flatten [pcoll1 pcoll2 pcoll3])"
+   :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :flatten)]
      (-> pcoll
@@ -752,6 +758,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([pcoll] (dflatten {} pcoll)))
 
 (defn dconcat
+  {:doc "Returns a single PCollection containing all the given pcolls. Accepts an option map as an optional first arg.
+
+  Example:
+    (ds/concat pcoll1 pcoll2)
+    (ds/concat {:name :concat-node} pcoll1 pcoll2)"
+   :added "0.1.0"}
   [options & colls]
   (let [[real-options ^Iterable all-colls]
         (if (map? options)
