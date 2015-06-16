@@ -12,6 +12,8 @@
   :profiles {:dev {:dependencies [[org.hamcrest/hamcrest-all "1.3"]
                                   [junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]]
-                   :aot [datasplash.api-test]
-                   :codox {:exclude [datasplash.core]}
-                   :plugins [[codox "0.8.12"]]}})
+                   :aot [datasplash.api-test datasplash.examples]
+                   :codox {:exclude [datasplash.core datasplash.examples]}
+                   :plugins [[codox "0.8.12"]]}
+             :uberjar {:aot :all}}
+  :main datasplash.examples)

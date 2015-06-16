@@ -1,7 +1,7 @@
 (ns datasplash.api
   (:refer-clojure :exclude [map filter mapcat group-by
                             distinct flatten concat juxt identity
-                            max min])
+                            max min count frequencies])
   (:require [datasplash
              [core :as dt]
              [bq :as bq]]))
@@ -46,6 +46,9 @@
 (intern *ns* (with-meta 'max (meta #'dt/dmax)) @#'dt/dmax)
 (intern *ns* (with-meta 'min (meta #'dt/dmin)) @#'dt/dmin)
 (intern *ns* (with-meta 'mean (meta #'dt/mean)) @#'dt/mean)
+(intern *ns* (with-meta 'count (meta #'dt/dcount)) @#'dt/dcount)
+(intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
+
 
 ;;;;;;;;;;;;;
 ;; File IO ;;

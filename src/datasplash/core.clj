@@ -18,7 +18,8 @@
             Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
             Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
             Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
-            Mean$MeanFn Sample]
+            Mean$MeanFn Sample
+            Count$Globally Count$PerElement]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [java.io InputStream OutputStream DataInputStream DataOutputStream]
@@ -37,8 +38,9 @@
   (loop [todo (st/parse-exception e)
          nss (list)]
     (if-let [{:keys [message trace-elems cause] :as current-ex} todo]
-      (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn" message)
-        (let [[_ missing-ns] (re-find #"call unbound fn: #'([^/]+)/" message)
+      (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var" message)
+        (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
+                                 (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message))
               ns-to-add (->> trace-elems
                              (filter #(:clojure %))
                              (map :ns)
@@ -70,8 +72,10 @@
        ;; lock on something that should exist!
        (locking #'locking
          (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
+           (require 'datasplash.dv)
            (require 'datasplash.core)
-           (swap! required-ns conj 'datasplash.core)))
+           (require 'datasplash.api)
+           (swap! required-ns conj 'datasplash.core 'datasplash.dv 'datasplash.api)))
        (let [required-at-start# (deref required-ns)]
          (locking #'locking
            (let [nss# (unloaded-ns-from-ex e#)]
@@ -257,7 +261,7 @@
    (map-op transform label (make-nippy-coder))))
 
 (def
-  ^{:arglists [['f 'pcoll]]
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
     :doc
     (with-opts-docstr
@@ -275,7 +279,7 @@ Function f should be a function of one argument.
 (def pardo (map-op pardo-fn :raw-pardo))
 
 (def
-  ^{:arglists [['f 'pcoll]]
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
     :doc (with-opts-docstr
            "Returns the result of applying concat, or flattening, the result of applying
@@ -288,7 +292,7 @@ f to each item in the PCollection. Thus f should return a Clojure or Java collec
   dmapcat (map-op mapcat-fn :mapcat))
 
 (def
-  ^{:arglists [['pred 'pcoll]]
+  ^{:arglists [['pred 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
     :doc (with-opts-docstr
            "Returns a PCollection that only contains the items for which (pred item)
@@ -521,7 +525,8 @@ map. Each value will be a list of the values that match key.
   [s]
   (-> s
       (str/replace #"^\w+:/" "")
-      (str/replace #"/" "\\")))
+      ;; (str/replace #"/" "\\")
+      ))
 
 (def compression-type-enum
   {:auto TextIO$CompressionType/AUTO
@@ -779,16 +784,19 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 ;; https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.Globally
 
+(def base-combine-schema
+  {:fanout {:docstr "Uses an intermediate node to combine parts of the data to reduce load on the final global combine step. Can be either an integer or a fn from key to integer (for combine-by-key scope)."
+            :action (fn [transform fanout] (.withHotKeyFanout transform
+                                                              (if (fn? fanout) (sfn fanout) fanout)))}
+   :without-defaults {:docstr "Boolean indicating if the transform should attempt to provide a default value in the case of empty input."
+                      :action (fn [transform] (.withoutDefaults transform))}})
+
 (def combine-schema
   (merge
    base-schema
-   {:fanout {:docstr "Uses an intermediate node to combine parts of the data to reduce load on the final global combine step. Can be either an integer or a fn from key to integer (for combine-by-key scope)."
-             :action (fn [transform fanout] (.withHotKeyFanout transform
-                                                               (if (fn? fanout) (sfn fanout) fanout)))}
-    :as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
-                        :action (fn [transform] (.asSingletonView transform))}
-    :without-defaults {:docstr "Boolean indicating if the transform should attempt to provide a default value in the case of empty input."
-                       :action (fn [transform] (.withoutDefaults transform))}}))
+   base-combine-schema
+   {:as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
+                        :action (fn [transform] (.asSingletonView transform))}}))
 
 (defn combine
   ([f options ^PCollection pcoll]
@@ -869,3 +877,39 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    (let [opts (assoc options :label :mean)]
      (combine (Mean$MeanFn.) opts pcoll)))
   ([pcoll] (mean {} pcoll)))
+
+(defn dcount
+  {:doc (with-opts-docstr
+          "Counts the elements in the input PCollection.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.Globally.html
+
+  example:
+
+    (ds/count pcoll)"
+          base-schema base-combine-schema)
+   :added "0.1.0"}
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :count)]
+     (-> pcoll
+         (.apply (with-opts (merge base-schema base-combine-schema) opts
+                   (Count$Globally.)))
+         (cond-> (:coder opts) (.setCoder (:coder opts))))))
+  ([pcoll] (dcount {} pcoll)))
+
+(defn dfrequencies
+  {:doc (with-opts-docstr
+          "Returns the frequency of each unique element of the input PCollection.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.PerElement.html
+
+  Example:
+
+    (ds/frequencies pcoll)"
+          base-schema)
+   :added "0.1.0"}
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :frequencies)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (Count$PerElement.)))
+         (cond-> (:coder opts) (.setCoder (:coder opts))))))
+  ([pcoll] (dfrequencies {} pcoll)))
