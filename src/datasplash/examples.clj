@@ -23,13 +23,13 @@
 (defn run-word-count
   [str-args]
   (let [p (ds/make-pipeline 'WordCountOptions str-args)
-        conf (ds/get-pipeline-configuration p)]
+        {:keys [input output numShards]} (ds/get-pipeline-configuration p)]
     (->> p
-         (ds/read-text-file (:input conf) {:name "King-Lear"})
+         (ds/read-text-file input {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
          (ds/frequencies)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
-         (ds/write-text-file (:output conf) {:num-shards (:numShards conf)}))))
+         (ds/write-text-file output {:num-shards numShards}))))
 
 (defn -main
   [job & args]
