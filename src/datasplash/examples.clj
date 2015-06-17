@@ -1,8 +1,7 @@
 (ns datasplash.examples
   (:require [clojure.string :as str]
             [datasplash
-             [api :as ds]
-             [dv :as dv]])
+             [api :as ds]])
   (:gen-class))
 
 (defn tokenize

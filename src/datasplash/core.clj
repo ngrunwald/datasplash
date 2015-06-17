@@ -4,8 +4,7 @@
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
             [clojure.string :as str]
-            [taoensso.nippy :as nippy]
-            [datasplash.dv :as dv])
+            [taoensso.nippy :as nippy])
   (:import [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
@@ -72,10 +71,9 @@
        ;; lock on something that should exist!
        (locking #'locking
          (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
-           (require 'datasplash.dv)
            (require 'datasplash.core)
            (require 'datasplash.api)
-           (swap! required-ns conj 'datasplash.core 'datasplash.dv 'datasplash.api)))
+           (swap! required-ns conj 'datasplash.core 'datasplash.api)))
        (let [required-at-start# (deref required-ns)]
          (locking #'locking
            (let [nss# (unloaded-ns-from-ex e#)]
@@ -102,36 +100,66 @@
   [^KV kv]
   (MapEntry. (.getKey kv) (.getValue kv)))
 
+(defn make-keyed-pcollection-tuple
+  [pcolls]
+  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
+    (reduce
+     (fn [coll-tuple [idx pcoll]]
+       (let [tag (TupleTag. (str idx))
+             new-coll-tuple (.and coll-tuple tag pcoll)]
+         new-coll-tuple))
+     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
+
+(def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
+(def ^{:dynamic true :no-doc true} *context* nil)
+(def ^{:dynamic true :no-doc true} *side-inputs* {})
+
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs]
+              side-inputs side-outputs]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)}
        :as opts}]
    (proxy [DoFn] []
      (processElement [^DoFn$ProcessContext context]
        (safe-exec
-        (let [side-vals (persistent!
-                         (reduce
-                          (fn [acc [k pview]]
-                            (assoc! acc k (.sideInput context pview)))
-                          (transient {}) side-inputs))]
-          (binding [dv/*context* context
-                    dv/*coerce-to-clj* (not without-coercion-to-clj)
-                    dv/*side-inputs* side-vals]
+        (let [side-ins (persistent!
+                        (reduce
+                         (fn [acc [k pview]]
+                           (assoc! acc k (.sideInput context pview)))
+                         (transient {}) side-inputs))]
+          (binding [*context* context
+                    *coerce-to-clj* (not without-coercion-to-clj)
+                    *side-inputs* side-ins]
             (f context)))))
      (startBundle [^DoFn$Context context] (safe-exec (start-bundle context)))
      (finishBundle [^DoFn$Context context] (safe-exec (finish-bundle context)))))
   ([f] (dofn f {})))
 
+(defn context
+  {:added "0.1.0"
+   :doc "In the context of a ParDo, contains the corresponding Context object.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/DoFn.ProcessContext.html"}
+  [] *context*)
+
+(defn side-inputs
+  {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.
+  Example:
+    (let [input (ds/generate-input [1 2 3 4 5] p)
+          side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] p))
+          proc (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
+                       {:side-inputs {:mapping side-input}} input)])"
+   :added "0.1.0"}
+  [] *side-inputs*)
+
 (defn get-element-from-context
   "Get element from context in ParDo while applying relevent Clojure type conversions"
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
-    (if dv/*coerce-to-clj*
+    (if *coerce-to-clj*
       (if (instance? KV element)
         (kv->clj element)
         element)
@@ -242,7 +270,7 @@
 (def pardo-schema
   (merge
    base-schema
-   {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the datasplash.dv/*side-inputs* var."
+   {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the return of side-inputs fn."
                   :action (fn [transform inputs]
                             (.withSideInputs transform (map val (sort-by key inputs))))}
     :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
@@ -537,8 +565,15 @@ map. Each value will be a list of the values that match key.
         (.run))))
 
 (defn get-pipeline-configuration
-  [^Pipeline p]
-  (dissoc (bean (.getOptions p)) :class))
+  {:doc "Returns a map corresponding to the bean of options. With arity one, can be called on a Pipeline. With arity zero, returns the same thing inside a ParDo."
+   :added "0.1.0"}
+  ([^Pipeline p]
+   (dissoc (bean (.getOptions p)) :class))
+  ([]
+   (when-let [^DoFn.Contextc *context*]
+     (-> (.getPipelineOptions c)
+         (bean)
+         (dissoc :class)))))
 
 ;;;;;;;;;;;;;
 ;; Text IO ;;
@@ -666,16 +701,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          (.apply (with-opts (merge base-schema text-writer-schema) opts
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
-
-(defn make-keyed-pcollection-tuple
-  [pcolls]
-  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
-    (reduce
-     (fn [coll-tuple [idx pcoll]]
-       (let [tag (TupleTag. (str idx))
-             new-coll-tuple (.and coll-tuple tag pcoll)]
-         new-coll-tuple))
-     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
 
 (defn cogroup-transform
   ([options]

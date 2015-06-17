@@ -1,8 +1,7 @@
 (ns datasplash.api-test
   (:require [clojure.test :refer :all]
             [datasplash
-             [api :as ds]
-             [dv :as dv]]
+             [api :as ds]]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
             [clojure.edn :as edn])
@@ -60,7 +59,7 @@
     (let [p (make-test-pipeline)
           input (ds/generate-input [1 2 3 4 5] p)
           side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] p))
-          proc (ds/map (fn [x] (get (:mapping dv/*side-inputs*) x))
+          proc (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
                        {:side-inputs {:mapping side-input}} input)
           output (ds/write-edn-file side-test proc)]
       (ds/run-pipeline p))

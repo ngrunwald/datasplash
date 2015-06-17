@@ -47,6 +47,9 @@
 (intern *ns* (with-meta 'combine-fn (meta #'dt/combine-fn)) @#'dt/combine-fn)
 (intern *ns* (with-meta 'juxt (meta #'dt/djuxt)) @#'dt/djuxt)
 
+(intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
+(intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
+
 ;;;;;;;;;;;;;;;;;
 ;; Combinators ;;
 ;;;;;;;;;;;;;;;;;
