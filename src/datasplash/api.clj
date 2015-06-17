@@ -5,7 +5,7 @@
   (:require [datasplash
              [core :as dt]
              [bq :as bq]
-             [config :as conf]]))
+             [options :as opt]]))
 
 ;;;;;;;;;;;;
 ;; Coders ;;
@@ -17,7 +17,7 @@
 ;; Config ;;
 ;;;;;;;;;;;;
 
-(intern *ns* (with-meta 'defconfig (meta #'conf/defconfig)) @#'conf/defconfig)
+(intern *ns* (with-meta 'defoptions (meta #'opt/defoptions)) @#'opt/defoptions)
 
 ;;;;;;;;;;;;;;;
 ;; Operators ;;

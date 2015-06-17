@@ -502,13 +502,21 @@ map. Each value will be a list of the values that match key.
                    (group-by-transform f options))))))
   ([f pcoll] (dgroup-by f {} pcoll)))
 
+(defn interface->class
+  [itf]
+  (if (instance? Class itf)
+    itf
+    (Class/forName (name itf))))
+
 (defn make-pipeline
   {:doc "Builds a Pipeline from command lines args"
    :added "0.1.0"}
   ([itf str-args]
    (let [builder (PipelineOptionsFactory/fromArgs
                   (into-array String str-args))
-         options (if itf (.as builder itf) (.create builder))
+         options (if itf
+                   (.as builder (interface->class itf))
+                   (.create builder))
          pipeline (Pipeline/create options)
          coder-registry (.getCoderRegistry pipeline)]
      (doto coder-registry

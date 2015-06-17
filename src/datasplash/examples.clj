@@ -9,22 +9,28 @@
   [l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
-(ds/defconfig Options
-  {:input {:type :string
-           :annotations [[:default-string "gs://dataflow-samples/shakespeare/kinglear.txt"]]}
-   :output {:type :string
-            :annotations [[:default-string "kinglear-freqs.txt"]]}})
+(ds/defoptions WordCountOptions
+  {:input {:type String
+           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :description "Path of the file to read from"}
+   :output {:type String
+            :default "kinglear-freqs.txt"
+            :description "Path of the file to write to"}
+   :numShards {:type Long
+               :description "Number of output shards (0 if the system should choose automatically)"
+               :default 0}})
 
 (defn run-word-count
   [str-args]
-  (let [p (ds/make-pipeline (Class/forName "Options") str-args)
-        conf (bean (.getOptions p))]
+  (let [p (ds/make-pipeline 'WordCountOptions str-args)
+        conf (dissoc (bean (.getOptions p)) :class)]
+    (println "CONF" conf)
     (->> p
          (ds/read-text-file (:input conf) {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
          (ds/frequencies)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
-         (ds/write-text-file (:output conf)))))
+         (ds/write-text-file (:output conf) {:num-shards (:numShards conf)}))))
 
 (defn -main
   [job & args]
