@@ -23,8 +23,7 @@
 (defn run-word-count
   [str-args]
   (let [p (ds/make-pipeline 'WordCountOptions str-args)
-        conf (dissoc (bean (.getOptions p)) :class)]
-    (println "CONF" conf)
+        conf (ds/get-pipeline-configuration p)]
     (->> p
          (ds/read-text-file (:input conf) {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})

@@ -536,6 +536,10 @@ map. Each value will be a list of the values that match key.
         (.getPipeline)
         (.run))))
 
+(defn get-pipeline-configuration
+  [^Pipeline p]
+  (dissoc (bean (.getOptions p)) :class))
+
 ;;;;;;;;;;;;;
 ;; Text IO ;;
 ;;;;;;;;;;;;;

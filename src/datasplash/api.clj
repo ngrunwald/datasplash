@@ -13,11 +13,12 @@
 
 (intern *ns* (with-meta 'make-nippy-coder (meta #'dt/make-nippy-coder)) @#'dt/make-nippy-coder)
 
-;;;;;;;;;;;;
-;; Config ;;
-;;;;;;;;;;;;
+;;;;;;;;;;;;;
+;; Options ;;
+;;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'defoptions (meta #'opt/defoptions)) @#'opt/defoptions)
+(intern *ns* (with-meta 'get-pipeline-configuration (meta #'dt/get-pipeline-configuration)) @#'dt/get-pipeline-configuration)
 
 ;;;;;;;;;;;;;;;
 ;; Operators ;;
