@@ -505,16 +505,28 @@ map. Each value will be a list of the values that match key.
 (defn make-pipeline
   {:doc "Builds a Pipeline from command lines args"
    :added "0.1.0"}
-  [str-args]
-  (let [builder (PipelineOptionsFactory/fromArgs
-                 (into-array String str-args))
-        options (.create builder)
-        pipeline (Pipeline/create options)
-        coder-registry (.getCoderRegistry pipeline)]
-    (doto coder-registry
-      (.registerCoder clojure.lang.IPersistentCollection (make-nippy-coder))
-      (.registerCoder clojure.lang.Keyword (make-nippy-coder)))
-    pipeline))
+  ([itf str-args]
+   (let [builder (PipelineOptionsFactory/fromArgs
+                  (into-array String str-args))
+         options (if itf (.as builder itf) (.create builder))
+         pipeline (Pipeline/create options)
+         coder-registry (.getCoderRegistry pipeline)]
+     (doto coder-registry
+       (.registerCoder clojure.lang.IPersistentCollection (make-nippy-coder))
+       (.registerCoder clojure.lang.Keyword (make-nippy-coder)))
+     pipeline))
+  ([str-args]
+   (make-pipeline nil str-args)))
+
+(defn run-pipeline
+  {:doc "Run the computation for a given pipeline or PCollection."
+   :added "0.1.0"}
+  [topology]
+  (if (instance? Pipeline topology)
+    (.run topology)
+    (-> topology
+        (.getPipeline)
+        (.run))))
 
 ;;;;;;;;;;;;;
 ;; Text IO ;;

@@ -4,13 +4,20 @@
                             max min count frequencies])
   (:require [datasplash
              [core :as dt]
-             [bq :as bq]]))
+             [bq :as bq]
+             [config :as conf]]))
 
 ;;;;;;;;;;;;
 ;; Coders ;;
 ;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'make-nippy-coder (meta #'dt/make-nippy-coder)) @#'dt/make-nippy-coder)
+
+;;;;;;;;;;;;
+;; Config ;;
+;;;;;;;;;;;;
+
+(intern *ns* (with-meta 'defconfig (meta #'conf/defconfig)) @#'conf/defconfig)
 
 ;;;;;;;;;;;;;;;
 ;; Operators ;;
@@ -26,6 +33,7 @@
 (intern *ns* (with-meta 'group-by-key (meta #'dt/group-by-key)) @#'dt/group-by-key)
 (intern *ns* (with-meta 'group-by (meta #'dt/dgroup-by)) @#'dt/dgroup-by)
 (intern *ns* (with-meta 'make-pipeline (meta #'dt/make-pipeline)) @#'dt/make-pipeline)
+(intern *ns* (with-meta 'run-pipeline (meta #'dt/run-pipeline)) @#'dt/run-pipeline)
 (intern *ns* (with-meta 'cogroup (meta #'dt/cogroup)) @#'dt/cogroup)
 (intern *ns* (with-meta 'cogroup-by (meta #'dt/cogroup-by)) @#'dt/cogroup-by)
 (intern *ns* (with-meta 'join-by (meta #'dt/join-by)) @#'dt/join-by)

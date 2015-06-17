@@ -52,7 +52,7 @@
     (.. DataflowAssert (that proc) (containsInAnyOrder #{2 3 4 5 6}))
     (.. DataflowAssert (that filter) (containsInAnyOrder #{2 4 6}))
     (is "increment" (.getName proc))
-    (.run p)))
+    (ds/run-pipeline p)))
 
 
 (deftest side-inputs-test
@@ -63,7 +63,7 @@
           proc (ds/map (fn [x] (get (:mapping dv/*side-inputs*) x))
                        {:side-inputs {:mapping side-input}} input)
           output (ds/write-edn-file side-test proc)]
-      (.run p))
+      (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file side-test))))]
       (is (= res #{:a :b :c :d :e})))))
 
@@ -74,7 +74,7 @@
           grouped (ds/group-by :key {:name "group"} input)
           output (ds/write-edn-file group-test grouped)]
       (is "group" (.getName grouped))
-      (.run p)
+      (ds/run-pipeline p)
       (let [res (->> (read-file (first (glob-file group-test)))
                      (map (fn [[k v]] [k (into #{} v)]))
                      (into #{}))]
@@ -89,7 +89,7 @@
           grouped (ds/cogroup-by {:name "cogroup-test"}
                                  [[input1 :key] [input2 :key]])
           output (ds/write-edn-file cogroup-test grouped)]
-      (.run p)
+      (ds/run-pipeline p)
       (is "cogroup-test" (.getName grouped))
       (let [res (->> (read-file (first (glob-file cogroup-test)))
                      (map (fn [[k i1 i2]] [k (into #{} i1) (into #{} i2)]))
@@ -105,7 +105,7 @@
           grouped (ds/join-by {:name "join-test"}
                               [[input1 :key] [input2 :key]] merge)
           output (ds/write-edn-file cogroup-test grouped)]
-      (.run p)
+      (ds/run-pipeline p)
       (is "join-test" (.getName grouped))
       (let [res (into #{} (read-file (first (glob-file cogroup-test))))]
         (is (= res #{{:key :b, :val 56} {:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
@@ -117,7 +117,7 @@
         proc (ds/combine + {:name "combine" :scope :global} input)]
     (.. DataflowAssert (that proc) (containsInAnyOrder #{15}))
     (is "combine" (.getName proc))
-    (.run p)))
+    (ds/run-pipeline p)))
 
 (deftest combine-juxt
   (with-files [combine-juxt-test]
@@ -126,7 +126,7 @@
           proc (ds/combine (ds/juxt + *) {:name "combine"} input)
           output (ds/write-edn-file combine-juxt-test proc)]
       (is "combine" (.getName proc))
-      (.run p)
+      (ds/run-pipeline p)
       (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
         (is (= res #{'(15 120)}))))))
 
@@ -142,7 +142,7 @@
           ps (ds/sample 2 input)
           output1 (ds/write-edn-file math-and-diamond-test all)
           output2 (ds/write-edn-file sample-test ps)]
-      (.run p)
+      (ds/run-pipeline p)
       (let [res (read-file (first (glob-file math-and-diamond-test)))]
         (is (= '(1 3.0 5 15) (sort res))))
       (let [res (read-file (first (glob-file sample-test)))]
