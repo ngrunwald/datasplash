@@ -570,7 +570,7 @@ map. Each value will be a list of the values that match key.
   ([^Pipeline p]
    (dissoc (bean (.getOptions p)) :class))
   ([]
-   (when-let [^DoFn.Contextc *context*]
+   (when-let [^DoFn$Context c *context*]
      (-> (.getPipelineOptions c)
          (bean)
          (dissoc :class)))))
