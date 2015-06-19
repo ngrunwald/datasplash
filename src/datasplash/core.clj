@@ -36,20 +36,21 @@
   [e]
   (loop [todo (st/parse-exception e)
          nss (list)]
-    (if-let [{:keys [message trace-elems cause] :as current-ex} todo]
-      (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var" message)
-        (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
-                                 (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message))
-              ns-to-add (->> trace-elems
-                             (filter #(:clojure %))
-                             (map :ns)
-                             (concat (list missing-ns)))]
-          (recur cause (concat ns-to-add nss)))
-        (recur cause nss))
-      (->> nss
-           (remove nil?)
-           (distinct)
-           (map symbol)))))
+    (let [{:keys [message trace-elems cause] :as current-ex} todo]
+      (if message
+        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var" message)
+          (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
+                                   (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message))
+                ns-to-add (->> trace-elems
+                               (filter #(:clojure %))
+                               (map :ns)
+                               (concat (list missing-ns)))]
+            (recur cause (concat ns-to-add nss)))
+          (recur cause nss))
+        (->> nss
+             (remove nil?)
+             (distinct)
+             (map symbol))))))
 
 (def get-hostname
   ^{:doc "Try to guess local hostname"}

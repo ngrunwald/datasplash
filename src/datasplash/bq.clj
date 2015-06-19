@@ -1,18 +1,18 @@
 (ns datasplash.bq
-  (:require [datasplash.core :refer :all]
+  (:require [cheshire.core :as json]
             [clojure.java.shell :refer [sh]]
-            [cheshire.core :as json])
-  (:import
-   [com.google.cloud.dataflow.sdk Pipeline]
-   [com.google.cloud.dataflow.sdk.transforms
-    PTransform]
-   [com.google.cloud.dataflow.sdk.values PBegin  PCollection]
-   [com.google.cloud.dataflow.sdk.io
-    BigQueryIO$Read BigQueryIO$Write
-    BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition]
-   [com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema]))
+            [clojure.string :as str]
+            [datasplash.core :refer :all])
+  (:import [com.google.api.services.bigquery.model
+            TableRow TableFieldSchema TableSchema]
+           [com.google.cloud.dataflow.sdk Pipeline]
+           [com.google.cloud.dataflow.sdk.io
+            BigQueryIO$Read BigQueryIO$Write
+            BigQueryIO$Write$WriteDisposition
+            BigQueryIO$Write$CreateDisposition]
+           [com.google.cloud.dataflow.sdk.transforms
+            PTransform]
+           [com.google.cloud.dataflow.sdk.values PBegin  PCollection]))
 
 (defn read-bq-table-raw
   ([from options p]
@@ -65,7 +65,7 @@
      (let [fields (for [{:keys [type mode] field-name :name} defs]
                     (-> (TableFieldSchema.)
                         (.setName (transform-keys field-name))
-                        (.setType  (name type))
+                        (.setType  (str/upper-case (name type)))
                         (cond-> mode (.setMode mode))))]
        (-> (TableSchema.) (.setFields fields)))))
   ([defs] (->schema defs (fn [k] (name k)))))
@@ -100,7 +100,7 @@
                                  :write-disposition
                                  write-disposition-enum
                                  (fn [transform enum] (.withWriteDisposition transform enum)))}
-    :create-disposition {:docstr "Choose create disposition"
+    :create-disposition {:docstr "Choose create disposition."
                          :enum create-disposition-enum
                          :action (select-enum-option-fn
                                   :create-disposition

@@ -65,6 +65,8 @@
 ;; Filter ;;
 ;;;;;;;;;;;;
 
+;; https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/FilterExamples.java
+
 (ds/defoptions FilterOptions
   {:input {:type String
            :default "clouddataflow-readonly:samples.weather_stations"
