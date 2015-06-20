@@ -50,6 +50,13 @@
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
 (intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
 
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Syntactic Sugar ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+(intern *ns* (with-meta 'ptransform (meta #'dt/ptransform)) @#'dt/ptransform)
+
 ;;;;;;;;;;;;;;;;;
 ;; Combinators ;;
 ;;;;;;;;;;;;;;;;;

@@ -43,11 +43,11 @@
 (defn- read-bq-table-clj-transform
   [from options]
   (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [p]
-        (->> p
-             (read-bq-table-raw from options)
-             (dmap table-row->clj options))))))
+    (ptransform
+     [p]
+     (->> p
+          (read-bq-table-raw from options)
+          (dmap table-row->clj options)))))
 
 (defn read-bq-table
   ([from options ^Pipeline p]
@@ -120,11 +120,11 @@
 (defn- write-bq-table-clj-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [^PCollection pcoll]
-        (->> pcoll
-             (dmap clj->table-row options)
-             (write-bq-table-raw to options))))))
+    (ptransform
+     [^PCollection pcoll]
+     (->> pcoll
+          (dmap clj->table-row options)
+          (write-bq-table-raw to options)))))
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]

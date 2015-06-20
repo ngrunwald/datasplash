@@ -503,14 +503,20 @@ Only works with functions created with combine-fn or native clojure functions, a
          (.apply (GroupByKey/create)))))
   ([pcoll] (group-by-key {} pcoll)))
 
+(defmacro ptransform
+  [input & body]
+  `(proxy [PTransform] []
+     (~(symbol "apply") ~input
+      ~@body)))
+
 (defn- group-by-transform
   [f options]
   (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [^PCollection pcoll]
-        (->> pcoll
-             (with-keys f safe-opts)
-             (group-by-key safe-opts))))))
+    (ptransform
+     [^PCollection pcoll]
+     (->> pcoll
+          (with-keys f safe-opts)
+          (group-by-key safe-opts)))))
 
 (defn dgroup-by
   {:doc (with-opts-docstr
@@ -656,11 +662,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn- read-edn-file-transform
   [from options]
   (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [p]
-        (->> p
-             (read-text-file from options)
-             (from-edn options))))))
+    (ptransform
+     [p]
+     (->> p
+          (read-text-file from options)
+          (from-edn options)))))
 
 (defn read-edn-file
   {:doc (with-opts-docstr "Reads a PCollection of edn strings from disk or Google Storage, with records separated by newlines.
@@ -681,11 +687,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn- write-edn-file-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
-    (proxy [PTransform] []
-      (apply [^PCollection pcoll]
-        (->> pcoll
-             (to-edn options)
-             (write-text-file to options))))))
+    (ptransform
+     [^PCollection pcoll]
+     (->> pcoll
+          (to-edn options)
+          (write-text-file to options)))))
 
 (defn write-edn-file
   {:doc (with-opts-docstr
@@ -706,22 +712,22 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn cogroup-transform
   ([options]
    (let [opts (assoc options :label :raw-cogroup)]
-     (proxy [PTransform] []
-       (apply [^KeyedPCollectionTuple pcolltuple]
-         (let [ordered-tags (->> pcolltuple
-                                 (.getKeyedCollections)
-                                 (map #(.getTupleTag %))
-                                 (sort-by #(.getId %)))
-               rel (.apply pcolltuple (with-opts base-schema opts (CoGroupByKey/create)))
-               final-rel (dmap (fn [elt]
-                                 (let [k (.getKey elt)
-                                       raw-values (.getValue elt)
-                                       values (for [tag ordered-tags]
-                                                (into [] (first (.getAll raw-values tag))))]
-                                   (into [] (conj values k))))
-                               (assoc opts :without-coercion-to-clj true)
-                               rel)]
-           final-rel))))))
+     (ptransform
+      [^KeyedPCollectionTuple pcolltuple]
+      (let [ordered-tags (->> pcolltuple
+                              (.getKeyedCollections)
+                              (map #(.getTupleTag %))
+                              (sort-by #(.getId %)))
+            rel (.apply pcolltuple (with-opts base-schema opts (CoGroupByKey/create)))
+            final-rel (dmap (fn [elt]
+                              (let [k (.getKey elt)
+                                    raw-values (.getValue elt)
+                                    values (for [tag ordered-tags]
+                                             (into [] (first (.getAll raw-values tag))))]
+                                (into [] (conj values k))))
+                            (assoc opts :without-coercion-to-clj true)
+                            rel)]
+        final-rel)))))
 
 (defn cogroup
   [options pcolls]
@@ -872,14 +878,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (let [safe-opts (-> options
                       (dissoc :name)
                       (assoc :scope :per-key))]
-    (proxy [PTransform] []
-      (apply [^PCollection pcoll]
-        (let [raw-pcoll (->> pcoll
-                             (with-keys key-fn safe-opts)
-                             (combine f safe-opts))]
-          (if-not (:as-kv-output safe-opts)
-            (dmap (fn [^KV y] [(.getKey y) (.getValue y)]) safe-opts raw-pcoll)
-            raw-pcoll))))))
+    (ptransform
+     [^PCollection pcoll]
+     (let [raw-pcoll (->> pcoll
+                          (with-keys key-fn safe-opts)
+                          (combine f safe-opts))]
+       (if-not (:as-kv-output safe-opts)
+         (dmap (fn [^KV y] [(.getKey y) (.getValue y)]) safe-opts raw-pcoll)
+         raw-pcoll)))))
 
 (defn combine-by
   ([key-fn f options ^PCollection pcoll]
