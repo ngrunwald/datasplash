@@ -12,6 +12,7 @@
 ;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'make-nippy-coder (meta #'dt/make-nippy-coder)) @#'dt/make-nippy-coder)
+(intern *ns* (with-meta 'make-kv-coder (meta #'dt/make-kv-coder)) @#'dt/make-kv-coder)
 
 ;;;;;;;;;;;;;
 ;; Options ;;
@@ -46,6 +47,7 @@
 (intern *ns* (with-meta 'combine-by (meta #'dt/combine-by)) @#'dt/combine-by)
 (intern *ns* (with-meta 'combine-fn (meta #'dt/combine-fn)) @#'dt/combine-fn)
 (intern *ns* (with-meta 'juxt (meta #'dt/djuxt)) @#'dt/djuxt)
+(intern *ns* (with-meta 'sfn (meta #'dt/sfn)) @#'dt/sfn)
 
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
 (intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
@@ -56,6 +58,7 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'ptransform (meta #'dt/ptransform)) @#'dt/ptransform)
+(intern *ns* (with-meta 'make-kv (meta #'dt/make-kv)) @#'dt/make-kv)
 
 ;;;;;;;;;;;;;;;;;
 ;; Combinators ;;

@@ -110,6 +110,44 @@
                          filtered-results)
       (ds/write-edn-file output filtered-results))))
 
+;;;;;;;;;;;;;;;;;;;
+;; CombinePerKey ;;
+;;;;;;;;;;;;;;;;;;;
+
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/CombinePerKeyExamples.java
+
+(ds/defoptions CombinePerKeyOptions
+  {:input {:type String
+           :default "publicdata:samples.shakespeare"
+           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
+   :output {:type String
+            :default "combinePerKeyRes.edn"
+            :description "Table to write to, specified as <project_id>:<dataset_id>.<table_id>. The dataset_id must already exist. If given a path, writes to edn."}
+   :minWordLength {:type Long
+                   :default 8
+                   :description "Minimum word length."}})
+
+(defn run-combine-per-key
+  [str-args]
+  (let [p (ds/make-pipeline 'CombinePerKeyOptions str-args)
+        {:keys [input output minWordLength]} (ds/get-pipeline-configuration p)
+        results (->> p
+                     (bq/read-bq-table input)
+                     (ds/filter (fn [{:keys [word]}] (> (count word) minWordLength)))
+                     (ds/map (fn [{:keys [word corpus]}] (ds/make-kv word corpus))
+                             {:coder (ds/make-kv-coder)})
+                     (ds/combine
+                      (ds/sfn (fn [words] (str/join "," words)))
+                      {:scope :per-key})
+                     (ds/map (fn [[word plays]] {:word word :all_plays plays})))]
+    (if (re-find #":[^\\]" output)
+      (bq/write-bq-table output {:schema [{:name "word" :type "STRING"}
+                                          {:name "all_plays" :type "STRING"}]
+                                 :create-disposition :if-needed
+                                 :write-disposition :truncate}
+                         results)
+      (ds/write-edn-file output results))))
+
 ;;;;;;;;;;
 ;; Main ;;
 ;;;;;;;;;;
@@ -120,5 +158,6 @@
   (-> (case job
         "word-count" (run-word-count args)
         "dedup" (run-dedup args)
-        "filter" (run-filter args))
+        "filter" (run-filter args)
+        "combine-per-key" (run-combine-per-key args))
       (ds/run-pipeline)))

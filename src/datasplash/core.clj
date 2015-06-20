@@ -101,6 +101,13 @@
   [^KV kv]
   (MapEntry. (.getKey kv) (.getValue kv)))
 
+(defn make-kv
+  {:doc "Returns a KV object from the given argsn either [k v] or a MapEntry or seq of two elements."
+   :added "0.1.0"}
+  ([k v]
+   (KV/of k v))
+  ([kv] (make-kv (first kv) (second kv))))
+
 (defn make-keyed-pcollection-tuple
   [pcolls]
   (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
@@ -219,6 +226,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          (nippy/thaw-from-in! dis))))
     (verifyDeterministic [] nil)
     (consistentWithEquals [] true)))
+
+(defn make-kv-coder
+  {:doc "Returns an instance of a KvCoder using by default nippy for serialization."
+   :added "0.1.0"}
+  ([k-coder v-coder]
+   (KvCoder/of k-coder v-coder))
+  ([] (make-kv-coder (make-nippy-coder) (make-nippy-coder))))
 
 (defmacro with-opts
   [schema opts & body]
@@ -423,9 +437,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn ->combine-fn
   "Returns a CombineFn if f is not one already."
-  ^Combine$CombineFn
   [f]
-  (if (instance? Combine$CombineFn f) f (combine-fn f)))
+  (if (or
+       (instance? Combine$CombineFn f)
+       (instance? SerializableFunction f))
+    f
+    (combine-fn f)))
 
 (defn djuxt
   {:doc "Creates a CombineFn that applies multiple combiners in one go. Produces a vector of combined results.
@@ -880,12 +897,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                       (assoc :scope :per-key))]
     (ptransform
      [^PCollection pcoll]
-     (let [raw-pcoll (->> pcoll
-                          (with-keys key-fn safe-opts)
-                          (combine f safe-opts))]
-       (if-not (:as-kv-output safe-opts)
-         (dmap (fn [^KV y] [(.getKey y) (.getValue y)]) safe-opts raw-pcoll)
-         raw-pcoll)))))
+     (->> pcoll
+          (with-keys key-fn safe-opts)
+          (combine f safe-opts)))))
 
 (defn combine-by
   ([key-fn f options ^PCollection pcoll]
