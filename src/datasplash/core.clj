@@ -102,7 +102,7 @@
   (MapEntry. (.getKey kv) (.getValue kv)))
 
 (defn make-kv
-  {:doc "Returns a KV object from the given argsn either [k v] or a MapEntry or seq of two elements."
+  {:doc "Returns a KV object from the given arg(s), either [k v] or a MapEntry or seq of two elements."
    :added "0.1.0"}
   ([k v]
    (KV/of k v))

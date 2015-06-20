@@ -10,9 +10,8 @@
             BigQueryIO$Read BigQueryIO$Write
             BigQueryIO$Write$WriteDisposition
             BigQueryIO$Write$CreateDisposition]
-           [com.google.cloud.dataflow.sdk.transforms
-            PTransform]
-           [com.google.cloud.dataflow.sdk.values PBegin  PCollection]))
+           [com.google.cloud.dataflow.sdk.values PBegin PCollection]
+           [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-table-raw
   ([from options p]
@@ -32,13 +31,21 @@
         (assoc! acc (keyword k) (.get row k)))
       (transient {}) keyset))))
 
+(defn coerce-by-bq-val
+  [v]
+  (cond
+    (instance? java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000))
+    (keyword? v) (name v)
+    (symbol? v) (name v)
+    :else v))
+
 (defn clj->table-row
   ^TableRow
   [hmap]
-  (let [^TableRow tr (TableRow.)]
+  (let [^TableRow row (TableRow.)]
     (doseq [[k v] hmap]
-      (.set tr (name k) v))
-    tr))
+      (.set row (name k) (coerce-by-bq-val v)))
+    row))
 
 (defn- read-bq-table-clj-transform
   [from options]
@@ -123,8 +130,8 @@
     (ptransform
      [^PCollection pcoll]
      (->> pcoll
-          (dmap clj->table-row options)
-          (write-bq-table-raw to options)))))
+          (dmap clj->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
+          (write-bq-table-raw to safe-opts)))))
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
