@@ -173,6 +173,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         element)
       element)))
 
+(defn clj->kv
+  "Coerce from Clojure data to KV objects"
+  ^KV
+  [obj]
+  (cond
+    (instance? KV obj) obj
+    (and (sequential? obj) (= 2 (count obj))) (KV/of (first obj) (second obj))
+    :else (throw (ex-info "Cannot coerce given object to KV"
+                          {:hostname (get-hostname)
+                           :input-object obj
+                           :input-object-type (type obj)}))))
+
 (defn map-fn
   "Returns a function that corresponds to a Clojure map operation inside a ParDo"
   [f]
@@ -180,6 +192,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (let [elt (get-element-from-context c)
           result (f elt)]
       (.output c result))))
+
+(defn map-kv-fn
+  "Returns a function that corresponds to a Clojure map operation inside a ParDo coercing to KV the return"
+  [f]
+  (fn [^DoFn$ProcessContext c]
+    (let [elt (get-element-from-context c)
+          result (f elt)]
+      (.output c (clj->kv result)))))
 
 (defn mapcat-fn
   "Returns a function that corresponds to a Clojure mapcat operation inside a ParDo"
@@ -318,6 +338,21 @@ Function f should be a function of one argument.
   Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection."
       pardo-schema)}
   dmap (map-op map-fn :map))
+
+(def
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
+    :added "0.1.0"
+    :doc
+    (with-opts-docstr
+      "Returns a KV PCollection of f applied to every item in the source PCollection.
+Function f should be a function of one argument and return seq of keys/values.
+
+  Example:
+    (ds/map (fn [{:keys [month revenue]}] [month revenue]) foo)
+
+  Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
+      pardo-schema)}
+  map-kv (map-op map-kv-fn :map-kv (make-kv-coder)))
 
 (def pardo (map-op pardo-fn :raw-pardo))
 
@@ -472,18 +507,6 @@ Only works with functions created with combine-fn or native clojure functions, a
                        (f))) cfs))
      (.getDefaultOutputCoder (first cfs) nil nil)
      (.getAccumulatorCoder (first cfs) nil nil))))
-
-(defn clj->kv
-  "Coerce from Clojure data to KV objects"
-  ^KV
-  [obj]
-  (cond
-    (instance? KV obj) obj
-    (and (sequential? obj) (= 2 (count obj))) (KV/of (first obj) (second obj))
-    :else (throw (ex-info "Cannot coerce given object to KV"
-                          {:hostname (get-hostname)
-                           :input-object obj
-                           :input-object-type (type obj)}))))
 
 (def kv-coder-schema
   {:key-coder {:docstr "Coder to be used for encoding keys in the resulting KV PColl."}

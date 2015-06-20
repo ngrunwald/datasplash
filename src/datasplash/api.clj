@@ -29,6 +29,7 @@
 (intern *ns* (with-meta 'pardo (meta #'dt/pardo)) @#'dt/pardo)
 (intern *ns* (with-meta 'identity (meta #'dt/didentity)) @#'dt/didentity)
 (intern *ns* (with-meta 'map (meta #'dt/dmap)) @#'dt/dmap)
+(intern *ns* (with-meta 'map-kv (meta #'dt/map-kv)) @#'dt/map-kv)
 (intern *ns* (with-meta 'filter (meta #'dt/dfilter)) @#'dt/dfilter)
 (intern *ns* (with-meta 'mapcat (meta #'dt/dmapcat)) @#'dt/dmapcat)
 (intern *ns* (with-meta 'with-keys (meta #'dt/with-keys)) @#'dt/with-keys)

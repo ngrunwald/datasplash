@@ -134,8 +134,7 @@
         results (->> p
                      (bq/read-bq-table input)
                      (ds/filter (fn [{:keys [word]}] (> (count word) minWordLength)))
-                     (ds/map (fn [{:keys [word corpus]}] (ds/make-kv word corpus))
-                             {:coder (ds/make-kv-coder)})
+                     (ds/map-kv (fn [{:keys [word corpus]}] [word corpus]))
                      (ds/combine
                       (ds/sfn (fn [words] (str/join "," words)))
                       {:scope :per-key})
@@ -143,6 +142,39 @@
     (if (re-find #":[^\\]" output)
       (bq/write-bq-table output {:schema [{:name "word" :type "STRING"}
                                           {:name "all_plays" :type "STRING"}]
+                                 :create-disposition :if-needed
+                                 :write-disposition :truncate}
+                         results)
+      (ds/write-edn-file output results))))
+
+;;;;;;;;;;;;;;;
+;; MaxPerKey ;;
+;;;;;;;;;;;;;;;
+
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/MaxPerKeyExamples.java
+
+(ds/defoptions MaxPerKeyOptions
+  {:input {:type String
+           :default "clouddataflow-readonly:samples.weather_stations"
+           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
+   :output {:type String
+            :default "maxperKeyRes.edn"
+            :description "Table to write to, specified as <project_id>:<dataset_id>.<table_id>. The dataset_id must already exist. If given a path, writes to edn."}})
+
+(defn run-max-per-key
+  [str-args]
+  (let [p (ds/make-pipeline 'MaxPerKeyOptions str-args)
+        {:keys [input output]} (ds/get-pipeline-configuration p)
+        results (->> p
+                     (bq/read-bq-table input)
+                     (ds/map-kv (fn [{:keys [month mean_temp]}]
+                                  [(edn/read-string month) (double mean_temp)]))
+                     (ds/max {:scope :per-key :type :double})
+                     (ds/map (fn [[k v]]
+                               {:month k :max_mean_temp v})))]
+    (if (re-find #":[^\\]" output)
+      (bq/write-bq-table output {:schema [{:name "month" :type "INTEGER"}
+                                          {:name "max_mean_temp" :type "FLOAT"}]
                                  :create-disposition :if-needed
                                  :write-disposition :truncate}
                          results)
@@ -159,5 +191,6 @@
         "word-count" (run-word-count args)
         "dedup" (run-dedup args)
         "filter" (run-filter args)
-        "combine-per-key" (run-combine-per-key args))
+        "combine-per-key" (run-combine-per-key args)
+        "max-per-key" (run-max-per-key args))
       (ds/run-pipeline)))
