@@ -1,7 +1,7 @@
 (ns datasplash.api
   (:refer-clojure :exclude [map filter mapcat group-by
                             distinct flatten concat juxt identity
-                            max min count frequencies])
+                            max min count frequencies key val])
   (:require [datasplash
              [core :as dt]
              [bq :as bq]
@@ -60,6 +60,9 @@
 
 (intern *ns* (with-meta 'ptransform (meta #'dt/ptransform)) @#'dt/ptransform)
 (intern *ns* (with-meta 'make-kv (meta #'dt/make-kv)) @#'dt/make-kv)
+
+(intern *ns* (with-meta 'key (meta #'dt/dkey)) @#'dt/dkey)
+(intern *ns* (with-meta 'val (meta #'dt/dval)) @#'dt/dval)
 
 ;;;;;;;;;;;;;;;;;
 ;; Combinators ;;

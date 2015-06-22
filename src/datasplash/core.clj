@@ -108,6 +108,20 @@
    (KV/of k v))
   ([kv] (make-kv (first kv) (second kv))))
 
+(defn dkey
+  [elt]
+  (if (instance? KV elt)
+    (let [^KV kv elt]
+      (.getKey elt))
+    (key elt)))
+
+(defn dval
+  [elt]
+  (if (instance? KV elt)
+    (let [^KV kv elt]
+      (.getValue elt))
+    (val elt)))
+
 (defn make-keyed-pcollection-tuple
   [pcolls]
   (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
