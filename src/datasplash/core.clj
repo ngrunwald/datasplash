@@ -989,6 +989,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          (cond-> (:coder opts) (.setCoder (:coder opts))))))
   ([pcoll] (dcount {} pcoll)))
 
+(defn count-fn
+  []
+  (combine-fn
+   (fn [acc _] (inc acc))
+   identity
+   +
+   (constantly 0)))
+
 (defn dfrequencies
   {:doc (with-opts-docstr
           "Returns the frequency of each unique element of the input PCollection.

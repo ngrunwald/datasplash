@@ -72,6 +72,7 @@
 (intern *ns* (with-meta 'count (meta #'dt/dcount)) @#'dt/dcount)
 (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
 
+(intern *ns* (with-meta 'count-fn (meta #'dt/count-fn)) @#'dt/count-fn)
 
 ;;;;;;;;;;;;;
 ;; File IO ;;
