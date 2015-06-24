@@ -414,38 +414,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          (.setCoder (or (:coder opts) (make-nippy-coder))))))
   ([coll p] (generate-input coll {} p)))
 
-(defn view
-  ([pcoll {:keys [view-type]
-           :or {view-type :singleton}
-           :as options}]
-   (let [opts (assoc options :label :view)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (case view-type
-                     :singleton (View/asSingleton)
-                     :iterable (View/asIterable)
-                     :map (View/asMap)))))))
-  ([pcoll] (view pcoll {})))
-
-(defn- to-edn*
-  [^DoFn$Context c]
-  (let [elt (.element c)
-        result (pr-str elt)]
-    (.output c result)))
-
-(def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
-(def from-edn (partial dmap #(read-string %)))
-
-(defn sfn
-  "Returns an instance of SerializableFunction equivalent to f."
-  ^SerializableFunction
-  [f]
-  (proxy [SerializableFunction clojure.lang.IFn] []
-    (apply [input]
-      (safe-exec (f input)))
-    (invoke [input]
-      (safe-exec (f input)))))
-
 (definterface ICombineFn
   (getReduceFn [])
   (getExtractFn [])
@@ -483,6 +451,53 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
   ([reducef extractf] (combine-fn reducef extractf reducef))
   ([reducef] (combine-fn reducef identity)))
+
+(defn view
+  ([{:keys [type]
+     :or {type :singleton}
+     :as options}
+    pcoll]
+   (let [opts (assoc options :label :view)]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (case type
+                     :singleton (View/asSingleton)
+                     :iterable (View/asIterable)
+                     :map (-> (View/asMap)
+                              (.withSingletonValues)
+                              ;; (.withCombiner (combine-fn
+                              ;;                 (fn [acc elt] elt)
+                              ;;                 identity
+                              ;;                 (fn [accs] (first (remove nil? accs)))
+                              ;;                 nil))
+                              )
+                     :singleton-map (-> (View/asMap)
+                                        (.withSingletonValues))
+                     :multi-map (View/asMap)
+                     ;; when released
+                     ;; :map (View/asSingletonMap)
+                     ;; :multi-map (View/asMultiMap)
+                     ))))))
+  ([pcoll] (view {} pcoll)))
+
+(defn- to-edn*
+  [^DoFn$Context c]
+  (let [elt (.element c)
+        result (pr-str elt)]
+    (.output c result)))
+
+(def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
+(def from-edn (partial dmap #(read-string %)))
+
+(defn sfn
+  "Returns an instance of SerializableFunction equivalent to f."
+  ^SerializableFunction
+  [f]
+  (proxy [SerializableFunction clojure.lang.IFn] []
+    (apply [input]
+      (safe-exec (f input)))
+    (invoke [input]
+      (safe-exec (f input)))))
 
 (defn ->combine-fn
   "Returns a CombineFn if f is not one already."
@@ -912,12 +927,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([f options ^PCollection pcoll]
    (let [scope (or (:scope options) :global)
          opts (assoc options
-                     :label (or (:label options) (keyword (str "combine-" scope)))
+                     :label (or (:label options) (keyword (str "combine-" (name scope))))
                      :scope scope)
          cfn (->combine-fn f)
          ready-pcoll (cond
-                       (#{:local :per-key} scope) (.apply pcoll (with-opts combine-schema opts
-                                                                  (Combine/perKey cfn)))
+                       (#{:local :per-key} scope) (-> pcoll
+                                                      (.apply (with-opts combine-schema opts
+                                                                (Combine/perKey cfn)))
+                                                      (.setCoder (make-kv-coder)))
                        (#{:global :globally} scope) (.apply pcoll (with-opts combine-schema opts
                                                                     (Combine/globally cfn)))
                        :else (throw (ex-info (format "Option %s is not recognized" scope)
@@ -1004,12 +1021,22 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([pcoll] (dcount {} pcoll)))
 
 (defn count-fn
-  []
-  (combine-fn
-   (fn [acc _] (inc acc))
-   identity
-   +
-   (constantly 0)))
+  ([pred-fn]
+   (combine-fn
+    (fn [acc elt] (if (pred-fn elt) (inc acc) acc))
+    identity
+    +
+    (constantly 0)))
+  ([] (count-fn (constantly true))))
+
+(defn sum-fn
+  ([mapping-fn]
+   (combine-fn
+    (fn [acc elt] (+ acc (mapping-fn elt)))
+    identity
+    +
+    (constantly 0)))
+  ([] (sum-fn identity)))
 
 (defn dfrequencies
   {:doc (with-opts-docstr

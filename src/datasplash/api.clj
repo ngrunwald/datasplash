@@ -76,7 +76,7 @@
 (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
 
 (intern *ns* (with-meta 'count-fn (meta #'dt/count-fn)) @#'dt/count-fn)
-
+(intern *ns* (with-meta 'sum-fn (meta #'dt/sum-fn)) @#'dt/sum-fn)
 ;;;;;;;;;;;;;
 ;; File IO ;;
 ;;;;;;;;;;;;;
