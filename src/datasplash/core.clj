@@ -27,7 +27,7 @@
 
 (def ops-counter (atom {}))
 
-(def ^{:private true} required-ns (atom #{}))
+(def  required-ns (atom #{}))
 
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
@@ -99,7 +99,10 @@
 (defn kv->clj
   "Coerce from KV to Clojure MapEntry"
   [^KV kv]
-  (MapEntry. (.getKey kv) (.getValue kv)))
+  (let [v (.getValue kv)]
+    (if (instance? Iterable v)
+      (MapEntry. (.getKey kv) (seq v))
+      (MapEntry. (.getKey kv) v))))
 
 (defn make-kv
   {:doc "Returns a KV object from the given arg(s), either [k v] or a MapEntry or seq of two elements."
