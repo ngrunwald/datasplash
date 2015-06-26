@@ -91,8 +91,7 @@
                                  (into {})))
                               {:name "Projection"}))
         global-mean-temp (->> all-rows
-                              (ds/map :mean_temp)
-                              (ds/mean)
+                              (ds/combine (ds/mean-fn :mapper :mean_temp))
                               (ds/view))
         filtered-results (->> all-rows
                               (ds/filter (fn [{:keys [month]}] (= month monthFilter)))
@@ -169,7 +168,7 @@
                      (bq/read-bq-table input)
                      (ds/map-kv (fn [{:keys [month mean_temp]}]
                                   [(edn/read-string month) (double mean_temp)]))
-                     (ds/max {:scope :per-key :type :double})
+                     (ds/combine (ds/max-fn) {:scope :per-key})
                      (ds/map (fn [[k v]]
                                {:month k :max_mean_temp v})))]
     (if (re-find #":[^\\]" output)
