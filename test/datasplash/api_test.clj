@@ -122,12 +122,20 @@
   (with-files [combine-juxt-test]
     (let [p (make-test-pipeline)
           input (ds/generate-input [1 2 3 4 5] p)
-          proc (ds/combine (ds/juxt + *) {:name "combine"} input)
+          proc (ds/combine (ds/juxt
+                            + *
+                            (ds/sum-fn)
+                            (ds/mean-fn)
+                            (ds/max-fn)
+                            (ds/min-fn)
+                            (ds/count-fn) (ds/count-fn :predicate even?)
+                            (ds/max-fn :mapper #(* 10 %)))
+                           {:name "combine"} input)
           output (ds/write-edn-file combine-juxt-test proc)]
       (is "combine" (.getName proc))
       (ds/run-pipeline p)
       (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
-        (is (= res #{'(15 120)}))))))
+        (is (= res #{'(15 120 15 3.0 5 1 5 2 50)}))))))
 
 (deftest math-and-diamond
   (with-files [math-and-diamond-test sample-test]

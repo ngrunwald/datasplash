@@ -78,6 +78,11 @@
 
 (intern *ns* (with-meta 'count-fn (meta #'dt/count-fn)) @#'dt/count-fn)
 (intern *ns* (with-meta 'sum-fn (meta #'dt/sum-fn)) @#'dt/sum-fn)
+(intern *ns* (with-meta 'mean-fn (meta #'dt/mean-fn)) @#'dt/mean-fn)
+(intern *ns* (with-meta 'max-fn (meta #'dt/max-fn)) @#'dt/max-fn)
+(intern *ns* (with-meta 'min-fn (meta #'dt/min-fn)) @#'dt/min-fn)
+(intern *ns* (with-meta 'frequencies-fn (meta #'dt/frequencies-fn)) @#'dt/frequencies-fn)
+
 ;;;;;;;;;;;;;
 ;; File IO ;;
 ;;;;;;;;;;;;;

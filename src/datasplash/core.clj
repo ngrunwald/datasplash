@@ -533,7 +533,8 @@ Only works with functions created with combine-fn or native clojure functions, a
      (fn [& accs]
        (map-indexed
         (fn [idx cf] (let [f (.getMergeFn cf)]
-                       (apply f (map #(nth % idx) accs)))) cfs))
+                       (apply f (map (fn [acc] (nth acc idx)) accs))))
+        cfs))
      (fn []
        (map (fn [cf] (let [f (.getInitFn cf)]
                        (f))) cfs))
@@ -1024,22 +1025,86 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([pcoll] (dcount {} pcoll)))
 
 (defn count-fn
-  ([pred-fn]
+  ([& {:keys [mapper predicate]
+       :or {mapper (fn [_] 1)
+            predicate (constantly true)}}]
    (combine-fn
-    (fn [acc elt] (if (pred-fn elt) (inc acc) acc))
+    (fn [acc elt] (if (predicate elt) (+ acc (mapper elt)) acc))
     identity
     +
-    (constantly 0)))
-  ([] (count-fn (constantly true))))
+    (constantly 0))))
 
 (defn sum-fn
-  ([mapping-fn]
+  ([& {:keys [mapper predicate]
+       :or {mapper identity
+            predicate (constantly true)}}]
    (combine-fn
-    (fn [acc elt] (+ acc (mapping-fn elt)))
+    (fn [acc elt] (if (predicate elt)
+                    (+ acc (mapper elt))
+                    acc))
     identity
     +
-    (constantly 0)))
-  ([] (sum-fn identity)))
+    (constantly 0))))
+
+(defn mean-fn
+  ([& {:keys [mapper predicate]
+       :or {mapper identity
+            predicate (constantly true)}}]
+   (combine-fn
+    (fn [[sum total :as acc] elt] (if (predicate elt)
+                                    [(+ sum (mapper elt)) (inc total)]
+                                    acc))
+    (fn [[sum total]] (if (> total 0) (/ sum (double total)) 0))
+    (fn [& accs] (reduce
+                  (fn [[all-sum all-total] [sum total]]
+                    [(+ all-sum sum) (+ all-total total)])
+                  [0 0] accs))
+    (constantly [0 0]))))
+
+(defn max-fn
+  ([& {:keys [mapper predicate]
+       :or {mapper identity
+            predicate (constantly true)}}]
+   (combine-fn
+    (fn [acc elt] (if (predicate elt)
+                    (if (nil? acc)
+                      (mapper elt)
+                      (if (> (mapper elt) acc)
+                        (mapper elt)
+                        acc))
+                    acc))
+    identity
+    (fn [& accs] (apply max accs))
+    (constantly nil))))
+
+(defn min-fn
+  ([& {:keys [mapper predicate]
+       :or {mapper identity
+            predicate (constantly true)}}]
+   (combine-fn
+    (fn [acc elt] (if (predicate elt)
+                    (if (nil? acc)
+                      (mapper elt)
+                      (if (< (mapper elt) acc)
+                        (mapper elt)
+                        acc))
+                    acc))
+    identity
+    (fn [& accs] (apply min accs))
+    (constantly nil))))
+
+(defn frequencies-fn
+  ([& {:keys [mapper predicate]
+       :or {mapper identity
+            predicate (constantly true)}}]
+   (combine-fn
+    (fn [acc elt]
+      (if (predicate elt)
+        (update-in acc [(mapper elt)] (fn [old new] (if old (inc old) 1)))
+        acc))
+    identity
+    (fn [& accs] (apply merge-with + accs))
+    (constantly nil))))
 
 (defn dfrequencies
   {:doc (with-opts-docstr
