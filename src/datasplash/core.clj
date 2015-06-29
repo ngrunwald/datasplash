@@ -21,6 +21,7 @@
             Count$Globally Count$PerElement]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
+           [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [java.util UUID]
            [clojure.lang MapEntry ExceptionInfo]))
@@ -100,7 +101,7 @@
   "Coerce from KV to Clojure MapEntry"
   [^KV kv]
   (let [v (.getValue kv)]
-    (if (instance? Iterable v)
+    (if (instance? Reiterable v)
       (MapEntry. (.getKey kv) (seq v))
       (MapEntry. (.getKey kv) v))))
 
