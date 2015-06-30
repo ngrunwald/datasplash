@@ -9,7 +9,7 @@
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
             TextIO$Read TextIO$Write TextIO$CompressionType]
-           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
+           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
@@ -22,8 +22,11 @@
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
+           [com.google.cloud.dataflow.sdk.util GcsUtil]
+           [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.util UUID]
+           [java.net URI]
            [clojure.lang MapEntry ExceptionInfo]))
 
 (def ops-counter (atom {}))
@@ -668,6 +671,44 @@ map. Each value will be a list of the values that match key.
       ;; (str/replace #"/" "\\")
       ))
 
+(defn ->options
+  [o]
+  (if (instance? Pipeline o)
+    (.getOptions o)
+    o))
+
+(defn walk-gcs-tree
+  ([options input]
+   (let [base-uri (URI. input)
+         absolute-uri (if (.getScheme base-uri)
+                        base-uri
+                        (URI.
+                         "file"
+                         (.getAuthority base-uri)
+                         (.getPath base-uri)
+                         (.getQuery base-uri)
+                         (.getFragment base-uri)))]
+     (if (= "file" (.getScheme absolute-uri))
+       (let [directory (File. absolute-uri)]
+         (into #{}
+               (for [entry (.list directory)]
+                 (.toUri (File. directory entry)))))
+       (let [opts (->options options)
+             gcs (-> opts (.as GcsOptions) (.getGcsUtil))
+             gcs-uri-glob (URI.
+                           (.getScheme base-uri)
+                           (.getAuthority base-uri)
+                           (.getPath base-uri)
+                           (.getQuery base-uri)
+                           (.getFragment base-uri))
+             gcs-path (GcsPath/fromUri gcs-uri-glob)
+             expanded (.expand gcs gcs-path)]
+         (into #{}
+               (for [entry expanded]
+                 (.toUri entry)))))))
+  ([options] (let [opts (->options options)]
+               (walk-gcs-tree opts (.getInput opts)))))
+
 (def compression-type-enum
   {:auto TextIO$CompressionType/AUTO
    :bzip2 TextIO$CompressionType/BZIP2
@@ -676,7 +717,7 @@ map. Each value will be a list of the values that match key.
 
 (def text-reader-schema
   {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform] (.withoutValidation transform))}
+                        :action (fn [transform b] (when b (.withoutValidation transform)))}
    :compression-type {:docstr "Choose compression type. :auto by default."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
@@ -688,9 +729,9 @@ map. Each value will be a list of the values that match key.
   {:num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
    :without-sharding {:docstr "Forces a single file output."
-                      :action (fn [transform] (.withoutSharding transform))}
+                      :action (fn [transform b] (when b (.withoutSharding transform)))}
    :without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform] (.withoutValidation transform))}
+                        :action (fn [transform b] (when b (.withoutValidation transform)))}
    :shard-name-template {:docstr "Uses the given shard name template."
                          :action (fn [transform tpl] (.withShardNameTemplate transform tpl))}
    :suffix {:docstr "Uses the given filename suffix."
@@ -919,14 +960,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
             :action (fn [transform fanout] (.withHotKeyFanout transform
                                                               (if (fn? fanout) (sfn fanout) fanout)))}
    :without-defaults {:docstr "Boolean indicating if the transform should attempt to provide a default value in the case of empty input."
-                      :action (fn [transform] (.withoutDefaults transform))}})
+                      :action (fn [transform b] (when b (.withoutDefaults transform)))}})
 
 (def combine-schema
   (merge
    base-schema
    base-combine-schema
    {:as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
-                        :action (fn [transform] (.asSingletonView transform))}}))
+                        :action (fn [transform b] (when b (.asSingletonView transform)))}}))
 
 (defn combine
   ([f options ^PCollection pcoll]

@@ -92,6 +92,7 @@
 (intern *ns* (with-meta 'write-text-file (meta #'dt/write-text-file)) @#'dt/write-text-file)
 (intern *ns* (with-meta 'write-edn-file (meta #'dt/write-edn-file)) @#'dt/write-edn-file)
 (intern *ns* (with-meta 'generate-input (meta #'dt/generate-input)) @#'dt/generate-input)
+(intern *ns* (with-meta 'walk-gcs-tree (meta #'dt/walk-gcs-tree)) @#'dt/walk-gcs-tree)
 
 ;;;;;;;;;;;;;
 ;; Formats ;;
