@@ -154,3 +154,15 @@
         (is (= '(1 3.0 5 15) (sort res))))
       (let [res (read-file (first (glob-file sample-test)))]
         (is (= 2 (count res)))))))
+
+(deftest write-by
+  (with-files [true-vals false-vals]
+    (let [p (make-test-pipeline)
+                    input (ds/generate-input [1 2 3 4 5] p)
+                    mapping (ds/make-partition-mapping [true false])
+          _ (ds/write-edn-file-by even? mapping (fn [res] (if res true-vals false-vals)) {:name "write-by"} input)]
+      (ds/run-pipeline p)
+      (let [res-true (into #{} (read-file (first (glob-file true-vals))))
+            res-false (into #{} (read-file (first (glob-file false-vals))))]
+        (is (= #{2 4} res-true))
+        (is (= #{1 3 5} res-false))))))

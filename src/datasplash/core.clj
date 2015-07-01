@@ -12,6 +12,7 @@
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
+            Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
             Flatten Combine$CombineFn Combine View
             Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
@@ -500,11 +501,35 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   "Returns an instance of SerializableFunction equivalent to f."
   ^SerializableFunction
   [f]
-  (proxy [SerializableFunction clojure.lang.IFn] []
-    (apply [input]
+  (reify
+    SerializableFunction
+    (apply [this input]
       (safe-exec (f input)))
-    (invoke [input]
+    clojure.lang.IFn
+    (invoke [this input]
       (safe-exec (f input)))))
+
+
+(defn partition-fn
+  ^Partition$PartitionFn
+  [f]
+  (if (instance? Partition$PartitionFn f)
+    f
+    (reify
+      Partition$PartitionFn
+      (partitionFor [this elem num]
+        (f elem num)))))
+
+
+(defn dpartition-by
+  ([f num options ^PCollection pcoll]
+   (let [opts options ]
+     (-> pcoll
+         (.apply (with-opts base-schema opts
+                   (Partition/of num (partition-fn f))))
+         )))
+  ([f pcoll] (dpartition-by f num {} pcoll)))
+
 
 (defn ->combine-fn
   "Returns a CombineFn if f is not one already."
@@ -823,6 +848,44 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          (.apply (with-opts (merge base-schema text-writer-schema) opts
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
+
+(defn make-partition-mapping
+  [coll]
+  (zipmap coll (range (count coll))))
+
+(defn reverse-map
+  [m]
+  (zipmap (vals m) (keys m)))
+
+(defn write-text-file-by-transform
+  [output-transform f mapping to options]
+  (let [safe-opts (dissoc options :name)]
+    (ptransform
+     [^PCollection pcoll]
+     (let [map-fn (fn [out] (get mapping out 0))
+           mapped-fn (comp map-fn (fn [elt _] (f elt)))
+           ^PCollectionList pcolls (dpartition-by mapped-fn (count mapping) safe-opts pcoll)
+           target (if (fn? to) to (fn [out] (str to out)))
+           reverse-mapping (reverse-map mapping)
+           files-list (map-indexed (fn [idx coll] [(target (get reverse-mapping idx)) coll]) (.getAll pcolls))]
+       (doseq [[path coll] files-list]
+         (output-transform path safe-opts coll))
+       pcoll))))
+
+(defn write-file-by
+  {:doc (with-opts-docstr
+          ""
+          base-schema text-writer-schema)
+   :added "0.1.0"}
+  ([encoder f mapping to options ^PCollection pcoll]
+   (let [opts (assoc options :label "write-edn-file-by")]
+     (-> pcoll
+         (.apply (with-opts (merge base-schema text-writer-schema) opts
+                   (write-text-file-by-transform encoder f mapping to opts))))))
+  ([encoder f mapping to pcoll] (write-file-by encoder f to mapping {} pcoll)))
+
+(def write-edn-file-by (partial write-file-by write-edn-file))
+(def write-text-file-by (partial write-file-by write-text-file))
 
 (defn cogroup-transform
   ([options]

@@ -1,7 +1,7 @@
 (ns datasplash.api
   (:refer-clojure :exclude [map filter mapcat group-by
                             distinct flatten concat juxt identity
-                            max min count frequencies key val])
+                            max min count frequencies key val partition-by])
   (:require [datasplash
              [core :as dt]
              [bq :as bq]
@@ -49,6 +49,12 @@
 (intern *ns* (with-meta 'combine-fn (meta #'dt/combine-fn)) @#'dt/combine-fn)
 (intern *ns* (with-meta 'juxt (meta #'dt/djuxt)) @#'dt/djuxt)
 (intern *ns* (with-meta 'sfn (meta #'dt/sfn)) @#'dt/sfn)
+
+(intern *ns* (with-meta 'partition-fn (meta #'dt/partition-fn)) @#'dt/partition-fn)
+(intern *ns* (with-meta 'partition-by (meta #'dt/dpartition-by)) @#'dt/dpartition-by)
+(intern *ns* (with-meta 'write-edn-file-by (meta #'dt/write-edn-file-by)) @#'dt/write-edn-file-by)
+(intern *ns* (with-meta 'write-text-file-by (meta #'dt/write-text-file-by)) @#'dt/write-text-file-by)
+(intern *ns* (with-meta 'make-partition-mapping (meta #'dt/make-partition-mapping)) @#'dt/make-partition-mapping)
 
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
 (intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
