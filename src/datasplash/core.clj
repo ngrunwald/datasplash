@@ -882,7 +882,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (-> pcoll
          (.apply (with-opts (merge base-schema text-writer-schema) opts
                    (write-text-file-by-transform encoder f mapping to opts))))))
-  ([encoder f mapping to pcoll] (write-file-by encoder f to mapping {} pcoll)))
+  ([encoder f mapping to pcoll] (write-file-by encoder f  mapping to {} pcoll)))
 
 (def write-edn-file-by (partial write-file-by write-edn-file))
 (def write-text-file-by (partial write-file-by write-text-file))
