@@ -897,11 +897,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (.apply pcolltuple (with-opts base-schema opts (CoGroupByKey/create)))
-            final-rel (dmap (fn [elt]
+            final-rel (dmap (fn [^KV elt]
                               (let [k (.getKey elt)
                                     raw-values (.getValue elt)
                                     values (for [tag ordered-tags]
-                                             (into [] (first (.getAll raw-values tag))))]
+                                             (seq (.getAll raw-values tag)))]
                                 (into [] (conj values k))))
                             (assoc opts :without-coercion-to-clj true)
                             rel)]
