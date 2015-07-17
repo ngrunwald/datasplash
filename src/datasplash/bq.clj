@@ -39,12 +39,18 @@
     (symbol? v) (name v)
     :else v))
 
+(defn clean-name
+  [s]
+  (-> s
+      (name)
+      (str/replace #"-" "_")))
+
 (defn clj->table-row
   ^TableRow
   [hmap]
   (let [^TableRow row (TableRow.)]
     (doseq [[k v] hmap]
-      (.set row (name k) (coerce-by-bq-val v)))
+      (.set row (clean-name k) (coerce-by-bq-val v)))
     row))
 
 (defn- read-bq-table-clj-transform
@@ -71,7 +77,7 @@
      defs
      (let [fields (for [{:keys [type mode] field-name :name} defs]
                     (-> (TableFieldSchema.)
-                        (.setName (transform-keys field-name))
+                        (.setName (transform-keys (clean-name field-name)))
                         (.setType  (str/upper-case (name type)))
                         (cond-> mode (.setMode mode))))]
        (-> (TableSchema.) (.setFields fields)))))
@@ -129,9 +135,13 @@
   (let [safe-opts (dissoc options :name)]
     (ptransform
      [^PCollection pcoll]
-     (->> pcoll
-          (dmap clj->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
-          (write-bq-table-raw to safe-opts)))))
+     (let [schema (:schema options)
+           base-coll (if schema
+                       (dmap (fn [elt] (select-keys elt (map (comp keyword :name) schema))) pcoll)
+                       pcoll)]
+       (->> base-coll
+            (dmap clj->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
+            (write-bq-table-raw to safe-opts))))))
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]

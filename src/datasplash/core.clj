@@ -845,7 +845,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to)))]
      (-> pcoll
-         (.apply (with-opts (merge base-schema text-writer-schema) opts
+         (.apply (with-opts base-schema opts
                    (write-edn-file-transform to opts))))))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
@@ -900,8 +900,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
             final-rel (dmap (fn [^KV elt]
                               (let [k (.getKey elt)
                                     raw-values (.getValue elt)
-                                    values (for [tag ordered-tags]
-                                             (seq (.getAll raw-values tag)))]
+                                    values (for [tag ordered-tags
+                                                 :let [all-vals (seq (.getAll raw-values tag))]]
+                                             (if (map? (first all-vals))
+                                               all-vals
+                                               (first all-vals)))]
                                 (into [] (conj values k))))
                             (assoc opts :without-coercion-to-clj true)
                             rel)]
