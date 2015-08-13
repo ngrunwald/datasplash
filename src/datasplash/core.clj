@@ -18,8 +18,7 @@
             Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
             Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
             Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
-            Mean$MeanFn Sample
-            Count$Globally Count$PerElement]
+            Mean$MeanFn Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
@@ -320,9 +319,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                    :given kw}))))))
 
 (def base-schema
-  {:name {:docstr "Adds a name to the Transform."
-          :action (fn [transform n] (.withName transform n))}
-   :coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}})
+  {:coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}})
+
+(def named-schema
+  (merge
+   base-schema
+   {:name {:docstr "Adds a name to the Transform."
+           :action (fn [transform ^String n] (.named transform n))}}))
 
 (def pardo-schema
   (merge
@@ -1075,62 +1078,64 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                      (combine-by-transform key-fn f options)))))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
 
-(defn sum
-  ([{:keys [type] :as options} ^PCollection pcoll]
-   (let [opts (assoc options :label :sum)
-         cfn (case type
-               :double  (Sum$SumDoubleFn.)
-               :long    (Sum$SumLongFn.)
-               :integer (Sum$SumIntegerFn.)
-               +)]
-     (combine cfn opts pcoll)))
-  ([pcoll] (sum {} pcoll)))
+;; (defn sum
+;;   ([{:keys [type] :as options} ^PCollection pcoll]
+;;    (let [opts (assoc options :label :sum)
+;;          cfn (case type
+;;                :double  (Sum$SumDoubleFn.)
+;;                :long    (Sum$SumLongFn.)
+;;                :integer (Sum$SumIntegerFn.)
+;;                +)]
+;;      (combine cfn opts pcoll)))
+;;   ([pcoll] (sum {} pcoll)))
 
-(defn dmax
-  ([{:keys [type initial-value] :as options} ^PCollection pcoll]
-   (let [opts (assoc options :label :max)
-         cfn (case type
-               :double  (Max$MaxDoubleFn.)
-               :long    (Max$MaxLongFn.)
-               :integer (Max$MaxIntegerFn.)
-               (Max$MaxFn. initial-value))]
-     (combine cfn opts pcoll)))
-  ([pcoll] (dmax {} pcoll)))
+;; (defn dmax
+;;   ([{:keys [type initial-value] :as options} ^PCollection pcoll]
+;;    (let [opts (assoc options :label :max)
+;;          cfn (case type
+;;                :double  (Max$MaxDoubleFn.)
+;;                :long    (Max$MaxLongFn.)
+;;                :integer (Max$MaxIntegerFn.)
+;;                (if initial-value
 
-(defn dmin
-  ([{:keys [type initial-value] :as options} ^PCollection pcoll]
-   (let [opts (assoc options :label :max)
-         cfn (case type
-               :double  (Min$MinDoubleFn.)
-               :long    (Min$MinLongFn.)
-               :integer (Min$MinIntegerFn.)
-               (Min$MinFn. initial-value))]
-     (combine cfn opts pcoll)))
-  ([pcoll] (dmin {} pcoll)))
+;;                  (Max$MaxFn/of initial-value)))]
+;;      (combine cfn opts pcoll)))
+;;   ([pcoll] (dmax {} pcoll)))
 
-(defn mean
-  ([options ^PCollection pcoll]
-   (let [opts (assoc options :label :mean)]
-     (combine (Mean$MeanFn.) opts pcoll)))
-  ([pcoll] (mean {} pcoll)))
+;; (defn dmin
+;;   ([{:keys [type initial-value] :as options} ^PCollection pcoll]
+;;    (let [opts (assoc options :label :max)
+;;          cfn (case type
+;;                :double  (Min$MinDoubleFn.)
+;;                :long    (Min$MinLongFn.)
+;;                :integer (Min$MinIntegerFn.)
+;;                (Min$MinFn. initial-value))]
+;;      (combine cfn opts pcoll)))
+;;   ([pcoll] (dmin {} pcoll)))
 
-(defn dcount
-  {:doc (with-opts-docstr
-          "Counts the elements in the input PCollection.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.Globally.html
+;; (defn mean
+;;   ([options ^PCollection pcoll]
+;;    (let [opts (assoc options :label :mean)]
+;;      (combine (Mean$MeanFn.) opts pcoll)))
+;;   ([pcoll] (mean {} pcoll)))
 
-  example:
+;; (defn dcount
+;;   {:doc (with-opts-docstr
+;;           "Counts the elements in the input PCollection.
+;; See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
 
-    (ds/count pcoll)"
-          base-schema base-combine-schema)
-   :added "0.1.0"}
-  ([options ^PCollection pcoll]
-   (let [opts (assoc options :label :count)]
-     (-> pcoll
-         (.apply (with-opts (merge base-schema base-combine-schema) opts
-                   (Count$Globally.)))
-         (cond-> (:coder opts) (.setCoder (:coder opts))))))
-  ([pcoll] (dcount {} pcoll)))
+;;   example:
+
+;;     (ds/count pcoll)"
+;;           base-schema base-combine-schema)
+;;    :added "0.1.0"}
+;;   ([options ^PCollection pcoll]
+;;    (let [opts (assoc options :label :count)]
+;;      (-> pcoll
+;;          (.apply (with-opts (merge base-schema base-combine-schema) opts
+;;                    (Count/globally)))
+;;          (cond-> (:coder opts) (.setCoder (:coder opts))))))
+;;   ([pcoll] (dcount {} pcoll)))
 
 (defn count-fn
   ([& {:keys [mapper predicate]
@@ -1214,20 +1219,20 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (fn [& accs] (apply merge-with + accs))
     (constantly nil))))
 
-(defn dfrequencies
-  {:doc (with-opts-docstr
-          "Returns the frequency of each unique element of the input PCollection.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.PerElement.html
+;; (defn dfrequencies
+;;   {:doc (with-opts-docstr
+;;           "Returns the frequency of each unique element of the input PCollection.
+;; See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
 
-  Example:
+;;   Example:
 
-    (ds/frequencies pcoll)"
-          base-schema)
-   :added "0.1.0"}
-  ([options ^PCollection pcoll]
-   (let [opts (assoc options :label :frequencies)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (Count$PerElement.)))
-         (cond-> (:coder opts) (.setCoder (:coder opts))))))
-  ([pcoll] (dfrequencies {} pcoll)))
+;;     (ds/frequencies pcoll)"
+;;           base-schema)
+;;    :added "0.1.0"}
+;;   ([options ^PCollection pcoll]
+;;    (let [opts (assoc options :label :frequencies)]
+;;      (-> pcoll
+;;          (.apply (with-opts base-schema opts
+;;                    (Count/perElement)))
+;;          (cond-> (:coder opts) (.setCoder (:coder opts))))))
+;;   ([pcoll] (dfrequencies {} pcoll)))

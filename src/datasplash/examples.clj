@@ -34,7 +34,7 @@
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies)
+         (ds/frequencies-fn)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))))
 
