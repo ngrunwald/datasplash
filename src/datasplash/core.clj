@@ -6,7 +6,7 @@
             [clojure.string :as str]
             [taoensso.nippy :as nippy])
   (:import [com.google.cloud.dataflow.sdk Pipeline]
-           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
+           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [com.google.cloud.dataflow.sdk.io
             TextIO$Read TextIO$Write TextIO$CompressionType]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
@@ -14,11 +14,7 @@
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey RemoveDuplicates
-            Flatten Combine$CombineFn Combine View
-            Sum$SumDoubleFn Sum$SumLongFn Sum$SumIntegerFn
-            Max$MaxDoubleFn Max$MaxLongFn Max$MaxIntegerFn Max$MaxFn
-            Min$MinDoubleFn Min$MinLongFn Min$MinIntegerFn Min$MinFn
-            Mean$MeanFn Sample]
+            Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
@@ -31,7 +27,7 @@
 
 (def ops-counter (atom {}))
 
-(def  required-ns (atom #{}))
+(def required-ns (atom #{}))
 
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
   (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
@@ -275,25 +271,30 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    (KvCoder/of k-coder v-coder))
   ([] (make-kv-coder (make-nippy-coder) (make-nippy-coder))))
 
-(defmacro with-opts
-  [schema opts & body]
-  `(let [transform# (do ~@body)
-         full-name# (name
-                     (or (:name ~opts)
-                         (let [label# (name (get ~opts :label "cljfn"))
-                               new-idx# (get
-                                         (swap! ~'ops-counter update-in [label#]
-                                                (fn [i#] (if i# (inc i#) 1)))
-                                         label#)]
-                           (str (name (get ~opts :label "cljfn")) "_"  new-idx#))))]
-     (reduce
-      (fn [f# [k# specs#]]
-        (if-let [v# (get (assoc ~opts :name full-name#) k#)]
-          (if-let [action# (get specs# :action)]
-            (action# f# v#)
-            f#)
-          f#))
-      transform# ~schema)))
+(defn with-opts
+  [schema opts ^PTransform ptransform]
+  (reduce
+   (fn [tr [k specs]]
+     (if-let [v (get opts k)]
+       (if-let [action (get specs :action)]
+         (action tr v)
+         tr)
+       tr))
+   ptransform schema))
+
+(defn apply-transform
+  [pcoll ^PTransform transform schema
+   {:keys [coder coll-name] :as options
+    :or {coder (make-nippy-coder)}}]
+  (let [nam (some-> options (:name) (name))
+        clean-opts (dissoc options :name :coder :coll-name)
+        configured-transform (with-opts schema clean-opts transform)
+        bound (if (and nam (not (empty? nam)))
+                (.apply pcoll nam configured-transform)
+                (.apply pcoll configured-transform))]
+    (-> bound
+        (cond-> coder (.setCoder coder))
+        (cond-> coll-name (.setName coll-name)))))
 
 (defn with-opts-docstr
   [doc-string & schemas]
@@ -329,24 +330,20 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (def pardo-schema
   (merge
-   base-schema
+   named-schema
    {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the return of side-inputs fn."
                   :action (fn [transform inputs]
                             (.withSideInputs transform (map val (sort-by key inputs))))}
     :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op
-  ([transform label coder]
-   (fn make-map-op
-     ([f options ^PCollection pcoll]
-      (let [opts (assoc options :label label)]
-        (-> pcoll
-            (.apply (with-opts pardo-schema opts
-                      (ParDo/of (dofn (transform f) opts))))
-            (.setCoder (or (:coder opts) coder)))))
-     ([f pcoll] (make-map-op f {} pcoll))))
-  ([transform label]
-   (map-op transform label (make-nippy-coder))))
+  [transform base-options]
+  (fn make-map-op
+    ([f options ^PCollection pcoll]
+     (let [opts (merge base-options options)
+           pardo (ParDo/of (dofn (transform f) opts))]
+       (apply-transform pcoll pardo pardo-schema opts)))
+    ([f pcoll] (make-map-op f {} pcoll))))
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
@@ -362,7 +359,7 @@ Function f should be a function of one argument.
 
   Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection."
       pardo-schema)}
-  dmap (map-op map-fn :map))
+  dmap (map-op map-fn {:label :map}))
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
@@ -377,9 +374,9 @@ Function f should be a function of one argument and return seq of keys/values.
 
   Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
       pardo-schema)}
-  map-kv (map-op map-kv-fn :map-kv (make-kv-coder)))
+  map-kv (map-op map-kv-fn {:label :map-kv :coder (make-kv-coder)}))
 
-(def pardo (map-op pardo-fn :raw-pardo))
+(def pardo (map-op pardo-fn {:label :raw-pardo}))
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
@@ -392,7 +389,7 @@ f to each item in the PCollection. Thus f should return a Clojure or Java collec
 
     (ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)"
            pardo-schema)}
-  dmapcat (map-op mapcat-fn :mapcat))
+  dmapcat (map-op mapcat-fn {:label :mapcat}))
 
 (def
   ^{:arglists [['pred 'pcoll] ['f 'options 'pcoll]]
@@ -406,7 +403,7 @@ returns true.
     (ds/filter even? foo)
     (ds/filter (fn [x] (even? (* x x))) foo)"
            pardo-schema)}
-  dfilter (map-op filter-fn :filter))
+  dfilter (map-op filter-fn {:label :filter}))
 
 (defn generate-input
   {:doc (with-opts-docstr
@@ -418,11 +415,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema)
    :added "0.1.0"}
   ([coll options ^Pipeline p]
-   (let [opts (assoc options :label :generate-input)]
-     (-> p
-         (.apply (with-opts base-schema opts
-                   (Create/of (seq coll))))
-         (.setCoder (or (:coder opts) (make-nippy-coder))))))
+   (let [opts (assoc options :label :generate-input)
+         ptrans (Create/of (seq coll))]
+     (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
 
 (definterface ICombineFn
@@ -463,32 +458,29 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([reducef extractf] (combine-fn reducef extractf reducef))
   ([reducef] (combine-fn reducef identity)))
 
+(def view-schema
+  (merge
+   base-schema
+   {:default {:docstr "Sets a default value for SingletonView"
+              :action (fn [transform v]
+                        (assert (instance? transform View$AsSingleton) "Default values can only be set for Singleton views")
+                        (if v
+                          (.withDefaultValue transform v)
+                          transform))}}))
+
 (defn view
   ([{:keys [type]
      :or {type :singleton}
      :as options}
     pcoll]
-   (let [opts (assoc options :label :view)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (case type
-                     :singleton (View/asSingleton)
-                     :iterable (View/asIterable)
-                     :map (-> (View/asMap)
-                              (.withSingletonValues)
-                              ;; (.withCombiner (combine-fn
-                              ;;                 (fn [acc elt] elt)
-                              ;;                 identity
-                              ;;                 (fn [accs] (first (remove nil? accs)))
-                              ;;                 nil))
-                              )
-                     :singleton-map (-> (View/asMap)
-                                        (.withSingletonValues))
-                     :multi-map (View/asMap)
-                     ;; when released
-                     ;; :map (View/asSingletonMap)
-                     ;; :multi-map (View/asMultiMap)
-                     ))))))
+   (let [opts (assoc options :label :view :coder nil)
+         ptrans (case type
+                  :singleton (View/asSingleton)
+                  :iterable  (View/asIterable)
+                  :list      (View/asList)
+                  :map       (View/asMap)
+                  :multi-map (View/asMultimap))]
+     (apply-transform pcoll ptrans view-schema opts)))
   ([pcoll] (view {} pcoll)))
 
 (defn- to-edn*
@@ -497,7 +489,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         result (pr-str elt)]
     (.output c result)))
 
-(def to-edn (partial (map-op identity :to-edn (StringUtf8Coder/of)) to-edn*))
+(def to-edn (partial (map-op identity {:label :to-edn :coder (StringUtf8Coder/of)}) to-edn*))
 (def from-edn (partial dmap #(read-string %)))
 
 (defn sfn
@@ -512,7 +504,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (invoke [this input]
       (safe-exec (f input)))))
 
-
 (defn partition-fn
   ^Partition$PartitionFn
   [f]
@@ -523,16 +514,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (partitionFor [this elem num]
         (f elem num)))))
 
-
 (defn dpartition-by
   ([f num options ^PCollection pcoll]
-   (let [opts options ]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (Partition/of num (partition-fn f))))
-         )))
+   (let [opts (assoc options :label :partition-by)
+         ptrans (Partition/of num (partition-fn f))]
+     (apply-transform pcoll ptrans base-schema opts)))
   ([f pcoll] (dpartition-by f num {} pcoll)))
-
 
 (defn ->combine-fn
   "Returns a CombineFn if f is not one already."
@@ -577,6 +564,13 @@ Only works with functions created with combine-fn or native clojure functions, a
   {:key-coder {:docstr "Coder to be used for encoding keys in the resulting KV PColl."}
    :value-coder {:docstr "Coder to be used for encoding values in the resulting KV PColl."}})
 
+(defn assoc-default-kv-coder
+  [{:keys [key-coder value-coder coder] :as options}]
+  (assoc options :coder (or coder
+                            (KvCoder/of
+                             (or key-coder (make-nippy-coder))
+                             (or value-coder (make-nippy-coder))))))
+
 (defn with-keys
   {:doc (with-opts-docstr
           "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
@@ -586,31 +580,27 @@ Only works with functions created with combine-fn or native clojure functions, a
     (with-keys even? pcoll)"
           base-schema kv-coder-schema)
    :added "0.1.0"}
-  ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
-   (let [opts (assoc options :label :with-keys)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (WithKeys/of (sfn f))))
-         (.setCoder (or
-                     (:coder opts)
-                     (KvCoder/of
-                      (or key-coder (make-nippy-coder))
-                      (or value-coder (make-nippy-coder))))))))
+  ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
+   (let [opts (-> options
+                  (assoc-default-kv-coder)
+                  (assoc :label :with-keys))
+         ptrans (WithKeys/of (sfn f))]
+     (apply-transform pcoll ptrans base-schema opts)))
   ([f pcoll] (with-keys f {} pcoll)))
 
 (defn group-by-key
   {:doc "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
   See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
    :added "0.1.0"}
-  ([options ^PCollection pcoll]
+  ([{:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
    (let [opts (assoc options :label :group-by-keys)]
-     (-> pcoll
-         (.apply (GroupByKey/create)))))
+     (apply-transform pcoll (GroupByKey/create) base-schema opts)))
   ([pcoll] (group-by-key {} pcoll)))
 
 (defmacro ptransform
-  [input & body]
-  `(proxy [PTransform] []
+  [nam input & body]
+  `(proxy [PTransform] [(when (and ~nam (not (empty? (name ~nam))))
+                          (name ~nam))]
      (~(symbol "apply") ~input
       ~@body)))
 
@@ -618,6 +608,7 @@ Only works with functions created with combine-fn or native clojure functions, a
   [f options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     :group-by
      [^PCollection pcoll]
      (->> pcoll
           (with-keys f safe-opts)
@@ -635,11 +626,12 @@ map. Each value will be a list of the values that match key.
     (ds/group-by count foo)"
           base-schema)
    :added "0.1.0"}
-  ([f options ^PCollection pcoll]
-   (let [opts (assoc options :label :group-by)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (group-by-transform f options))))))
+  ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
+   (let [opts (-> options
+                  (assoc :coder (or coder nil))
+                  (assoc :label :group-by))
+         ptrans (group-by-transform f opts)]
+     (apply-transform pcoll ptrans base-schema opts)))
   ([f pcoll] (dgroup-by f {} pcoll)))
 
 (defn interface->class
@@ -775,11 +767,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-writer-schema)
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label (str "write-text-file-to-"
-                                         (clean-filename to)))]
-     (-> pcoll
-         (.apply (with-opts (merge base-schema text-writer-schema) opts
-                   (TextIO$Write/to to))))))
+   (let [opts (-> options
+                  (assoc :label (str "write-text-file-to-"
+                                     (clean-filename to))
+                         :coder nil))]
+     (apply-transform pcoll (TextIO$Write/to to)
+                      (merge named-schema text-writer-schema) opts)))
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (defn read-text-file
@@ -791,21 +784,23 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-reader-schema)
    :added "0.1.0"}
   ([from options p]
-   (let [opts (assoc options :label (str "read-text-file-from"
-                                         (clean-filename from)))]
+   (let [opts (assoc options
+                     :label (str "read-text-file-from"
+                                 (clean-filename from))
+                     :coder (or
+                             (:coder options)
+                             (StringUtf8Coder/of)))]
      (-> p
          (cond-> (instance? Pipeline p) (PBegin/in))
-         (.apply (with-opts base-schema opts
-                   (TextIO$Read/from from)))
-         (.setCoder (or
-                     (:coder opts)
-                     (StringUtf8Coder/of))))))
+         (apply-transform (TextIO$Read/from from)
+                          (merge named-schema text-reader-schema) opts))))
   ([from p] (read-text-file from {} p)))
 
 (defn- read-edn-file-transform
   [from options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     :read-edn-file
      [p]
      (->> p
           (read-text-file from options)
@@ -822,18 +817,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([from options ^Pipeline p]
    (let [opts (assoc options :label (str "read-edn-file-from-"
                                          (clean-filename from)))]
-     (-> p
-         (.apply (with-opts (merge base-schema text-reader-schema) opts
-                   (read-edn-file-transform from opts))))))
+     (apply-transform p (read-edn-file-transform from opts)
+                      (merge base-schema text-reader-schema) opts)))
   ([from p] (read-edn-file from {} p)))
 
 (defn- write-edn-file-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     :write-edn-file
      [^PCollection pcoll]
      (->> pcoll
-          (to-edn options)
+          (to-edn (dissoc options :coder))
           (write-text-file to options)))))
 
 (defn write-edn-file
@@ -846,10 +841,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-writer-schema)
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to)))]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (write-edn-file-transform to opts))))))
+   (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to))
+                     :coder nil)]
+     (apply-transform pcoll (write-edn-file-transform to opts)
+                      (merge base-schema text-writer-schema) opts)))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (defn make-partition-mapping
@@ -864,6 +859,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [output-transform f mapping to options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     (:name options)
      [^PCollection pcoll]
      (let [map-fn (fn [out] (get mapping out 0))
            mapped-fn (comp map-fn (fn [elt _] (f elt)))
@@ -894,6 +890,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([options]
    (let [opts (assoc options :label :raw-cogroup)]
      (ptransform
+      (:name options)
       [^KeyedPCollectionTuple pcolltuple]
       (let [ordered-tags (->> pcolltuple
                               (.getKeyedCollections)
@@ -1047,10 +1044,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          cfn (->combine-fn f)
          ready-pcoll (cond
                        (#{:local :per-key} scope) (-> pcoll
-                                                      (.apply (with-opts combine-schema opts
+                                                      (.apply (with-opts (merge named-schema combine-schema) opts
                                                                 (Combine/perKey cfn)))
                                                       (.setCoder (make-kv-coder)))
-                       (#{:global :globally} scope) (.apply pcoll (with-opts combine-schema opts
+                       (#{:global :globally} scope) (.apply pcoll (with-opts (merge named-schema combine-schema) opts
                                                                     (Combine/globally cfn)))
                        :else (throw (ex-info (format "Option %s is not recognized" scope)
                                              {:scope-given scope :allowed-scopes #{:global :per-key}})))]
@@ -1065,6 +1062,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                       (dissoc :name)
                       (assoc :scope :per-key))]
     (ptransform
+     (:name options)
      [^PCollection pcoll]
      (->> pcoll
           (with-keys key-fn safe-opts)

@@ -57,6 +57,7 @@
   [from options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     (:name options)
      [p]
      (->> p
           (read-bq-table-raw from options)
@@ -134,6 +135,7 @@
   [to options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
+     (:name options)
      [^PCollection pcoll]
      (let [schema (:schema options)
            base-coll (if schema
