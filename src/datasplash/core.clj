@@ -156,6 +156,7 @@
                          (fn [acc [k pview]]
                            (assoc! acc k (.sideInput context pview)))
                          (transient {}) side-inputs))]
+          (println "dofn" without-coercion-to-clj)
           (binding [*context* context
                     *coerce-to-clj* (not without-coercion-to-clj)
                     *side-inputs* side-ins]
@@ -184,6 +185,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   "Get element from context in ParDo while applying relevent Clojure type conversions"
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
+    (println "get" *coerce-to-clj*)
     (if *coerce-to-clj*
       (if (instance? KV element)
         (kv->clj element)
@@ -859,16 +861,16 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [output-transform f mapping to options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
-     (:name options)
+     :write-file-by
      [^PCollection pcoll]
      (let [map-fn (fn [out] (get mapping out 0))
            mapped-fn (comp map-fn (fn [elt _] (f elt)))
            ^PCollectionList pcolls (dpartition-by mapped-fn (count mapping) safe-opts pcoll)
            target (if (fn? to) to (fn [out] (str to out)))
            reverse-mapping (reverse-map mapping)
-           files-list (map-indexed (fn [idx coll] [(target (get reverse-mapping idx)) coll]) (.getAll pcolls))]
-       (doseq [[path coll] files-list]
-         (output-transform path safe-opts coll))
+           files-list (map-indexed (fn [idx coll] [idx (target (get reverse-mapping idx)) coll]) (.getAll pcolls))]
+       (doseq [[idx path coll] files-list]
+         (output-transform path (assoc safe-opts :name (str "write-partial-file-" idx)) coll))
        pcoll))))
 
 (defn write-file-by
@@ -877,10 +879,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-writer-schema)
    :added "0.1.0"}
   ([encoder f mapping to options ^PCollection pcoll]
-   (let [opts (assoc options :label "write-edn-file-by")]
-     (-> pcoll
-         (.apply (with-opts (merge base-schema text-writer-schema) opts
-                   (write-text-file-by-transform encoder f mapping to opts))))))
+   (let [opts (assoc options :label "write-edn-file-by" :coder nil)
+         ptrans (write-text-file-by-transform encoder f mapping to opts)]
+     (apply-transform pcoll ptrans (merge base-schema text-writer-schema) opts)))
   ([encoder f mapping to pcoll] (write-file-by encoder f  mapping to {} pcoll)))
 
 (def write-edn-file-by (partial write-file-by write-edn-file))
@@ -890,13 +891,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([options]
    (let [opts (assoc options :label :raw-cogroup)]
      (ptransform
-      (:name options)
+      :cogroup
       [^KeyedPCollectionTuple pcolltuple]
       (let [ordered-tags (->> pcolltuple
                               (.getKeyedCollections)
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
-            rel (.apply pcolltuple (with-opts base-schema opts (CoGroupByKey/create)))
+            rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
             final-rel (dmap (fn [^KV elt]
                               (let [k (.getKey elt)
                                     raw-values (.getValue elt)
@@ -914,26 +915,25 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [options pcolls]
   (let [opts (assoc options :label :cogroup)
         pcolltuple (make-keyed-pcollection-tuple pcolls)]
-    (-> pcolltuple
-        (.apply (with-opts base-schema opts
-                  (cogroup-transform opts))))))
+    (apply-transform pcolltuple (cogroup-transform opts) base-schema opts)))
 
 (defn cogroup-by
   ([options specs reduce-fn]
-   (let [operations (for [[pcoll f type] specs]
-                      [(dgroup-by f options pcoll) type])
+   (let [safe-opts (dissoc options :name)
+         operations (for [[idx [pcoll f type]] (map-indexed vector specs)]
+                      [(dgroup-by f (assoc safe-opts :name (str "group-by-" idx)) pcoll) type])
          required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
          pcolls (map first operations)
-         grouped-coll (cogroup options pcolls)
+         grouped-coll (cogroup safe-opts pcolls)
          filtered-coll (if (empty? required-idx)
                          grouped-coll
                          (dfilter (fn [[_ all-vals]]
                                     (let [idx-vals (into [] all-vals)]
                                       (every? #(not (empty? (get idx-vals %))) required-idx)))
-                                  options
+                                  safe-opts
                                   grouped-coll))]
      (if reduce-fn
-       (dmap reduce-fn options filtered-coll)
+       (dmap reduce-fn safe-opts filtered-coll)
        filtered-coll)))
   ([options specs] (cogroup-by options specs nil)))
 

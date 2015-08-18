@@ -80,21 +80,21 @@
         (is (res [:a #{{:key :a :lue 65} {:key :a :val 42}}]))
         (is (res [:b #{{:key :b :val 56}}]))))))
 
-;; (deftest cogroup-test
-;;   (with-files [cogroup-test]
-;;     (let [p (make-test-pipeline)
-;;           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
-;;           input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] p)
-;;           grouped (ds/cogroup-by {:name "cogroup-test"}
-;;                                  [[input1 :key] [input2 :key]])
-;;           output (ds/write-edn-file cogroup-test grouped)]
-;;       (ds/run-pipeline p)
-;;       (is "cogroup-test" (.getName grouped))
-;;       (let [res (->> (read-file (first (glob-file cogroup-test)))
-;;                      (map (fn [[k i1 i2]] [k (into #{} i1) (into #{} i2)]))
-;;                      (into #{}))]
-;;         (is (= res #{[:a #{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]
-;;                      [:c #{} #{{:key :c, :foo 42}}] [:b #{{:key :b, :val 56}} #{}]}))))))
+(deftest cogroup-test
+  (with-files [cogroup-test]
+    (let [p (make-test-pipeline)
+          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+          grouped (ds/cogroup-by {:name "cogroup-test"}
+                                 [[input1 :key] [input2 :key]])
+          output (ds/write-edn-file cogroup-test grouped)]
+      (ds/run-pipeline p)
+      (is "cogroup-test" (.getName grouped))
+      (let [res (->> (read-file (first (glob-file cogroup-test)))
+                     (map (fn [[k i1 i2]] [k (into #{} i1) (into #{} i2)]))
+                     (into #{}))]
+        (is (= res #{[:a #{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]
+                     [:c #{} #{{:key :c, :foo 42}}] [:b #{{:key :b, :val 56}} #{}]}))))))
 
 ;; (deftest join-test
 ;;   (with-files [cogroup-test]
@@ -155,13 +155,15 @@
 ;;       (let [res (read-file (first (glob-file sample-test)))]
 ;;         (is (= 2 (count res)))))))
 
+;; Problem with unique stable names of generated writes
 ;; (deftest write-by
 ;;   (with-files [true-vals false-vals]
 ;;     (let [p (make-test-pipeline)
-;;                     input (ds/generate-input [1 2 3 4 5] p)
-;;                     mapping (ds/make-partition-mapping [true false])
+;;           input (ds/generate-input [1 2 3 4 5] p)
+;;           mapping (ds/make-partition-mapping [true false])
 ;;           _ (ds/write-edn-file-by even? mapping (fn [res] (if res true-vals false-vals)) {:name "write-by"} input)]
 ;;       (ds/run-pipeline p)
+
 ;;       (let [res-true (into #{} (read-file (first (glob-file true-vals))))
 ;;             res-false (into #{} (read-file (first (glob-file false-vals))))]
 ;;         (is (= #{2 4} res-true))
