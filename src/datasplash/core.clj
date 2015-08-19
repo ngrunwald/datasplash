@@ -905,17 +905,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
-            final-rel (dmap (fn [^KV elt]
-                              (let [k (.getKey elt)
-                                    raw-values (.getValue elt)
-                                    values (for [tag ordered-tags
-                                                 :let [all-vals (seq (.getAll raw-values tag))]]
-                                             (if (map? (first all-vals))
-                                               all-vals
-                                               (first all-vals)))]
-                                (into [] (conj values k))))
-                            (assoc opts :without-coercion-to-clj true)
-                            rel)]
+            final-rel (map-kv (fn [^KV elt]
+                                (let [k (.getKey elt)
+                                      raw-values (.getValue elt)
+                                      values (mapv (fn [tag] (.getAll raw-values tag)) ordered-tags)]
+                                  [k values]))
+                              (assoc opts :without-coercion-to-clj true)
+                              rel)]
         final-rel)))))
 
 (defn cogroup
@@ -928,7 +924,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([options specs reduce-fn]
    (let [safe-opts (dissoc options :name)
          operations (for [[idx [pcoll f type]] (map-indexed vector specs)]
-                      [(dgroup-by f (assoc safe-opts :name (str "group-by-" idx)) pcoll) type])
+                      [(with-keys f (assoc safe-opts :name (str "group-by-" idx)) pcoll) type])
          required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
          pcolls (map first operations)
          grouped-coll (cogroup safe-opts pcolls)

@@ -91,10 +91,11 @@
       (ds/run-pipeline p)
       (is "cogroup-test" (.getName grouped))
       (let [res (->> (read-file (first (glob-file cogroup-test)))
-                     (map (fn [[k i1 i2]] [k (into #{} i1) (into #{} i2)]))
+                     (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
                      (into #{}))]
-        (is (= res #{[:a #{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]
-                     [:c #{} #{{:key :c, :foo 42}}] [:b #{{:key :b, :val 56}} #{}]}))))))
+        (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]]
+                     [:c [#{} #{{:key :c, :foo 42}}]]
+                     [:b [#{{:key :b, :val 56}} #{}]]}))))))
 
 ;; (deftest join-test
 ;;   (with-files [cogroup-test]
