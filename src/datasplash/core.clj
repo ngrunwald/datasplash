@@ -125,16 +125,6 @@
       (.getValue elt))
     (val elt)))
 
-(defn make-keyed-pcollection-tuple
-  [pcolls]
-  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
-    (reduce
-     (fn [coll-tuple [idx pcoll]]
-       (let [tag (TupleTag. (str idx))
-             new-coll-tuple (.and coll-tuple tag pcoll)]
-         new-coll-tuple))
-     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
-
 (def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
@@ -156,7 +146,7 @@
                          (fn [acc [k pview]]
                            (assoc! acc k (.sideInput context pview)))
                          (transient {}) side-inputs))]
-          (println "dofn" without-coercion-to-clj)
+
           (binding [*context* context
                     *coerce-to-clj* (not without-coercion-to-clj)
                     *side-inputs* side-ins]
@@ -185,7 +175,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   "Get element from context in ParDo while applying relevent Clojure type conversions"
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
-    (println "get" *coerce-to-clj*)
     (if *coerce-to-clj*
       (if (instance? KV element)
         (kv->clj element)
@@ -286,8 +275,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn apply-transform
   [pcoll ^PTransform transform schema
-   {:keys [coder coll-name] :as options
-    :or {coder (make-nippy-coder)}}]
+   {:keys [coder coll-name] :as options}]
   (let [nam (some-> options (:name) (name))
         clean-opts (dissoc options :name :coder :coll-name)
         configured-transform (with-opts schema clean-opts transform)
@@ -339,10 +327,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op
-  [transform base-options]
+  [transform {:keys [isomorph?] :as base-options}]
   (fn make-map-op
     ([f options ^PCollection pcoll]
-     (let [opts (merge base-options options)
+     (let [default-coder (if isomorph? (.getCoder pcoll) (make-nippy-coder))
+           opts (merge (assoc base-options :coder default-coder) options)
            pardo (ParDo/of (dofn (transform f) opts))]
        (apply-transform pcoll pardo pardo-schema opts)))
     ([f pcoll] (make-map-op f {} pcoll))))
@@ -405,7 +394,7 @@ returns true.
     (ds/filter even? foo)
     (ds/filter (fn [x] (even? (* x x))) foo)"
            pardo-schema)}
-  dfilter (map-op filter-fn {:label :filter}))
+  dfilter (map-op filter-fn {:label :filter :isomorph? true}))
 
 (defn generate-input
   {:doc (with-opts-docstr
@@ -417,7 +406,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema)
    :added "0.1.0"}
   ([coll options ^Pipeline p]
-   (let [opts (assoc options :label :generate-input)
+   (let [opts (merge {:coder (make-nippy-coder)}
+                     (assoc options :label :generate-input))
          ptrans (Create/of (seq coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
@@ -595,7 +585,8 @@ Only works with functions created with combine-fn or native clojure functions, a
   See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
    :added "0.1.0"}
   ([{:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
-   (let [opts (assoc options :label :group-by-keys)]
+   (let [parent-coder (.getCoder pcoll)
+         opts (assoc options :label :group-by-keys)]
      (apply-transform pcoll (GroupByKey/create) base-schema opts)))
   ([pcoll] (group-by-key {} pcoll)))
 
@@ -817,8 +808,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-reader-schema)
    :added "0.1.0"}
   ([from options ^Pipeline p]
-   (let [opts (assoc options :label (str "read-edn-file-from-"
-                                         (clean-filename from)))]
+   (let [opts (assoc options
+                     :label (str "read-edn-file-from-"
+                                 (clean-filename from))
+                     :coder (or (:coder options) (make-nippy-coder)))]
      (apply-transform p (read-edn-file-transform from opts)
                       (merge base-schema text-reader-schema) opts)))
   ([from p] (read-edn-file from {} p)))
@@ -886,6 +879,20 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (def write-edn-file-by (partial write-file-by write-edn-file))
 (def write-text-file-by (partial write-file-by write-text-file))
+
+;;;;;;;;;;;
+;; Joins ;;
+;;;;;;;;;;;
+
+(defn make-keyed-pcollection-tuple
+  [pcolls]
+  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
+    (reduce
+     (fn [coll-tuple [idx pcoll]]
+       (let [tag (TupleTag. (str idx))
+             new-coll-tuple (.and coll-tuple tag pcoll)]
+         new-coll-tuple))
+     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
 
 (defn cogroup-transform
   ([options]
