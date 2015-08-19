@@ -14,13 +14,17 @@
            [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-table-raw
-  ([from options p]
-   (let [opts (assoc options :label :read-bq-table-raw)]
-     (-> p
-         (cond-> (instance? Pipeline p) (PBegin/in))
-         (.apply (with-opts base-schema opts
-                   (BigQueryIO$Read/from from))))))
-  ([from p] (read-bq-table-raw from {} p)))
+  [{:keys [query table] :as options} p]
+  (let [opts (assoc options :label :read-bq-table-raw)
+        ptrans (cond
+                 query (BigQueryIO$Read/fromQuery query)
+                 table (BigQueryIO$Read/from table)
+                 :else (throw (ex-info
+                               "Error with options of read-bq-table, should specify one of :table or :query"
+                               {:options options})))]
+    (-> p
+        (cond-> (instance? Pipeline p) (PBegin/in))
+        (apply-transform ptrans named-schema opts))))
 
 (defn table-row->clj
   [^TableRow row]
@@ -57,19 +61,16 @@
   [from options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
-     (:name options)
+     :read-bq-table-to-clj
      [p]
      (->> p
-          (read-bq-table-raw from options)
-          (dmap table-row->clj options)))))
+          (read-bq-table-raw safe-opts)
+          (dmap table-row->clj safe-opts)))))
 
 (defn read-bq-table
-  ([from options ^Pipeline p]
-   (let [opts (assoc options :label :read-bq-table)]
-     (-> p
-         (.apply (with-opts base-schema opts
-                   (read-bq-table-clj-transform from opts))))))
-  ([from p] (read-bq-table from {} p)))
+  [options ^Pipeline p]
+  (let [opts (assoc options :label :read-bq-table)]
+    (apply-transform p (read-bq-table-clj-transform opts) :base-schema opts)))
 
 (defn ->schema
   ^TableSchema
@@ -126,16 +127,14 @@
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (-> pcoll
-         (.apply (with-opts write-bq-table-schema opts
-                   (BigQueryIO$Write/to to))))))
+     (apply-transform pcoll (BigQueryIO$Write/to to) write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
-     (:name options)
+     :write-bq-table-from-clj
      [^PCollection pcoll]
      (let [schema (:schema options)
            base-coll (if schema
@@ -148,7 +147,5 @@
 (defn write-bq-table
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (write-bq-table-clj-transform to opts))))))
+     (apply-transform pcoll (write-bq-table-clj-transform to opts) write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
