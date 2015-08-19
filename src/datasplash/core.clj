@@ -327,10 +327,15 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op
-  [transform {:keys [isomorph?] :as base-options}]
+  [transform {:keys [isomorph? kv?] :as base-options}]
   (fn make-map-op
-    ([f options ^PCollection pcoll]
-     (let [default-coder (if isomorph? (.getCoder pcoll) (make-nippy-coder))
+    ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
+     (let [default-coder (cond
+                           isomorph? (.getCoder pcoll)
+                           kv? (KvCoder/of
+                                (or key-coder (make-nippy-coder))
+                                (or value-coder (make-nippy-coder)))
+                           :else (make-nippy-coder))
            opts (merge (assoc base-options :coder default-coder) options)
            pardo (ParDo/of (dofn (transform f) opts))]
        (apply-transform pcoll pardo pardo-schema opts)))
@@ -365,7 +370,7 @@ Function f should be a function of one argument and return seq of keys/values.
 
   Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
       pardo-schema)}
-  map-kv (map-op map-kv-fn {:label :map-kv :coder (make-kv-coder)}))
+  map-kv (map-op map-kv-fn {:label :map-kv :kv? true}))
 
 (def pardo (map-op pardo-fn {:label :raw-pardo}))
 
@@ -556,13 +561,6 @@ Only works with functions created with combine-fn or native clojure functions, a
   {:key-coder {:docstr "Coder to be used for encoding keys in the resulting KV PColl."}
    :value-coder {:docstr "Coder to be used for encoding values in the resulting KV PColl."}})
 
-(defn assoc-default-kv-coder
-  [{:keys [key-coder value-coder coder] :as options}]
-  (assoc options :coder (or coder
-                            (KvCoder/of
-                             (or key-coder (make-nippy-coder))
-                             (or value-coder (make-nippy-coder))))))
-
 (defn with-keys
   {:doc (with-opts-docstr
           "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
@@ -573,9 +571,12 @@ Only works with functions created with combine-fn or native clojure functions, a
           base-schema kv-coder-schema)
    :added "0.1.0"}
   ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
-   (let [opts (-> options
-                  (assoc-default-kv-coder)
-                  (assoc :label :with-keys))
+   (let [opts (assoc options
+                     :coder (or coder
+                                (KvCoder/of
+                                 (or key-coder (make-nippy-coder))
+                                 (or value-coder (.getCoder pcoll))))
+                     :label :with-keys)
          ptrans (WithKeys/of (sfn f))]
      (apply-transform pcoll ptrans base-schema opts)))
   ([f pcoll] (with-keys f {} pcoll)))
@@ -943,11 +944,12 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn join-by
   ([options specs join-fn]
    (->> (cogroup-by options specs)
-        (dmapcat (fn [[k & results]]
-                   (let [results-ok (map #(if (empty? %) [nil] %) results)
+        (dmapcat (fn [^KV kv]
+                   (let [results (.getValue kv)
+                         results-ok (map #(if (empty? %) [nil] %) results)
                          raw-res (apply combo/cartesian-product results-ok)
                          res (map (fn [prod] (apply join-fn prod)) raw-res)]
-                     res)))))
+                     res)) {:without-coercion-to-clj true})))
   ([specs join-fn] (join-by {} specs join-fn)))
 
 (defn ddistinct

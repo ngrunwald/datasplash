@@ -97,19 +97,19 @@
                      [:c [#{} #{{:key :c, :foo 42}}]]
                      [:b [#{{:key :b, :val 56}} #{}]]}))))))
 
-;; (deftest join-test
-;;   (with-files [cogroup-test]
-;;     (let [p (make-test-pipeline)
-;;           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
-;;           input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] p)
-;;           grouped (ds/join-by {:name "join-test"}
-;;                               [[input1 :key] [input2 :key]] merge)
-;;           output (ds/write-edn-file cogroup-test grouped)]
-;;       (ds/run-pipeline p)
-;;       (is "join-test" (.getName grouped))
-;;       (let [res (into #{} (read-file (first (glob-file cogroup-test))))]
-;;         (is (= res #{{:key :b, :val 56} {:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
-;;                      {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
+(deftest join-test
+  (with-files [join-test]
+    (let [p (make-test-pipeline)
+          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+          grouped (ds/join-by {:name "join-test"}
+                              [[input1 :key] [input2 :key]] merge)
+          output (ds/write-edn-file join-test grouped)]
+      (ds/run-pipeline p)
+      (is "join-test" (.getName grouped))
+      (let [res (into #{} (read-file (first (glob-file join-test))))]
+        (is (= res #{{:key :b, :val 56} {:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
+                     {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
 
 ;; (deftest combine-pipeline
 ;;   (let [p (make-test-pipeline)
