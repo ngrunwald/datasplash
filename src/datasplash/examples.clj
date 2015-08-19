@@ -34,7 +34,7 @@
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies-fn)
+         (ds/frequencies)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))))
 
@@ -83,7 +83,7 @@
   (let [p (ds/make-pipeline 'FilterOptions str-args)
         {:keys [input output monthFilter]} (ds/get-pipeline-configuration p)
         all-rows (->> p
-                      (bq/read-bq-table input)
+                      (bq/read-bq {:table input})
                       (ds/map (fn [row]
                                 (->>
                                  (select-keys row [:year :month :day :mean_temp])
@@ -131,7 +131,7 @@
   (let [p (ds/make-pipeline 'CombinePerKeyOptions str-args)
         {:keys [input output minWordLength]} (ds/get-pipeline-configuration p)
         results (->> p
-                     (bq/read-bq-table input)
+                     (bq/read-bq {:table input})
                      (ds/filter (fn [{:keys [word]}] (> (count word) minWordLength)))
                      (ds/map-kv (fn [{:keys [word corpus]}] [word corpus]))
                      (ds/combine
@@ -165,7 +165,7 @@
   (let [p (ds/make-pipeline 'MaxPerKeyOptions str-args)
         {:keys [input output]} (ds/get-pipeline-configuration p)
         results (->> p
-                     (bq/read-bq-table input)
+                     (bq/read-bq {:table input})
                      (ds/map-kv (fn [{:keys [month mean_temp]}]
                                   [(edn/read-string month) (double mean_temp)]))
                      (ds/combine (ds/max-fn) {:scope :per-key})

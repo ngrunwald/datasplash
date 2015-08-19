@@ -13,7 +13,7 @@
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             Partition Partition$PartitionFn
-            SerializableFunction WithKeys GroupByKey RemoveDuplicates
+            SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
@@ -1153,8 +1153,23 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    (combine-fn
     (fn [acc elt]
       (if (predicate elt)
-        (update-in acc [(mapper elt)] (fn [old new] (if old (inc old) 1)))
+        (update-in acc [(mapper elt)] (fn [old] (if old (inc old) 1)))
         acc))
     identity
     (fn [& accs] (apply merge-with + accs))
     (constantly nil))))
+
+(defn dfrequencies
+  {:doc (with-opts-docstr
+          "Returns the frequency of each unique element of the input PCollection.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
+
+  Example:
+
+    (ds/frequencies pcoll)"
+          base-schema)
+   :added "0.1.0"}
+  ([options ^PCollection pcoll]
+   (let [opts (assoc options :label :frequencies)]
+     (apply-transform pcoll (Count/perElement) named-schema opts)))
+  ([pcoll] (dfrequencies {} pcoll)))

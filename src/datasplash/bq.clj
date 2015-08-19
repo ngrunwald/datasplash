@@ -13,7 +13,7 @@
            [com.google.cloud.dataflow.sdk.values PBegin PCollection]
            [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
-(defn read-bq-table-raw
+(defn read-bq-raw
   [{:keys [query table] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
@@ -57,20 +57,20 @@
       (.set row (clean-name k) (coerce-by-bq-val v)))
     row))
 
-(defn- read-bq-table-clj-transform
-  [from options]
+(defn- read-bq-clj-transform
+  [options]
   (let [safe-opts (dissoc options :name)]
     (ptransform
-     :read-bq-table-to-clj
-     [p]
-     (->> p
-          (read-bq-table-raw safe-opts)
+     :read-bq-to-clj
+     [pcoll]
+     (->> pcoll
+          (read-bq-raw safe-opts)
           (dmap table-row->clj safe-opts)))))
 
-(defn read-bq-table
+(defn read-bq
   [options ^Pipeline p]
   (let [opts (assoc options :label :read-bq-table)]
-    (apply-transform p (read-bq-table-clj-transform opts) :base-schema opts)))
+    (apply-transform p (read-bq-clj-transform opts) base-schema opts)))
 
 (defn ->schema
   ^TableSchema
@@ -147,5 +147,5 @@
 (defn write-bq-table
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table)]
-     (apply-transform pcoll (write-bq-table-clj-transform to opts) write-bq-table-schema opts)))
+     (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
