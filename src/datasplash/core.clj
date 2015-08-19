@@ -25,8 +25,6 @@
            [java.net URI]
            [clojure.lang MapEntry ExceptionInfo]))
 
-(def ops-counter (atom {}))
-
 (def required-ns (atom #{}))
 
 (defmethod print-method KV [^KV kv ^java.io.Writer w]
