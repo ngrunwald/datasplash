@@ -4,7 +4,8 @@
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
             [clojure.string :as str]
-            [taoensso.nippy :as nippy])
+            [taoensso.nippy :as nippy]
+            [clojure.tools.logging :as log])
   (:import [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [com.google.cloud.dataflow.sdk.io
@@ -83,16 +84,21 @@
                      missing-at-start# (first (remove required-at-start# nss#))]
                  (if missing#
                    (do
+                     (log/debugf "Requiring missing namespace at runtime: %s" missing#)
                      (require missing#)
                      (swap! required-ns conj missing#)
                      ~@body)
                    (if missing-at-start#
                      ~@body
-                     (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                     {:ns-from-exception nss#
-                                      :ns-load-attempted already-required#
-                                      :hostname (get-hostname)}
-                                     e#))))))))))))
+                     (do
+                       (log/fatalf
+                        "Dynamic reloading of namespace seems not to work. Already required: %s Attempted: %s"
+                        nss# already-required#)
+                       (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                       {:ns-from-exception nss#
+                                        :ns-load-attempted already-required#
+                                        :hostname (get-hostname)}
+                                       e#)))))))))))))
 
 (defn kv->clj
   "Coerce from KV to Clojure MapEntry"
