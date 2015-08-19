@@ -75,13 +75,6 @@
 ;; Combinators ;;
 ;;;;;;;;;;;;;;;;;
 
-;; (intern *ns* (with-meta 'sum (meta #'dt/sum)) @#'dt/sum)
-;; (intern *ns* (with-meta 'max (meta #'dt/dmax)) @#'dt/dmax)
-;; (intern *ns* (with-meta 'min (meta #'dt/dmin)) @#'dt/dmin)
-;; (intern *ns* (with-meta 'mean (meta #'dt/mean)) @#'dt/mean)
-;; (intern *ns* (with-meta 'count (meta #'dt/dcount)) @#'dt/dcount)
-;; (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
-
 (intern *ns* (with-meta 'count-fn (meta #'dt/count-fn)) @#'dt/count-fn)
 (intern *ns* (with-meta 'sum-fn (meta #'dt/sum-fn)) @#'dt/sum-fn)
 (intern *ns* (with-meta 'mean-fn (meta #'dt/mean-fn)) @#'dt/mean-fn)

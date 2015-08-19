@@ -819,13 +819,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn- write-edn-file-transform
   [to options]
-  (let [safe-opts (dissoc options :name)]
+  (let [safe-opts (dissoc options :name :coder)]
     (ptransform
      :write-edn-file
      [^PCollection pcoll]
      (->> pcoll
-          (to-edn (dissoc options :coder))
-          (write-text-file to options)))))
+          (to-edn safe-opts)
+          (write-text-file to safe-opts)))))
 
 (defn write-edn-file
   {:doc (with-opts-docstr
@@ -962,9 +962,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :distinct)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (RemoveDuplicates/create))))))
+     (apply-transform pcoll (RemoveDuplicates/create) base-schema opts)))
   ([pcoll] (ddistinct {} pcoll)))
 
 (def scoped-ops-schema
@@ -999,9 +997,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :flatten)]
-     (-> pcoll
-         (.apply (with-opts base-schema opts
-                   (Flatten/iterables))))))
+     (apply-transform pcoll (Flatten/iterables) base-schema opts)))
   ([pcoll] (dflatten {} pcoll)))
 
 (defn dconcat
@@ -1020,9 +1016,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         coll-list (if (and (= 1 (count all-colls)) (instance? PCollectionList (first all-colls)))
                     (first all-colls)
                     (PCollectionList/of all-colls))]
-    (-> coll-list
-        (.apply (with-opts base-schema opts
-                  (Flatten/pCollections))))))
+    (apply-transform coll-list (Flatten/pCollections) base-schema opts)))
 
 ;; https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.Globally
 
@@ -1041,24 +1035,26 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                         :action (fn [transform b] (when b (.asSingletonView transform)))}}))
 
 (defn combine
-  ([f options ^PCollection pcoll]
+  ([f {:keys [coder key-coder value-coder] :as options} ^PCollection pcoll]
    (let [scope (or (:scope options) :global)
          opts (assoc options
                      :label (or (:label options) (keyword (str "combine-" (name scope))))
                      :scope scope)
          cfn (->combine-fn f)
-         ready-pcoll (cond
-                       (#{:local :per-key} scope) (-> pcoll
-                                                      (.apply (with-opts (merge named-schema combine-schema) opts
-                                                                (Combine/perKey cfn)))
-                                                      (.setCoder (make-kv-coder)))
-                       (#{:global :globally} scope) (.apply pcoll (with-opts (merge named-schema combine-schema) opts
-                                                                    (Combine/globally cfn)))
-                       :else (throw (ex-info (format "Option %s is not recognized" scope)
-                                             {:scope-given scope :allowed-scopes #{:global :per-key}})))]
-     (.setCoder ready-pcoll (or
-                             (:coder opts)
-                             (make-nippy-coder)))))
+         base-opts (merge named-schema combine-schema)
+         [ptrans base-coder] (cond (#{:local :per-key} scope) [(Combine/perKey cfn)
+                                                               (or coder
+                                                                   (KvCoder/of
+                                                                    (or key-coder
+                                                                        (-> pcoll
+                                                                            (.getCoder)
+                                                                            (.getKeyCoder)))
+                                                                    (or value-coder (make-nippy-coder))))]
+                                   (#{:global :globally} scope) [(Combine/globally cfn)
+                                                                 (or coder (make-nippy-coder))]
+                                   :else (throw (ex-info (format "Option %s is not recognized" scope)
+                                                         {:scope-given scope :allowed-scopes #{:global :per-key}})))]
+     (apply-transform pcoll ptrans base-opts opts)))
   ([f pcoll] (combine f {} pcoll)))
 
 (defn- combine-by-transform
@@ -1067,7 +1063,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                       (dissoc :name)
                       (assoc :scope :per-key))]
     (ptransform
-     (:name options)
+     :combine-by
      [^PCollection pcoll]
      (->> pcoll
           (with-keys key-fn safe-opts)
@@ -1076,69 +1072,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn combine-by
   ([key-fn f options ^PCollection pcoll]
    (let [opts (-> options
-                  (assoc :label :combine-by :scope :per-key))]
-     (.apply pcoll (with-opts base-schema opts
-                     (combine-by-transform key-fn f options)))))
+                  (assoc :label :combine-by :scope :per-key))
+         ptrans (combine-by-transform key-fn f options)]
+     (apply-transform pcoll ptrans base-schema opts)))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
-
-;; (defn sum
-;;   ([{:keys [type] :as options} ^PCollection pcoll]
-;;    (let [opts (assoc options :label :sum)
-;;          cfn (case type
-;;                :double  (Sum$SumDoubleFn.)
-;;                :long    (Sum$SumLongFn.)
-;;                :integer (Sum$SumIntegerFn.)
-;;                +)]
-;;      (combine cfn opts pcoll)))
-;;   ([pcoll] (sum {} pcoll)))
-
-;; (defn dmax
-;;   ([{:keys [type initial-value] :as options} ^PCollection pcoll]
-;;    (let [opts (assoc options :label :max)
-;;          cfn (case type
-;;                :double  (Max$MaxDoubleFn.)
-;;                :long    (Max$MaxLongFn.)
-;;                :integer (Max$MaxIntegerFn.)
-;;                (if initial-value
-
-;;                  (Max$MaxFn/of initial-value)))]
-;;      (combine cfn opts pcoll)))
-;;   ([pcoll] (dmax {} pcoll)))
-
-;; (defn dmin
-;;   ([{:keys [type initial-value] :as options} ^PCollection pcoll]
-;;    (let [opts (assoc options :label :max)
-;;          cfn (case type
-;;                :double  (Min$MinDoubleFn.)
-;;                :long    (Min$MinLongFn.)
-;;                :integer (Min$MinIntegerFn.)
-;;                (Min$MinFn. initial-value))]
-;;      (combine cfn opts pcoll)))
-;;   ([pcoll] (dmin {} pcoll)))
-
-;; (defn mean
-;;   ([options ^PCollection pcoll]
-;;    (let [opts (assoc options :label :mean)]
-;;      (combine (Mean$MeanFn.) opts pcoll)))
-;;   ([pcoll] (mean {} pcoll)))
-
-;; (defn dcount
-;;   {:doc (with-opts-docstr
-;;           "Counts the elements in the input PCollection.
-;; See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
-
-;;   example:
-
-;;     (ds/count pcoll)"
-;;           base-schema base-combine-schema)
-;;    :added "0.1.0"}
-;;   ([options ^PCollection pcoll]
-;;    (let [opts (assoc options :label :count)]
-;;      (-> pcoll
-;;          (.apply (with-opts (merge base-schema base-combine-schema) opts
-;;                    (Count/globally)))
-;;          (cond-> (:coder opts) (.setCoder (:coder opts))))))
-;;   ([pcoll] (dcount {} pcoll)))
 
 (defn count-fn
   ([& {:keys [mapper predicate]
@@ -1221,21 +1158,3 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     identity
     (fn [& accs] (apply merge-with + accs))
     (constantly nil))))
-
-;; (defn dfrequencies
-;;   {:doc (with-opts-docstr
-;;           "Returns the frequency of each unique element of the input PCollection.
-;; See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
-
-;;   Example:
-
-;;     (ds/frequencies pcoll)"
-;;           base-schema)
-;;    :added "0.1.0"}
-;;   ([options ^PCollection pcoll]
-;;    (let [opts (assoc options :label :frequencies)]
-;;      (-> pcoll
-;;          (.apply (with-opts base-schema opts
-;;                    (Count/perElement)))
-;;          (cond-> (:coder opts) (.setCoder (:coder opts))))))
-;;   ([pcoll] (dfrequencies {} pcoll)))
