@@ -3,15 +3,17 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as str]
             [datasplash.core :refer :all])
-  (:import [com.google.api.services.bigquery.model
-            TableRow TableFieldSchema TableSchema]
-           [com.google.cloud.dataflow.sdk Pipeline]
-           [com.google.cloud.dataflow.sdk.io
-            BigQueryIO$Read BigQueryIO$Write
-            BigQueryIO$Write$WriteDisposition
-            BigQueryIO$Write$CreateDisposition]
-           [com.google.cloud.dataflow.sdk.values PBegin PCollection]
-           [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
+  (:import
+   [org.codehaus.jackson.map.ObjectMapper]
+   [com.google.api.services.bigquery.model
+    TableRow TableFieldSchema TableSchema]
+   [com.google.cloud.dataflow.sdk Pipeline]
+   [com.google.cloud.dataflow.sdk.io
+    BigQueryIO$Read BigQueryIO$Write
+    BigQueryIO$Write$WriteDisposition
+    BigQueryIO$Write$CreateDisposition]
+   [com.google.cloud.dataflow.sdk.values PBegin PCollection]
+   [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-raw
   [{:keys [query table] :as options} p]
@@ -39,15 +41,28 @@
   [v]
   (cond
     (instance? java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000))
+    (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
     :else v))
 
 (defn clean-name
   [s]
-  (-> s
-      (name)
-      (str/replace #"-" "_")))
+  (let [test (number? s)]
+    (-> s
+        (cond-> test (str))
+        (name)
+        (str/replace #"-" "_")
+        (str/replace #"\?" ""))))
+
+
+(defn bqize-keys
+  "Recursively transforms all map keys from strings to keywords."
+  {:added "1.1"}
+  [m]
+  (let [f (fn [[k v]] (if (string? k) [(clean-name k) v] [k v]))]
+    ;; only apply to maps
+    (clojure.walk/postwalk (fn [x] (if (map? x) (into {} (map f x)) x)) m)))
 
 (defn clj->table-row
   ^TableRow
@@ -55,6 +70,17 @@
   (let [^TableRow row (TableRow.)]
     (doseq [[k v] hmap]
       (.set row (clean-name k) (coerce-by-bq-val v)))
+    row))
+
+(defn clj-nested->table-row
+  ^TableRow
+  [hmap]
+  (let [clean-map (->> hmap
+                       (clojure.walk/prewalk coerce-by-bq-val)
+                       (bqize-keys))
+        my-mapper (org.codehaus.jackson.map.ObjectMapper.)
+
+        ^TableRow row (.readValue my-mapper (json/encode clean-map) TableRow)]
     row))
 
 (defn- read-bq-clj-transform
@@ -137,11 +163,9 @@
      :write-bq-table-from-clj
      [^PCollection pcoll]
      (let [schema (:schema options)
-           base-coll (if schema
-                       (dmap (fn [elt] (select-keys elt (map (comp keyword :name) schema))) pcoll)
-                       pcoll)]
+           base-coll pcoll]
        (->> base-coll
-            (dmap clj->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
+            (dmap clj-nested->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
             (write-bq-table-raw to safe-opts))))))
 
 (defn write-bq-table

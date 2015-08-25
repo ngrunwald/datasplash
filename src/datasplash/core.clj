@@ -491,7 +491,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (.output c result)))
 
 (def to-edn (partial (map-op identity {:label :to-edn :coder (StringUtf8Coder/of)}) to-edn*))
-(def from-edn (partial dmap #(read-string %)))
+(def from-edn (partial dmap #(read-string %) ))
 
 (defn sfn
   "Returns an instance of SerializableFunction equivalent to f."
@@ -801,7 +801,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      :read-edn-file
      [p]
      (->> p
-          (read-text-file from options)
+          (read-text-file from (dissoc options :coder))
           (from-edn options)))))
 
 (defn read-edn-file
