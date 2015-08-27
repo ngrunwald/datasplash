@@ -60,6 +60,10 @@
        (catch Exception e
          "unknown-hostname")))))
 
+(defmacro try-deref
+  [at]
+  `(try (deref required-ns) (catch ClassCastException e# (require 'datasplash.core) #{})))
+
 (defmacro safe-exec
   "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure"
   [& body]
@@ -68,37 +72,36 @@
      (catch ExceptionInfo e#
        (throw e#))
      (catch Exception e#
-       ;; lock on something that should exist!
-       (locking #'locking
-         (when-not (bound? (find-var (symbol "datasplash.core" "required-ns")))
-           (require 'datasplash.core)
-           (require 'datasplash.api)
-           (swap! required-ns conj 'datasplash.core 'datasplash.api)))
-       (let [required-at-start# (deref required-ns)]
+       ;; if var is unbound, nothing has been required
+       (let [required-at-start# (try-deref required-ns)]
+         ;; lock on something that should exist!
          (locking #'locking
-           (let [nss# (unloaded-ns-from-ex e#)]
-             (if (empty? nss#)
-               (throw (ex-info "Runtime exception intercepted" {:hostname (get-hostname)} e#))
-               (let [already-required# (deref required-ns)
-                     missing# (first (remove already-required# nss#))
-                     missing-at-start# (first (remove required-at-start# nss#))]
-                 (if missing#
-                   (do
-                     (log/debugf "Requiring missing namespace at runtime: %s" missing#)
-                     (require missing#)
-                     (swap! required-ns conj missing#)
-                     ~@body)
-                   (if missing-at-start#
-                     ~@body
+           (let [already-required# (try-deref required-ns)]
+             (let [nss# (unloaded-ns-from-ex e#)]
+               (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
+                           (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
+               (if (empty? nss#)
+                 (throw (ex-info "Runtime exception intercepted" {:hostname (get-hostname)} e#))
+                 (let [missings# nss# ;; (remove already-required# nss#)
+                       missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
+                   (if-not (empty? missings#)
                      (do
-                       (log/fatalf
-                        "Dynamic reloading of namespace seems not to work. Already required: %s Attempted: %s"
-                        nss# already-required#)
-                       (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                       {:ns-from-exception nss#
-                                        :ns-load-attempted already-required#
-                                        :hostname (get-hostname)}
-                                       e#)))))))))))))
+                       (log/debugf "Requiring missing namespaces at runtime: %s" (into [] missings#))
+                       (doseq [missing# missings#]
+                         (require missing#)
+                         (swap! required-ns conj missing#))
+                       ~@body)
+                     (if missing-at-start?#
+                       ~@body
+                       (do
+                         (log/fatalf
+                          "Dynamic reloading of namespace failure. Already required: %s Attempted: %s"
+                          (into [] nss#) (into [] already-required#))
+                         (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                         {:ns-from-exception (into [] nss#)
+                                          :ns-load-attempted (into [] already-required#)
+                                          :hostname (get-hostname)}
+                                         e#))))))))))))))
 
 (defn kv->clj
   "Coerce from KV to Clojure MapEntry"
