@@ -932,16 +932,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([options specs reduce-fn]
    (let [safe-opts (dissoc options :name)
          operations (for [[idx [pcoll f type]] (map-indexed vector specs)]
-                      [(with-keys f (assoc safe-opts :name (str "group-by-" idx)) pcoll) type])
+                      [(with-keys f (assoc safe-opts :name (str "group-by-" idx))
+                         pcoll) type])
          required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
          pcolls (map first operations)
          grouped-coll (cogroup safe-opts pcolls)
          filtered-coll (if (empty? required-idx)
                          grouped-coll
-                         (dfilter (fn [[_ all-vals]]
-                                    (let [idx-vals (into [] all-vals)]
+                         (dfilter (fn [^KV kv]
+                                    (let [all-vals (.getValue kv)
+                                          idx-vals (into [] all-vals)]
                                       (every? #(not (empty? (get idx-vals %))) required-idx)))
-                                  safe-opts
+                                  (assoc safe-opts :without-coercion-to-clj true)
                                   grouped-coll))]
      (if reduce-fn
        (dmap reduce-fn safe-opts filtered-coll)
