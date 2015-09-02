@@ -516,14 +516,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-        (f elem num)))))
+       (f elem num)))))
 
 (defn dpartition-by
   ([f num options ^PCollection pcoll]
    (let [opts (assoc options :label :partition-by)
          ptrans (Partition/of num (partition-fn f))]
      (apply-transform pcoll ptrans base-schema opts)))
-  ([f pcoll] (dpartition-by f num {} pcoll)))
+  ([f num pcoll] (dpartition-by f num {} pcoll)))
 
 (defn ->combine-fn
   "Returns a CombineFn if f is not one already."
