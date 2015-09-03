@@ -28,14 +28,24 @@
         (cond-> (instance? Pipeline p) (PBegin/in))
         (apply-transform ptrans named-schema opts))))
 
+(defn auto-parse-val
+  [v]
+  (cond
+    (and (string? v) (re-find #"^\d+$" v)) (Long/parseLong v)
+    :else v))
+
 (defn table-row->clj
-  [^TableRow row]
-  (let [keyset (.keySet row)]
-    (persistent!
-     (reduce
-      (fn [acc k]
-        (assoc! acc (keyword k) (.get row k)))
-      (transient {}) keyset))))
+  ([{:keys [auto-parse]} ^TableRow row]
+   (let [keyset (.keySet row)]
+     (persistent!
+      (reduce
+       (fn [acc k]
+         (assoc! acc (keyword k)
+                 (if auto-parse
+                   (auto-parse-val (.get row k))
+                   (.get row k))))
+       (transient {}) keyset))))
+  ([row] (table-row->clj {} row)))
 
 (defn coerce-by-bq-val
   [v]
@@ -91,7 +101,7 @@
      [pcoll]
      (->> pcoll
           (read-bq-raw safe-opts)
-          (dmap table-row->clj safe-opts)))))
+          (dmap (partial table-row->clj safe-opts) safe-opts)))))
 
 (defn read-bq
   [options ^Pipeline p]
