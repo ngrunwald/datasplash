@@ -847,7 +847,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to))
                      :coder nil)]
      (apply-transform pcoll (write-edn-file-transform to opts)
-                      (merge base-schema text-writer-schema) opts)))
+                      named-schema opts)))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (defn make-partition-mapping
@@ -882,7 +882,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([encoder f mapping to options ^PCollection pcoll]
    (let [opts (assoc options :label "write-edn-file-by" :coder nil)
          ptrans (write-text-file-by-transform encoder f mapping to opts)]
-     (apply-transform pcoll ptrans (merge base-schema text-writer-schema) opts)))
+     (apply-transform pcoll ptrans named-schema opts)))
   ([encoder f mapping to pcoll] (write-file-by encoder f  mapping to {} pcoll)))
 
 (def write-edn-file-by (partial write-file-by write-edn-file))
