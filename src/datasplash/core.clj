@@ -16,7 +16,7 @@
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey]
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult$CoGbkResultCoder UnionCoder]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util GcsUtil]
@@ -908,7 +908,17 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (ptransform
       :cogroup
       [^KeyedPCollectionTuple pcolltuple]
-      (let [ordered-tags (->> pcolltuple
+      (let [key-coder (.getKeyCoder pcolltuple)
+            cogbk-res-schema (.getCoGbkResultSchema pcolltuple)
+            _ (println "SCHEMA" cogbk-res-schema)
+            vals-coder (->> (.getKeyedCollections pcolltuple)
+                            (map (fn [tagpcoll] (-> tagpcoll
+                                                    (.getCollection)
+                                                    (.getCoder)
+                                                    (.getValueCoder)))))
+            _ (println "VALS CODER" vals-coder)
+            cogbk-res-coder (CoGbkResult$CoGbkResultCoder/of cogbk-res-schema vals-coder)
+            ordered-tags (->> pcolltuple
                               (.getKeyedCollections)
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
@@ -918,7 +928,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                       raw-values (.getValue elt)
                                       values (mapv (fn [tag] (.getAll raw-values tag)) ordered-tags)]
                                   [k values]))
-                              (assoc opts :without-coercion-to-clj true)
+                              (assoc opts
+                                     :without-coercion-to-clj true
+                                     :coder (make-kv-coder key-coder cogbk-res-coder))
                               rel)]
         final-rel)))))
 
@@ -958,7 +970,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                          results-ok (map #(if (empty? %) [nil] %) results)
                          raw-res (apply combo/cartesian-product results-ok)
                          res (map (fn [prod] (apply join-fn prod)) raw-res)]
-                     res)) {:without-coercion-to-clj true})))
+                     res)) {:without-coercion-to-clj true })))
   ([specs join-fn] (join-by {} specs join-fn)))
 
 (defn ddistinct
