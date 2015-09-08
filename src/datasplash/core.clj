@@ -16,7 +16,7 @@
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult$CoGbkResultCoder UnionCoder]
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util GcsUtil]
@@ -246,6 +246,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (.output c (.element c)))
 
+
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}
@@ -336,12 +337,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
   (fn make-map-op
-    ([f {:keys [key-coder value-coder] :as options} ^PCollection pcoll]
+    ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
      (let [default-coder (cond
                            isomorph? (.getCoder pcoll)
-                           kv? (KvCoder/of
-                                (or key-coder (make-nippy-coder))
-                                (or value-coder (make-nippy-coder)))
+                           kv? (or coder
+                                   (KvCoder/of
+                                    (or key-coder (make-nippy-coder))
+                                    (or value-coder (make-nippy-coder))))
                            :else (make-nippy-coder))
            opts (merge (assoc base-options :coder default-coder) options)
            pardo (ParDo/of (dofn (transform f) opts))]
@@ -908,29 +910,24 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (ptransform
       :cogroup
       [^KeyedPCollectionTuple pcolltuple]
-      (let [key-coder (.getKeyCoder pcolltuple)
-            cogbk-res-schema (.getCoGbkResultSchema pcolltuple)
-            _ (println "SCHEMA" cogbk-res-schema)
-            vals-coder (->> (.getKeyedCollections pcolltuple)
-                            (map (fn [tagpcoll] (-> tagpcoll
-                                                    (.getCollection)
-                                                    (.getCoder)
-                                                    (.getValueCoder)))))
-            _ (println "VALS CODER" vals-coder)
-            cogbk-res-coder (CoGbkResult$CoGbkResultCoder/of cogbk-res-schema vals-coder)
-            ordered-tags (->> pcolltuple
+      (let [ordered-tags (->> pcolltuple
                               (.getKeyedCollections)
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
+            cogbk-coder (-> rel
+                            (.getCoder)
+                            (.getValueCoder))
             final-rel (map-kv (fn [^KV elt]
                                 (let [k (.getKey elt)
                                       raw-values (.getValue elt)
-                                      values (mapv (fn [tag] (.getAll raw-values tag)) ordered-tags)]
+
+                                      values (mapv (fn [tag] (let [raw-val (.getAll raw-values tag)
+                                                                   m-val (into (list) (iterator-seq (.iterator raw-val)))]
+                                                               m-val)) ordered-tags)]
                                   [k values]))
                               (assoc opts
-                                     :without-coercion-to-clj true
-                                     :coder (make-kv-coder key-coder cogbk-res-coder))
+                                     :without-coercion-to-clj true)
                               rel)]
         final-rel)))))
 
