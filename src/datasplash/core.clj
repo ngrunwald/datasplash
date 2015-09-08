@@ -352,6 +352,16 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
+    :added "0.2.0"
+    :doc
+    (with-opts-docstr
+      "Uses a raw pardo-fn as a ppardo transform
+Function f should be a function of one argument, the Pardo$Context object."
+      pardo-schema)}
+  pardo (map-op pardo-fn {:label :pardo}))
+
+(def
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
     :doc
     (with-opts-docstr
@@ -518,7 +528,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-       (f elem num)))))
+        (f elem num)))))
 
 (defn dpartition-by
   ([f num options ^PCollection pcoll]
@@ -915,20 +925,24 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
-            cogbk-coder (-> rel
-                            (.getCoder)
-                            (.getValueCoder))
-            final-rel (map-kv (fn [^KV elt]
-                                (let [k (.getKey elt)
-                                      raw-values (.getValue elt)
-
-                                      values (mapv (fn [tag] (let [raw-val (.getAll raw-values tag)
-                                                                   m-val (into (list) (iterator-seq (.iterator raw-val)))]
-                                                               m-val)) ordered-tags)]
-                                  [k values]))
-                              (assoc opts
-                                     :without-coercion-to-clj true)
-                              rel)]
+            final-rel (pardo (fn [^DoFn$ProcessContext c]
+                               (let [^KV kv (.element c)
+                                     k (.getKey kv)
+                                     ^CoGbkResult raw-values (.getValue kv)
+                                     values (mapv
+                                             (fn [tag]
+                                               (loop [^java.util.Iterator it (.iterator (.getAll raw-values tag))
+                                                      acc (list)]
+                                                 (if (.hasNext it)
+                                                   (recur it (conj acc (.next it)))
+                                                   acc)))
+                                             ordered-tags)]
+                                 (.output c (make-kv k values))))
+                             (assoc opts
+                                    :without-coercion-to-clj true
+                                    :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
+                                                          (make-nippy-coder)))
+                             rel)]
         final-rel)))))
 
 (defn cogroup
