@@ -391,8 +391,6 @@ Function f should be a function of one argument and return seq of keys/values.
       pardo-schema)}
   map-kv (map-op map-kv-fn {:label :map-kv :kv? true}))
 
-(def pardo (map-op pardo-fn {:label :raw-pardo}))
-
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
@@ -923,11 +921,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       acc)))
 
 (defn greedy-emit-cogbkresult
-  [raw-values tag ^DoFn$ProcessContext context]
+  [raw-values size idx tag ^DoFn$ProcessContext context]
   (loop [^java.util.Iterator it (.iterator (.getAll raw-values tag))]
     (when (.hasNext it)
-      (let [v (.next it)]
-        (.output context (make-kv nil (list v)))
+      (let [v (.next it)
+            res (into []
+                      (for [i (range size)]
+                        (if (= idx i) v (list))))]
+        (.output context (make-kv nil res))
         (recur it)))))
 
 (defn cogroup-transform
@@ -961,9 +962,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 ordered-tags specs))
                              (if (and (not join-nil?) (nil? k))
                                (cond
-                                 (= required-count 0) (doseq [tag ordered-tags]
-                                                        (greedy-emit-cogbkresult raw-values tag c))
+                                 (= required-count 0) (doseq [[idx tag] (map-indexed (fn [idx tag] [idx tag]) ordered-tags)]
+                                                        (greedy-emit-cogbkresult raw-values (count ordered-tags) idx tag c))
                                  (= required-count 1) (greedy-emit-cogbkresult raw-values
+                                                                               (count ordered-tags)
+                                                                               (first required-list)
                                                                                (nth ordered-tags
                                                                                     (first required-list))
                                                                                c)
@@ -997,7 +1000,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                 :without-coercion-to-clj true}
                                op)
                       op)))
-         grouped-coll (cogroup (map #(drop 2 %) specs) safe-opts pcolls)]
+         safe-specs (doall (map #(nth % 2 {:type :optional}) specs))
+         grouped-coll (cogroup safe-specs safe-opts pcolls)]
      (if reduce-fn
        (dmap reduce-fn safe-opts grouped-coll)
        grouped-coll)))
