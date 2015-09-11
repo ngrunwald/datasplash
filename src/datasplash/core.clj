@@ -927,7 +927,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (let [v (.next it)
             res (into []
                       (for [i (range size)]
-                        (if (= idx i) v (list))))]
+                        (if (= idx i) (list v) (list))))]
         (.output context (make-kv nil res))
         (recur it)))))
 
