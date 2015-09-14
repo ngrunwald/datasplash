@@ -352,6 +352,16 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
+    :added "0.2.0"
+    :doc
+    (with-opts-docstr
+      "Uses a raw pardo-fn as a ppardo transform
+Function f should be a function of one argument, the Pardo$Context object."
+      pardo-schema)}
+  pardo (map-op pardo-fn {:label :pardo}))
+
+(def
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
     :added "0.1.0"
     :doc
     (with-opts-docstr
@@ -380,8 +390,6 @@ Function f should be a function of one argument and return seq of keys/values.
   Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
       pardo-schema)}
   map-kv (map-op map-kv-fn {:label :map-kv :kv? true}))
-
-(def pardo (map-op pardo-fn {:label :raw-pardo}))
 
 (def
   ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
@@ -518,7 +526,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-       (f elem num)))))
+        (f elem num)))))
 
 (defn dpartition-by
   ([f num options ^PCollection pcoll]
@@ -904,8 +912,27 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          new-coll-tuple))
      empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
 
+(defn greedy-read-cogbkresult
+  [raw-values tag]
+  (loop [^java.util.Iterator it (.iterator (.getAll raw-values tag))
+         acc (list)]
+    (if (.hasNext it)
+      (recur it (conj acc (.next it)))
+      acc)))
+
+(defn greedy-emit-cogbkresult
+  [raw-values size idx tag ^DoFn$ProcessContext context]
+  (loop [^java.util.Iterator it (.iterator (.getAll raw-values tag))]
+    (when (.hasNext it)
+      (let [v (.next it)
+            res (into []
+                      (for [i (range size)]
+                        (if (= idx i) (list v) (list))))]
+        (.output context (make-kv nil res))
+        (recur it)))))
+
 (defn cogroup-transform
-  ([options]
+  ([specs {:keys [join-nil?] :as options}]
    (let [opts (assoc options :label :raw-cogroup)]
      (ptransform
       :cogroup
@@ -915,47 +942,70 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
-            cogbk-coder (-> rel
-                            (.getCoder)
-                            (.getValueCoder))
-            final-rel (map-kv (fn [^KV elt]
-                                (let [k (.getKey elt)
-                                      raw-values (.getValue elt)
-                                      values (mapv (fn [tag] (let [raw-val (.getAll raw-values tag)
-                                                                   m-val (into (list) (iterator-seq (.iterator raw-val)))]
-                                                               m-val)) ordered-tags)]
-                                  [k values]))
-                              (assoc opts
-                                     :without-coercion-to-clj true)
-                              rel)]
+            final-rel (pardo
+                       (fn [^DoFn$ProcessContext c]
+                         (let [^KV kv (.element c)
+                               k (.getKey kv)
+                               ^CoGbkResult raw-values (.getValue kv)
+                               required-list (->> specs
+                                                  (map-indexed
+                                                   (fn [idx {:keys [type]}]
+                                                     (when (= type :required) idx)))
+                                                  (remove nil?))
+                               required-count (count required-list)]
+                           ;; skip if a required part of the group is empty
+                           (when-not (some identity
+                                           (map (fn [tag {:keys [type]}]
+                                                  (if (= type :required)
+                                                    (not (.hasNext (.iterator (.getAll raw-values tag))))
+                                                    false))
+                                                ordered-tags specs))
+                             (if (and (not join-nil?) (nil? k))
+                               (cond
+                                 (= required-count 0) (doseq [[idx tag] (map-indexed (fn [idx tag] [idx tag]) ordered-tags)]
+                                                        (greedy-emit-cogbkresult raw-values (count ordered-tags) idx tag c))
+                                 (= required-count 1) (greedy-emit-cogbkresult raw-values
+                                                                               (count ordered-tags)
+                                                                               (first required-list)
+                                                                               (nth ordered-tags
+                                                                                    (first required-list))
+                                                                               c)
+                                 :else nil)
+                               (let [values (mapv
+                                             (fn [tag]
+                                               (greedy-read-cogbkresult raw-values tag))
+                                             ordered-tags)]
+                                 (.output c (make-kv k values)))))))
+                       (assoc opts
+                              :without-coercion-to-clj true
+                              :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
+                                                    (make-nippy-coder)))
+                       rel)]
+
         final-rel)))))
 
 (defn cogroup
-  [options pcolls]
+  [specs options pcolls]
   (let [opts (assoc options :label :cogroup)
         pcolltuple (make-keyed-pcollection-tuple pcolls)]
-    (apply-transform pcolltuple (cogroup-transform opts) base-schema opts)))
+    (apply-transform pcolltuple (cogroup-transform specs opts) base-schema opts)))
 
 (defn cogroup-by
   ([options specs reduce-fn]
    (let [safe-opts (dissoc options :name)
-         operations (for [[idx [pcoll f type]] (map-indexed vector specs)]
-                      [(with-keys f (assoc safe-opts :name (str "group-by-" idx))
-                         pcoll) type])
-         required-idx (remove nil? (map-indexed (fn [idx [_ b]] (when b idx)) operations))
-         pcolls (map first operations)
-         grouped-coll (cogroup safe-opts pcolls)
-         filtered-coll (if (empty? required-idx)
-                         grouped-coll
-                         (dfilter (fn [^KV kv]
-                                    (let [all-vals (.getValue kv)
-                                          idx-vals (into [] all-vals)]
-                                      (every? #(not (empty? (get idx-vals %))) required-idx)))
-                                  (assoc safe-opts :without-coercion-to-clj true)
-                                  grouped-coll))]
+         pcolls (for [[idx [pcoll f {:keys [drop-nil?]}]] (map-indexed vector specs)]
+                  (let [op (with-keys f (assoc safe-opts :name (str "group-by-" idx)) pcoll)]
+                    (if drop-nil?
+                      (dfilter (fn [^KV kv] (not (nil? (.getKey kv))))
+                               {:name (str "drop-nil-" idx)
+                                :without-coercion-to-clj true}
+                               op)
+                      op)))
+         safe-specs (doall (map #(nth % 2 {:type :optional}) specs))
+         grouped-coll (cogroup safe-specs safe-opts pcolls)]
      (if reduce-fn
-       (dmap reduce-fn safe-opts filtered-coll)
-       filtered-coll)))
+       (dmap reduce-fn safe-opts grouped-coll)
+       grouped-coll)))
   ([options specs] (cogroup-by options specs nil)))
 
 (defn join-by

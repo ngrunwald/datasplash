@@ -72,9 +72,16 @@
   "Recursively transforms all map keys from strings to keywords."
   {:added "1.1"}
   [m]
-  (let [f (fn [[k v]] (if (string? k) [(clean-name k) v] [k v]))]
+  (let [f (fn [[k v]] [(clean-name k) v])]
     ;; only apply to maps
-    (clojure.walk/postwalk (fn [x] (if (map? x) (into {} (map f x)) x)) m)))
+    (clojure.walk/postwalk (fn [x] (if (map? x)
+                                     (persistent!
+                                      (reduce
+                                       (fn [acc [k v]]
+                                         (assoc! acc (clean-name k) v))
+                                       (transient {}) x))
+                                     x))
+                           m)))
 
 (defn clj->table-row
   ^TableRow
