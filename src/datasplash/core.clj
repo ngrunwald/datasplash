@@ -921,7 +921,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
             final-rel (map-kv (fn [^KV elt]
                                 (let [k (.getKey elt)
                                       raw-values (.getValue elt)
-
                                       values (mapv (fn [tag] (let [raw-val (.getAll raw-values tag)
                                                                    m-val (into (list) (iterator-seq (.iterator raw-val)))]
                                                                m-val)) ordered-tags)]
