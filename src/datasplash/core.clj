@@ -1000,7 +1000,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                 :without-coercion-to-clj true}
                                op)
                       op)))
-         safe-specs (doall (map #(nth % 2 {:type :optional}) specs))
+         safe-specs (into []
+                          (doall
+                           (for [[pcoll key-fn spec] specs]
+                             (cond
+                               (nil? spec) [pcoll key-fn {:type :optional}]
+                               (keyword? spec) [pcoll key-fn {:type spec}]
+                               :else [pcoll key-fn spec]))))
          grouped-coll (cogroup safe-specs safe-opts pcolls)]
      (if reduce-fn
        (dmap reduce-fn safe-opts grouped-coll)
