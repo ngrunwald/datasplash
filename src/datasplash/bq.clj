@@ -2,6 +2,7 @@
   (:require [cheshire.core :as json]
             [clojure.java.shell :refer [sh]]
             [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [datasplash.core :refer :all])
   (:import
    [org.codehaus.jackson.map.ObjectMapper]
@@ -50,7 +51,8 @@
 (defn coerce-by-bq-val
   [v]
   (cond
-    (instance? java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000))
+    (instance? java.util.Date v) (try (int (/ (.getTime ^java.util.Date v) 1000))
+                                      (catch Exception e (log/errorf "error when parsing date %s" v)))
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
@@ -95,6 +97,7 @@
   (let [clean-map (->> hmap
                        (clojure.walk/prewalk coerce-by-bq-val)
                        (bqize-keys))
+
         my-mapper (org.codehaus.jackson.map.ObjectMapper.)
 
         ^TableRow row (.readValue my-mapper (json/encode clean-map) TableRow)]
@@ -187,6 +190,9 @@
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-bq-table)]
-     (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
+   (let [opts (assoc options :label :write-bq-table)
+         clean-path (-> to
+                        (str/replace #"-" "")
+                        (str/replace #"\?" ""))]
+     (apply-transform pcoll (write-bq-table-clj-transform clean-path opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))

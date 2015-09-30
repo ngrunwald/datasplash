@@ -981,6 +981,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                               :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
                                                     (make-nippy-coder)))
                        rel)]
+
         final-rel)))))
 
 (defn cogroup
