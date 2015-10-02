@@ -16,7 +16,8 @@
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
+            CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util GcsUtil]
@@ -1005,9 +1006,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                           (doall
                            (for [[pcoll key-fn spec] specs]
                              (cond
-                               (nil? spec) [pcoll key-fn {:type :optional}]
-                               (keyword? spec) [pcoll key-fn {:type spec}]
-                               :else [pcoll key-fn spec]))))
+                               (nil? spec) {:type :optional}
+                               (keyword? spec) {:type spec}
+                               (map? spec) spec
+                               :else (throw (ex-info "Invalid spec for cogroup" {:specs specs}))))))
          grouped-coll (cogroup safe-specs safe-opts pcolls)]
      (if reduce-fn
        (dmap reduce-fn safe-opts grouped-coll)

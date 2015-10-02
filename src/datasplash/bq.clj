@@ -190,9 +190,6 @@
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-bq-table)
-         clean-path (-> to
-                        (str/replace #"-" "")
-                        (str/replace #"\?" ""))]
-     (apply-transform pcoll (write-bq-table-clj-transform clean-path opts) named-schema opts)))
+   (let [opts (assoc options :label :write-bq-table)]
+     (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
