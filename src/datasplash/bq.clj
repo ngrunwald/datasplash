@@ -52,7 +52,7 @@
   [v]
   (cond
     (instance? java.util.Date v) (try ( if(< (.getYear ^java.util.Date v) 1970) (.format (new java.text.SimpleDateFormat "YYYY-MM-dd HH:mm:ss") ^java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000)))
-                                      (catch Exception e (log/errorf "error when parsing date : %s" e)))
+                                      (catch Exception e (log/errorf "error when parsing date %s" v)))
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
