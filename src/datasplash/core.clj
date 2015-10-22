@@ -238,7 +238,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (let [elt (get-element-from-context c)
           result (f elt)]
       (when result
-        (.output c elt)))))
+        (.output c (.element c))))))
 
 (defn didentity
   {:doc "Identity function for use in a ParDo"
