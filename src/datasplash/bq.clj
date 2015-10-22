@@ -51,7 +51,7 @@
 (defn coerce-by-bq-val
   [v]
   (cond
-    (instance? java.util.Date v) (try (int (/ (.getTime ^java.util.Date v) 1000))
+    (instance? java.util.Date v) (try ( if(< (.getYear ^java.util.Date v) 1970) (.format (new java.text.SimpleDateFormat "YYYY-MM-dd HH:mm:ss") ^java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000)))
                                       (catch Exception e (log/errorf "error when parsing date %s" v)))
     (set? v) (into '() v)
     (keyword? v) (name v)
@@ -190,9 +190,6 @@
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-bq-table)
-         clean-path (-> to
-                        (str/replace #"-" "")
-                        (str/replace #"\?" ""))]
-     (apply-transform pcoll (write-bq-table-clj-transform clean-path opts) named-schema opts)))
+   (let [opts (assoc options :label :write-bq-table)]
+     (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
