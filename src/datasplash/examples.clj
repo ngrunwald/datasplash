@@ -99,7 +99,7 @@
                                            (let [gtemp (:global-mean (ds/side-inputs))]
                                              (< mean_temp gtemp)))
                                          {:name "ParseAndFilter" :side-inputs {:global-mean global-mean-temp}}))]
-    (if (re-find #":[^\\]" output)
+    (if (re-find #":[^/]" output)
       (bq/write-bq-table output {:schema [{:name "year" :type "INTEGER"}
                                           {:name "month":type "INTEGER"}
                                           {:name "day"  :type "INTEGER"}
@@ -138,7 +138,7 @@
                       (ds/sfn (fn [words] (str/join "," words)))
                       {:scope :per-key})
                      (ds/map (fn [[word plays]] {:word word :all_plays plays})))]
-    (if (re-find #":[^\\]" output)
+    (if (re-find #":[^/]" output)
       (bq/write-bq-table output {:schema [{:name "word" :type "STRING"}
                                           {:name "all_plays" :type "STRING"}]
                                  :create-disposition :if-needed
@@ -171,7 +171,7 @@
                      (ds/combine (ds/max-fn) {:scope :per-key})
                      (ds/map (fn [[k v]]
                                {:month k :max_mean_temp v})))]
-    (if (re-find #":[^\\]" output)
+    (if (re-find #":[^/]" output)
       (bq/write-bq-table output {:schema [{:name "month" :type "INTEGER"}
                                           {:name "max_mean_temp" :type "FLOAT"}]
                                  :create-disposition :if-needed

@@ -29,8 +29,16 @@
 
 (def required-ns (atom #{}))
 
-(defmethod print-method KV [^KV kv ^java.io.Writer w]
-  (.write w (str "[" (.getKey kv) ", " (.getValue kv) "]")))
+(defn kv->clj
+  "Coerce from KV to Clojure MapEntry"
+  [^KV kv]
+  (let [v (.getValue kv)]
+    (if (instance? Reiterable v)
+      (MapEntry. (.getKey kv) (seq v))
+      (MapEntry. (.getKey kv) v))))
+
+(defmethod print-method KV [kv ^java.io.Writer w]
+  (.write w (pr-str (kv->clj kv))))
 
 (defn unloaded-ns-from-ex
   [e]
@@ -103,14 +111,6 @@
                                           :ns-load-attempted (into [] already-required#)
                                           :hostname (get-hostname)}
                                          e#))))))))))))))
-
-(defn kv->clj
-  "Coerce from KV to Clojure MapEntry"
-  [^KV kv]
-  (let [v (.getValue kv)]
-    (if (instance? Reiterable v)
-      (MapEntry. (.getKey kv) (seq v))
-      (MapEntry. (.getKey kv) v))))
 
 (defn make-kv
   {:doc "Returns a KV object from the given arg(s), either [k v] or a MapEntry or seq of two elements."

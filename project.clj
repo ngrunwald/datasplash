@@ -4,8 +4,8 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.7.0"]
-                 [com.google.cloud.dataflow/google-cloud-dataflow-java-sdk-all "1.0.0"]
-                 [com.taoensso/nippy "2.9.0"]
+                 [com.google.cloud.dataflow/google-cloud-dataflow-java-sdk-all "1.2.1"]
+                 [com.taoensso/nippy "2.10.0"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [clj-stacktrace "0.2.8"]
                  [cheshire "5.5.0"]
