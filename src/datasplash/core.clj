@@ -652,16 +652,26 @@ map. Each value will be a list of the values that match key.
     itf
     (Class/forName (name itf))))
 
-(defn make-pipeline
+(def ^:dynamic *pipeline-builder-caller* "unknown")
+
+(defmacro make-pipeline
+  [& args]
+  `(binding [*pipeline-builder-caller* ~(str *ns*)]
+     (make-pipeline* ~@args)))
+
+(defn make-pipeline*
   {:doc "Builds a Pipeline from command lines args"
    :added "0.1.0"}
   ([itf str-args kw-args]
    (let [atomic-args (into {} (map (fn [kv] (let [[k v] (str/split kv #"=" 2)]
-                                              [(str/replace k #"^--" "") v]))
+                                              [(str/camel-case (str/replace k #"^--" "")) v]))
                                    str-args))
          clean-args (into {} (map (fn [[k v]] [(str/camel-case (name k)) v]) kw-args))
          args (merge clean-args atomic-args)
-         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args)
+         args-with-name (if (args "appName")
+                          args
+                          (assoc args "appName" *pipeline-builder-caller*))
+         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-name)
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -675,12 +685,12 @@ map. Each value will be a list of the values that match key.
      pipeline))
   ([arg1 arg2]
    (if (or (symbol? arg1) (string? arg1))
-     (make-pipeline arg1 arg2 {})
-     (make-pipeline nil arg1 arg2)))
+     (make-pipeline* arg1 arg2 {})
+     (make-pipeline* nil arg1 arg2)))
   ([arg]
-   (cond (or (symbol? arg) (string? arg)) (make-pipeline arg [] {})
-         (seq? arg) (make-pipeline nil arg {})
-         :else (make-pipeline nil [] arg))))
+   (cond (or (symbol? arg) (string? arg)) (make-pipeline* arg [] {})
+         (seq? arg) (make-pipeline* nil arg {})
+         :else (make-pipeline* nil [] arg))))
 
 (defn run-pipeline
   {:doc "Run the computation for a given pipeline or PCollection."
