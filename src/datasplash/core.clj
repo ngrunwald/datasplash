@@ -25,7 +25,9 @@
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.util UUID]
            [java.net URI]
-           [clojure.lang MapEntry ExceptionInfo]))
+           [clojure.lang MapEntry ExceptionInfo]
+           [org.joda.time DateTimeUtils DateTimeZone]
+           [org.joda.time.format DateTimeFormat DateTimeFormatter]))
 
 (def required-ns (atom #{}))
 
@@ -654,14 +656,23 @@ map. Each value will be a list of the values that match key.
 
 (def ^:dynamic *pipeline-builder-caller* "unknown")
 
-(defmacro make-pipeline
-  [& args]
-  `(binding [*pipeline-builder-caller* ~(str *ns*)]
-     (make-pipeline* ~@args)))
+(defn create-timestamp
+  []
+  (let [formatter (-> "MMddHHmmss"
+                      (DateTimeFormat/forPattern)
+                      (.withZone DateTimeZone/UTC))]
+    (.print formatter (DateTimeUtils/currentTimeMillis))))
+
+(defn job-name-template
+  [tpl args]
+  (-> tpl
+      (str/replace #"%U" (or (System/getProperty "user.name") "nemo"))
+      (str/replace #"%A" *pipeline-builder-caller*)
+      (str/replace #"%T" (create-timestamp))
+      (str/lower-case)
+      (str/replace #"[^-a-z0-9]" "0")))
 
 (defn make-pipeline*
-  {:doc "Builds a Pipeline from command lines args"
-   :added "0.1.0"}
   ([itf str-args kw-args]
    (let [atomic-args (into {} (map (fn [kv] (let [[k v] (str/split kv #"=" 2)]
                                               [(str/camel-case (str/replace k #"^--" "")) v]))
@@ -671,7 +682,12 @@ map. Each value will be a list of the values that match key.
          args-with-name (if (args "appName")
                           args
                           (assoc args "appName" *pipeline-builder-caller*))
-         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-name)
+         args-with-jobname (if-let [tpl (args-with-name "jobNameTemplate")]
+                             (-> args-with-name
+                                 (assoc "jobName" (job-name-template tpl args-with-name))
+                                 (dissoc "jobNameTemplate"))
+                             args-with-name)
+         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-jobname)
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -691,6 +707,17 @@ map. Each value will be a list of the values that match key.
    (cond (or (symbol? arg) (string? arg)) (make-pipeline* arg [] {})
          (seq? arg) (make-pipeline* nil arg {})
          :else (make-pipeline* nil [] arg))))
+
+(defmacro make-pipeline
+  {:doc "Builds a Pipeline from command lines args and configuration. Also accepts a jobNameTemplate param which is a string in which the following var are interpolated:
+  - %A -> Application name
+  - %U -> User name
+  - %T -> Timestamp
+It means the template %A-%U-%T is equivalent to the default jobName"
+   :added "0.1.0"}
+  [& args]
+  `(binding [*pipeline-builder-caller* ~(str *ns*)]
+     (make-pipeline* ~@args)))
 
 (defn run-pipeline
   {:doc "Run the computation for a given pipeline or PCollection."
