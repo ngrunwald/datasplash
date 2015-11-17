@@ -42,7 +42,8 @@
 ;; DeDup ;;
 ;;;;;;;;;;;
 
-;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/DeDupExample.java
+
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DeDupExample.java
 
 (ds/defoptions DeDupOptions
   {:input {:type String
@@ -65,7 +66,7 @@
 ;; Filter ;;
 ;;;;;;;;;;;;
 
-;; https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/FilterExamples.java
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/FilterExamples.java
 
 (ds/defoptions FilterOptions
   {:input {:type String
@@ -113,7 +114,7 @@
 ;; CombinePerKey ;;
 ;;;;;;;;;;;;;;;;;;;
 
-;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/CombinePerKeyExamples.java
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/CombinePerKeyExamples.java
 
 (ds/defoptions CombinePerKeyOptions
   {:input {:type String
@@ -150,7 +151,7 @@
 ;; MaxPerKey ;;
 ;;;;;;;;;;;;;;;
 
-;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/MaxPerKeyExamples.java
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/MaxPerKeyExamples.java
 
 (ds/defoptions MaxPerKeyOptions
   {:input {:type String
