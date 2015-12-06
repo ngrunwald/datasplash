@@ -1,5 +1,6 @@
 (ns datasplash.core
   (:require [clj-stacktrace.core :as st]
+            [cheshire.core :as json]
             [clojure.edn :as edn]
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
@@ -507,7 +508,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (.output c result)))
 
 (def to-edn (partial (map-op identity {:label :to-edn :coder (StringUtf8Coder/of)}) to-edn*))
-(def from-edn (partial dmap #(edn/read-string %) ))
+(def from-edn (partial dmap #(edn/read-string %)))
 
 (defn sfn
   "Returns an instance of SerializableFunction equivalent to f."
@@ -896,7 +897,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn write-edn-file
   {:doc (with-opts-docstr
-          "Writes a PCollection of edn strings to disk or Google Storage, with records separated by newlines.
+          "Writes a PCollection of data to disk or Google Storage, with edn records separated by newlines.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
 
   Example:
@@ -909,6 +910,75 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (apply-transform pcoll (write-edn-file-transform to opts)
                       named-schema opts)))
   ([to pcoll] (write-edn-file to {} pcoll)))
+
+(def json-reader-schema
+  {:key-fn {:docstr "Selects a policy for parsing map keys. If `true`, keywordizes the keys. If given a fn, uses it to transform each map key."}
+   :return-type {:docstr "Allows passing in a function to specify what kind of types to return."}})
+
+(defn- read-json-file-transform
+  [from {:keys [key-fn return-type] :as options}]
+  (let [safe-opts (dissoc options :name :key-fn :return-type)]
+    (ptransform
+     :read-json-file
+     [p]
+     (->> p
+          (read-text-file from (dissoc safe-opts :coder))
+          (dmap (fn [l]
+                  (cond
+                    (and key-fn return-type) (json/decode l key-fn return-type)
+                    key-fn (json/decode l key-fn)
+                    return-type (json/decode l nil return-type)
+                    :else (json/decode l)))
+                safe-opts)))))
+
+(defn read-json-file
+  {:doc (with-opts-docstr "Reads a PCollection of JSON strings from disk or Google Storage, with records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html and https://github.com/dakrone/cheshire#decoding for details on options.
+
+  Example:
+    (read-json-file \"gs://target/path\" pcoll)"
+          base-schema text-reader-schema json-reader-schema)
+   :added "0.2.0"}
+  ([from options ^Pipeline p]
+   (let [opts (assoc options
+                     :label (str "read-json-file-from-"
+                                 (clean-filename from))
+                     :coder (or (:coder options) (make-nippy-coder)))]
+     (apply-transform p (read-json-file-transform from opts)
+                      (merge base-schema text-reader-schema) opts)))
+  ([from p] (read-json-file from {} p)))
+
+(def json-writer-schema
+  {:date-format {:docstr "Pattern for encoding java.util.Date objects. Defaults to yyyy-MM-dd'T'HH:mm:ss'Z'"}
+   :escape-non-ascii {:docstr "Generate JSON escaping UTF-8."}
+   :key-fn {:docstr "Generate JSON and munge keys with a custom function."}})
+
+(defn- write-json-file-transform
+  [to options]
+  (let [safe-opts (dissoc options :name :coder)]
+    (ptransform
+     :write-json-file
+     [^PCollection pcoll]
+     (let [json-opts (select-keys safe-opts (keys json-writer-schema))]
+       (->> pcoll
+            (dmap (fn [l] (json/encode l json-opts)) safe-opts)
+            (write-text-file to safe-opts))))))
+
+(defn write-json-file
+  {:doc (with-opts-docstr
+          "Writes a PCollection of data to disk or Google Storage, with JSON records separated by newlines.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html and https://github.com/dakrone/cheshire#encoding for details on options
+
+  Example:
+    (write-json-file \"gs://target/path\" pcoll)"
+          base-schema text-writer-schema json-writer-schema)
+   :added "0.2.0"}
+  ([to options ^PCollection pcoll]
+   (let [opts (assoc options :label (str "write-json-file-to-" (clean-filename to))
+                     :coder nil)]
+     (apply-transform pcoll (write-json-file-transform to opts)
+                      named-schema opts)))
+  ([to pcoll] (write-json-file to {} pcoll)))
 
 (defn make-partition-mapping
   [coll]

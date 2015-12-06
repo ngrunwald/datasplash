@@ -1,10 +1,12 @@
 (ns datasplash.api-test
-  (:require [clojure.test :refer :all]
+  (:require [cheshire.core :as json]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [clojure.test :refer :all]
             [datasplash
              [api :as ds]]
-            [me.raynes.fs :as fs]
-            [clojure.java.io :as io]
-            [clojure.edn :as edn])
+            [me.raynes.fs :as fs])
   (:import [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
            [java.io PushbackReader]))
 
@@ -53,6 +55,24 @@
     (is "increment" (.getName proc))
     (ds/run-pipeline p)))
 
+(def test-data [1 2 3 4 5])
+(def json-file-path "json-test-input.json")
+
+(defn create-json-input-fixture
+  [f]
+  (spit json-file-path (str/join "\n" (for [l test-data]
+                                        (json/encode l))))
+  (f)
+  (fs/delete json-file-path))
+
+(use-fixtures :once create-json-input-fixture)
+
+(deftest json-io
+  (let [p (make-test-pipeline)
+        input (ds/read-json-file json-file-path {:name :read-json} p)]
+    (.. DataflowAssert (that input) (containsInAnyOrder (map int test-data)))
+    (is "read-json" (.getName input))
+    (ds/run-pipeline p)))
 
 (deftest side-inputs-test
   (with-files [side-test]

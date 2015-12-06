@@ -88,8 +88,10 @@
 
 (intern *ns* (with-meta 'read-text-file (meta #'dt/read-text-file)) @#'dt/read-text-file)
 (intern *ns* (with-meta 'read-edn-file (meta #'dt/read-edn-file)) @#'dt/read-edn-file)
+(intern *ns* (with-meta 'read-json-file (meta #'dt/read-json-file)) @#'dt/read-json-file)
 (intern *ns* (with-meta 'write-text-file (meta #'dt/write-text-file)) @#'dt/write-text-file)
 (intern *ns* (with-meta 'write-edn-file (meta #'dt/write-edn-file)) @#'dt/write-edn-file)
+(intern *ns* (with-meta 'write-json-file (meta #'dt/write-json-file)) @#'dt/write-json-file)
 (intern *ns* (with-meta 'generate-input (meta #'dt/generate-input)) @#'dt/generate-input)
 (intern *ns* (with-meta 'walk-gcs-tree (meta #'dt/walk-gcs-tree)) @#'dt/walk-gcs-tree)
 
