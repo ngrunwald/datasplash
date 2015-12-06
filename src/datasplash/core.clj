@@ -123,6 +123,8 @@
   ([kv] (make-kv (first kv) (second kv))))
 
 (defn dkey
+  {:doc "Returns the key part of a KV or MapEntry."
+   :added "0.1.0"}
   [elt]
   (if (instance? KV elt)
     (let [^KV kv elt]
@@ -130,6 +132,8 @@
     (key elt)))
 
 (defn dval
+  {:doc "Returns the value part of a KV or MapEntry."
+   :added "0.1.0"}
   [elt]
   (if (instance? KV elt)
     (let [^KV kv elt]
@@ -250,7 +254,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (.output c (.element c)))
 
-
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}
@@ -286,6 +289,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    ptransform schema))
 
 (defn apply-transform
+  "apply the PTransform to the given Pcoll applying options according to schema."
   [pcoll ^PTransform transform schema
    {:keys [coder coll-name] :as options}]
   (let [nam (some-> options (:name) (name))
@@ -484,9 +488,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                         (assert (instance? transform View$AsSingleton) "Default values can only be set for Singleton views")
                         (if v
                           (.withDefaultValue transform v)
-                          transform))}}))
+                          transform))}
+    :type {:docstr "One of :singleton, :iterable, :list, :map or :multi-map. Defaults to :singleton"}}))
 
 (defn view
+  {:doc (with-opts-docstr
+          "Produces a View out of a PColl, to be later consumed as a side-input for example. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/"
+          view-schema)
+   :added "0.1.0"}
   ([{:keys [type]
      :or {type :singleton}
      :as options}
@@ -523,6 +532,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (safe-exec (f input)))))
 
 (defn partition-fn
+  "Returns a Partition.PartitionFn if possible"
   ^Partition$PartitionFn
   [f]
   (if (instance? Partition$PartitionFn f)
@@ -533,6 +543,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         (f elem num)))))
 
 (defn dpartition-by
+  {:doc (with-opts-docstr
+          "Partions the content of pacoll according to the PartitionFn.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Partition"
+          named-schema)
+   :added "0.1.0"}
   ([f num options ^PCollection pcoll]
    (let [opts (assoc options :label :partition-by)
          ptrans (Partition/of num (partition-fn f))]
