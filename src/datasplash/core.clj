@@ -3,10 +3,11 @@
             [clojure.edn :as edn]
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
+            [clojure.tools.logging :as log]
             [superstring.core :as str]
-            [taoensso.nippy :as nippy]
-            [clojure.tools.logging :as log])
-  (:import [com.google.cloud.dataflow.sdk Pipeline]
+            [taoensso.nippy :as nippy])
+  (:import [clojure.lang MapEntry ExceptionInfo]
+           [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [com.google.cloud.dataflow.sdk.io
             TextIO$Read TextIO$Write TextIO$CompressionType]
@@ -18,14 +19,13 @@
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
-           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
-           [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util GcsUtil]
+           [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
+           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
-           [java.util UUID]
            [java.net URI]
-           [clojure.lang MapEntry ExceptionInfo]
+           [java.util UUID]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]))
 
@@ -507,7 +507,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (.output c result)))
 
 (def to-edn (partial (map-op identity {:label :to-edn :coder (StringUtf8Coder/of)}) to-edn*))
-(def from-edn (partial dmap #(read-string %) ))
+(def from-edn (partial dmap #(edn/read-string %) ))
 
 (defn sfn
   "Returns an instance of SerializableFunction equivalent to f."
