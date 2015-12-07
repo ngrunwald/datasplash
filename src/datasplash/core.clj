@@ -1014,7 +1014,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      [^PCollection pcoll]
      (let [json-opts (select-keys safe-opts (keys json-writer-schema))]
        (->> pcoll
-            (dmap (fn [l] (json/encode l json-opts)) safe-opts)
+            (dmap (fn [l] (json/encode l json-opts)) (assoc safe-opts :coder (StringUtf8Coder/of)))
             (write-text-file to safe-opts))))))
 
 (defn write-json-file
