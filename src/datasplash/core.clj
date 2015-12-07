@@ -927,7 +927,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (def json-reader-schema
-  {:key-fn {:docstr "Selects a policy for parsing map keys. If `true`, keywordizes the keys. If given a fn, uses it to transform each map key."}
+  {:key-fn {:docstr "Selects a policy for parsing map keys. If true, keywordizes the keys. If given a fn, uses it to transform each map key."}
    :return-type {:docstr "Allows passing in a function to specify what kind of types to return."}})
 
 (defn- read-json-file-transform

@@ -15,7 +15,8 @@
                                   [me.raynes/fs "1.4.6"]
                                   [org.hamcrest/hamcrest-all "1.3"]]
                    :aot [datasplash.api-test datasplash.examples]
-                   :codox {:exclude [datasplash.core datasplash.examples]}
-                   :plugins [[codox "0.8.12"]]}
+                   :codox {:namespaces [datasplash.api datasplash.bq]
+                           :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"}
+                   :plugins [[lein-codox "0.9.0"]]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
