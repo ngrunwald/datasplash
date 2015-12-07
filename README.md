@@ -4,7 +4,7 @@ Clojure API for a more dynamic Google Dataflow.
 
 ## Usage
 
-For now, you can consult the [API docs](https://theblankscreen.net/datasplash/).
+For now, you can consult the [API docs](http://theblankscreen.net/datasplash/).
 
 You can also see ports of the official Dataflow examples in the `datasplash.examples` namespace.
 
