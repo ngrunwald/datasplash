@@ -16,7 +16,8 @@
                                   [org.hamcrest/hamcrest-all "1.3"]]
                    :aot [datasplash.api-test datasplash.examples]
                    :codox {:namespaces [datasplash.api datasplash.bq]
-                           :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"}
+                           :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
+                           :metadata {:doc/format :markdown}}
                    :plugins [[lein-codox "0.9.0"]]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
