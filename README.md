@@ -1,10 +1,12 @@
 # datasplash
 
-Clojure API for a more dynamic Google Dataflow
+Clojure API for a more dynamic Google Dataflow.
 
 ## Usage
 
-FIXME
+For now, you can consult the [API docs](https://theblankscreen.net/datasplash/).
+
+You can also see ports of the official Dataflow examples in the `datasplash.examples` namespace.
 
 ## License
 
