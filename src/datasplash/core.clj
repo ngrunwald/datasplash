@@ -1294,9 +1294,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    base-schema
    base-combine-schema
    {:as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
-                        :action (fn [transform b] (when b (.asSingletonView transform)))}}))
+                        :action (fn [transform b] (when b (.asSingletonView transform)))}
+    :scope {:docstr "Specifies the combiner scope of application"
+            :enum [:global :per-key]
+            :default :global}}))
 
 (defn combine
+  {:doc (with-opts-docstr
+          "Applies a CombineFn or a Clojure function with equivalent arities to the PCollection.
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine"
+          combine-schema)
+   :added "0.1.0"}
   ([f {:keys [coder key-coder value-coder] :as options} ^PCollection pcoll]
    (let [scope (or (:scope options) :global)
          opts (assoc options
