@@ -649,6 +649,18 @@ Only works with functions created with combine-fn or native clojure functions, a
   ([pcoll] (group-by-key {} pcoll)))
 
 (defmacro ptransform
+  {:doc "Generates a PTransform with the given name, apply signature and body. Should rarely by used in user code, see [[pt->>]] for the more general use case in application code.
+
+Example (actual implementation of the group-by transform):
+```
+(ptransform
+     :group-by
+     [^PCollection pcoll]
+     (->> pcoll
+          (ds/with-keys f opts)
+          (ds/group-by-key opts)))
+```"
+   :added "0.1.0"}
   [nam input & body]
   `(proxy [PTransform] [(when (and ~nam (not (empty? (name ~nam))))
                           (name ~nam))]
@@ -656,7 +668,7 @@ Only works with functions created with combine-fn or native clojure functions, a
       ~@body)))
 
 (defmacro pt->>
-  {:doc "Creates and applies a single named PTransform from a sequence of transforms applied to a single PCollection. you can use it as you would use ->> in Clojure.
+  {:doc "Creates and applies a single named PTransform from a sequence of transforms on a single PCollection. You can use it as you would use ->> in Clojure.
 
 Example:
 ```
