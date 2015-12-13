@@ -74,6 +74,18 @@
     (is "read-json" (.getName input))
     (ds/run-pipeline p)))
 
+(deftest pt-macro-test
+  (with-files [pt-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
+          pipe (ds/pt->> :pipelined input
+                         (ds/map inc {:name :inc})
+                         (ds/filter even? {:name :even?}))
+          output (ds/write-edn-file pt-test pipe)]
+      (ds/run-pipeline p))
+    (let [res (into #{} (read-file (first (glob-file pt-test))))]
+      (is (= res #{2 4 6})))))
+
 (deftest side-inputs-test
   (with-files [side-test]
     (let [p (make-test-pipeline)

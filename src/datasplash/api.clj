@@ -66,6 +66,7 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'ptransform (meta #'dt/ptransform)) @#'dt/ptransform)
+(intern *ns* (with-meta 'pt->> (meta #'dt/pt->>)) @#'dt/pt->>)
 (intern *ns* (with-meta 'make-kv (meta #'dt/make-kv)) @#'dt/make-kv)
 
 (intern *ns* (with-meta 'key (meta #'dt/dkey)) @#'dt/dkey)

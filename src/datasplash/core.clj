@@ -655,6 +655,24 @@ Only works with functions created with combine-fn or native clojure functions, a
      (~(symbol "apply") ~input
       ~@body)))
 
+(defmacro pt->>
+  {:doc "Creates and applies a single named PTransform from a sequence of transforms applied to a single PCollection. you can use it as you would use ->> in Clojure.
+
+Example:
+```
+(ds/pt->> :pipeline-name input-pcollection
+          (ds/map inc {:name :inc})
+          (ds/filter even? {:name :even?}))
+```"
+   :added "0.2.0"}
+  [nam input & body]
+  `(let [ptrans# (ptransform
+                  ~nam
+                  [pcoll#]
+                  (->> pcoll#
+                       ~@body))]
+     (apply-transform ~input ptrans# base-schema {:name ~nam})))
+
 (defn- group-by-transform
   [f options]
   (let [safe-opts (dissoc options :name)]
