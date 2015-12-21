@@ -10,6 +10,7 @@
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/math.combinatorics "0.1.1"]
                  [org.clojure/tools.logging "0.3.1"]
+                 [clj-time "0.11.0"]
                  [superstring "2.1.0"]]
   :profiles {:dev {:dependencies [[junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]

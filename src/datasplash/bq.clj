@@ -2,6 +2,8 @@
   (:require [cheshire.core :as json]
             [clojure.java.shell :refer [sh]]
             [clojure.string :as str]
+            [clj-time [coerce :as tc]
+                      [format :as tf]]
             [clojure.tools.logging :as log]
             [datasplash.core :refer :all])
   (:import
@@ -51,7 +53,8 @@
 (defn coerce-by-bq-val
   [v]
   (cond
-    (instance? java.util.Date v) (try ( if(< (.getYear ^java.util.Date v) 1970) (.format (new java.text.SimpleDateFormat "YYYY-MM-dd HH:mm:ss") ^java.util.Date v) (int (/ (.getTime ^java.util.Date v) 1000)))
+    (instance? java.util.Date v) (try (->> (tc/from-long (.getTime v))
+                                           (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
                                       (catch Exception e (log/errorf "error when parsing date %s" v)))
     (set? v) (into '() v)
     (keyword? v) (name v)
