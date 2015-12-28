@@ -15,7 +15,7 @@
   :profiles {:dev {:dependencies [[junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]
                                   [org.hamcrest/hamcrest-all "1.3"]]
-                   :aot [datasplash.api-test datasplash.examples]
+                   :aot [datasplash.api-test datasplash.examples clj-time.core]
                    :codox {:namespaces [datasplash.api datasplash.bq]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
