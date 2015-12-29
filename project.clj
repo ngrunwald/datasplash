@@ -19,6 +19,6 @@
                    :codox {:namespaces [datasplash.api datasplash.bq]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
-                   :plugins [[lein-codox "0.9.0"]]}
+                   :plugins [[lein-codox "0.9.1"]]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
