@@ -77,7 +77,15 @@
   `(try (deref required-ns) (catch ClassCastException e# (require 'datasplash.core) #{})))
 
 (defmacro safe-exec
-  "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure"
+  "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure in distributed mode. Always wrap try block with this if you intend to eat every Exception produced.
+  ```
+  (ds/map (fn [elt]
+            (try
+              (ds/safe-exec (dangerous-parse-fn elt))
+              (catch Exception e
+                (log/error e \"parsing error\"))))
+          pcoll)
+  ```"
   [& body]
   `(try
      ~@body
@@ -380,13 +388,13 @@ Function f should be a function of one argument, the Pardo$Context object."
       "Returns a PCollection of f applied to every item in the source PCollection.
 Function f should be a function of one argument.
 
-  Example:
+Example:
 ```
-    (ds/map inc foo)
-    (ds/map (fn [x] (* x x)) foo)
+(ds/map inc foo)
+(ds/map (fn [x] (* x x)) foo)
 ```
 
-  Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection."
+Note: Unlike clojure.core/map, datasplash.api/map takes only one PCollection."
       pardo-schema)}
   dmap (map-op map-fn {:label :map}))
 
@@ -398,12 +406,12 @@ Function f should be a function of one argument.
       "Returns a KV PCollection of f applied to every item in the source PCollection.
 Function f should be a function of one argument and return seq of keys/values.
 
-  Example:
+Example:
 ```
-    (ds/map (fn [{:keys [month revenue]}] [month revenue]) foo)
+(ds/map (fn [{:keys [month revenue]}] [month revenue]) foo)
 ```
 
-  Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
+Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
       pardo-schema)}
   map-kv (map-op map-kv-fn {:label :map-kv :kv? true}))
 
@@ -414,9 +422,9 @@ Function f should be a function of one argument and return seq of keys/values.
            "Returns the result of applying concat, or flattening, the result of applying
 f to each item in the PCollection. Thus f should return a Clojure or Java collection.
 
-  Example:
+Example:
 ```
-    (ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)
+(ds/mapcat (fn [x] [(dec x) x (inc x)]) foo)
 ```"
            pardo-schema)}
   dmapcat (map-op mapcat-fn {:label :mapcat}))
@@ -431,7 +439,7 @@ returns true.
   Example:
 ```
     (ds/filter even? foo)
-    (ds/filter (fn [x] (even? (* x x))) foo)
+(ds/filter (fn [x] (even? (* x x))) foo)
 ```"
            pardo-schema)}
   dfilter (map-op filter-fn {:label :filter :isomorph? true}))
@@ -441,9 +449,9 @@ returns true.
           "Generates a pcollection from the given collection.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
 
-  Example:
+Example:
 ```
-    (ds/generate-input (range 0 1000) pipeline)
+(ds/generate-input (range 0 1000) pipeline)
 ```"
           base-schema)
    :added "0.1.0"}
@@ -461,7 +469,32 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (getInitFn []))
 
 (defn combine-fn
-  {:doc "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html"
+  {:doc "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html
+
+Arguments in order:
+
+- reducef: adds element to accumulator: fn of two arguments, returns updated accumulator
+```
+(fn [acc elt] (assoc acc (ds/key elt) (ds/val elt)))
+```
+- extractf: fn taking a single accumulator as arg and returning the final result. Defaults to identity
+- combinef: fn taking a variable number of accumulators and returning a single merged accumulator. Defaults to using the reduce fn
+```
+(fn [& accs] (apply merge accs))
+```
+- initf: fn of 0 args, returns empty accumulator. Defaults to reduce fn with no args
+```
+(fn [] {})
+```
+- output-coder: coder for the resulting PCollection. Defaults to nippy-coder
+- acc-coder: coder for the accumulator. Defaults to nippy-coder
+
+
+This function is reminiscent of the reducers api. In has sensible defaults in order to reuse existing functions. For example, this a a perfectly valid combine-fn that sums all numbers in a pcoll:
+```
+(combine-fn +)
+```
+"
    :added "0.1.0"}
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
@@ -583,9 +616,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 Only works with functions created with combine-fn or native clojure functions, and not with native Dataflow CombineFn
 
-  Example:
+Example:
 ```
-    (ds/combine (ds/juxt + *) pcoll)
+(ds/combine (ds/juxt + *) pcoll)
 ```"
    :added "0.1.0"}
   [& fns]
@@ -618,11 +651,11 @@ Only works with functions created with combine-fn or native clojure functions, a
   {:doc (with-opts-docstr
           "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
 
-  See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/WithKeys.html
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/WithKeys.html
 
-  Example:
+Example:
 ```
-    (with-keys even? pcoll)
+(with-keys even? pcoll)
 ```"
           base-schema kv-coder-schema)
    :added "0.1.0"}
@@ -640,7 +673,7 @@ Only works with functions created with combine-fn or native clojure functions, a
 (defn group-by-key
   {:doc "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
 
-  See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
    :added "0.1.0"}
   ([{:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
    (let [parent-coder (.getCoder pcoll)
@@ -654,11 +687,11 @@ Only works with functions created with combine-fn or native clojure functions, a
 Example (actual implementation of the group-by transform):
 ```
 (ptransform
-     :group-by
-     [^PCollection pcoll]
-     (->> pcoll
-          (ds/with-keys f opts)
-          (ds/group-by-key opts)))
+ :group-by
+ [^PCollection pcoll]
+ (->> pcoll
+      (ds/with-keys f opts)
+      (ds/group-by-key opts)))
 ```"
    :added "0.1.0"}
   [nam input & body]
@@ -705,7 +738,7 @@ map. Each value will be a list of the values that match key.
   Example:
 ```
     (ds/group-by :a foo)
-    (ds/group-by count foo)
+(ds/group-by count foo)
 ```"
           base-schema)
    :added "0.1.0"}
@@ -779,9 +812,11 @@ map. Each value will be a list of the values that match key.
 
 (defmacro make-pipeline
   {:doc "Builds a Pipeline from command lines args and configuration. Also accepts a jobNameTemplate param which is a string in which the following var are interpolated:
+
   - %A -> Application name
   - %U -> User name
   - %T -> Timestamp
+
 It means the template %A-%U-%T is equivalent to the default jobName"
    :added "0.1.0"}
   [& args]
@@ -913,9 +948,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
 
-  Example:
+Example:
 ```
-    (read-text-file \"gs://target/path\" pcoll)
+(read-text-file \"gs://target/path\" pcoll)
 ```"
           base-schema text-reader-schema)
    :added "0.1.0"}
@@ -947,9 +982,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
 
-  Example:
+Example:
 ```
-    (read-edn-file \"gs://target/path\" pcoll)
+(read-edn-file \"gs://target/path\" pcoll)
 ```"
           base-schema text-reader-schema)
    :added "0.1.0"}
@@ -978,9 +1013,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
 
-  Example:
+Example:
 ```
-    (write-edn-file \"gs://target/path\" pcoll)
+(write-edn-file \"gs://target/path\" pcoll)
 ```"
           base-schema text-writer-schema)
    :added "0.1.0"}
@@ -1016,9 +1051,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html and https://github.com/dakrone/cheshire#decoding for details on options.
 
-  Example:
+Example:
 ```
-    (read-json-file \"gs://target/path\" pcoll)
+(read-json-file \"gs://target/path\" pcoll)
 ```"
           base-schema text-reader-schema json-reader-schema)
    :added "0.2.0"}
@@ -1053,9 +1088,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html and https://github.com/dakrone/cheshire#encoding for details on options
 
-  Example:
+Example:
 ```
-    (write-json-file \"gs://target/path\" pcoll)
+(write-json-file \"gs://target/path\" pcoll)
 ```"
           base-schema text-writer-schema json-writer-schema)
    :added "0.2.0"}
@@ -1094,15 +1129,16 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   {:doc (with-opts-docstr
           ""
           base-schema text-writer-schema)
-   :added "0.1.0"}
+   :added "0.1.0"
+   :obsolete "0.2.0"}
   ([encoder f mapping to options ^PCollection pcoll]
    (let [opts (assoc options :label "write-edn-file-by" :coder nil)
          ptrans (write-text-file-by-transform encoder f mapping to opts)]
      (apply-transform pcoll ptrans named-schema opts)))
   ([encoder f mapping to pcoll] (write-file-by encoder f  mapping to {} pcoll)))
 
-(def write-edn-file-by (partial write-file-by write-edn-file))
-(def write-text-file-by (partial write-file-by write-text-file))
+(def ^{:obsolete "0.2.0"} write-edn-file-by (partial write-file-by write-edn-file))
+(def ^{:obsolete "0.2.0"} write-text-file-by (partial write-file-by write-text-file))
 
 ;;;;;;;;;;;
 ;; Joins ;;
@@ -1191,12 +1227,48 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         final-rel)))))
 
 (defn cogroup
+  {:doc (with-opts-docstr
+          "Takes a specification of the join between pcolls of KVs, and returns a PCollection of KVs with values being a list of lists of values in the same order as the pcolls were given. The specs is a list of maps in the same order as the list of pcolls. Only one option is supported:
+
+  - :type -> :optional or :required to select between left and right join. Defaults to :optional
+
+Example:
+```
+(let [pcoll1 (ds/generate [[:a 11] [:b 12] [:a 13]])
+      pcoll2 (ds/generate [[:a 21] [:c 22]])]
+  (ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2]))
+;; returns:
+;; '([:a ['(11 13) '(21)]]
+;;   [:b ['(12) nil]]
+;;   [:c [nil '(22)]])
+
+```
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
+          base-schema)
+   :added "0.1.0"}
   [specs options pcolls]
   (let [opts (assoc options :label :cogroup)
         pcolltuple (make-keyed-pcollection-tuple pcolls)]
     (apply-transform pcolltuple (cogroup-transform specs opts) base-schema opts)))
 
 (defn cogroup-by
+  {:doc (with-opts-docstr
+          "Takes a specification of the join between pcolls, and returns a PCollection of KVs with values being list of values corresponding to the key-fn. The specification is a list of triple
+
+ Only one option is supported:
+
+  - :type -> :optional or :required to select between left and right join. Defaults to :optional
+
+Example:
+```
+(ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2])
+
+```
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
+          base-schema)
+   :added "0.1.0"}
   ([options specs reduce-fn]
    (let [safe-opts (dissoc options :name)
          pcolls (for [[idx [pcoll f {:keys [drop-nil?]}]] (map-indexed vector specs)]
@@ -1238,9 +1310,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/RemoveDuplicates.html
 
-  Example:
+Example:
 ```
-    (ds/distinct pcoll)
+(ds/distinct pcoll)
 ```"
           base-schema)
    :added "0.1.0"}
@@ -1280,9 +1352,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Flatten.html
 
-  Example:
+Example:
 ```
-    (ds/flatten [pcoll1 pcoll2 pcoll3])
+(ds/flatten [pcoll1 pcoll2 pcoll3])
 ```"
    :added "0.1.0"}
   ([options ^PCollection pcoll]
@@ -1293,10 +1365,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn dconcat
   {:doc "Returns a single PCollection containing all the given pcolls. Accepts an option map as an optional first arg.
 
-  Example:
+Example:
 ```
-    (ds/concat pcoll1 pcoll2)
-    (ds/concat {:name :concat-node} pcoll1 pcoll2)
+(ds/concat pcoll1 pcoll2)
+(ds/concat {:name :concat-node} pcoll1 pcoll2)
 ```"
    :added "0.1.0"}
   [options & colls]
@@ -1331,7 +1403,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn combine
   {:doc (with-opts-docstr
-          "Applies a CombineFn or a Clojure function with equivalent arities to the PCollection.
+          "Applies a CombineFn or a Clojure function with equivalent arities to the PCollection of KVs.
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine"
           combine-schema)
@@ -1371,6 +1443,19 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           (combine f safe-opts)))))
 
 (defn combine-by
+  {:doc (with-opts-docstr
+          "Shortcut to easily group values in a PColl by a function and combine all the values by key according to a combiner fn. Returns a PCollection of KVs.
+
+Example:
+```
+;; Returns a pcoll of two KVs, with false and true as keys, and the sum of even? and odd? numbers as values
+(->> pcoll
+     (ds/combine-by even? (ds/sum-fn) {:name :my-combine-by}))
+```
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine and [[combine-fn]] for options about creating a combiner function (combine-fn is applied on the given clojure fn if necessary, you do not need to call it yourself)"
+          base-schema kv-coder-schema base-combine-schema)
+   :added "0.1.0"}
   ([key-fn f options ^PCollection pcoll]
    (let [opts (-> options
                   (assoc :label :combine-by :scope :per-key))
@@ -1466,9 +1551,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
 
-  Example:
+Example:
 ```
-    (ds/frequencies pcoll)
+(ds/frequencies pcoll)
 ```"
           base-schema)
    :added "0.1.0"}

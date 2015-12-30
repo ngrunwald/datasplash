@@ -72,7 +72,9 @@
 (intern *ns* (with-meta 'key (meta #'dt/dkey)) @#'dt/dkey)
 (intern *ns* (with-meta 'val (meta #'dt/dval)) @#'dt/dval)
 
-;;;;;;;;;;;;;;;;;
+(intern *ns* (with-meta 'safe-exec (meta #'dt/safe-exec)) @#'dt/safe-exec)
+
+;;;;;;;;;;;;;;;;
 ;; Combinators ;;
 ;;;;;;;;;;;;;;;;;
 
