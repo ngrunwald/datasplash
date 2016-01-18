@@ -23,7 +23,7 @@
            [com.google.cloud.dataflow.sdk.util GcsUtil]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
-           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList]
+           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList PInput]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]
            [java.util UUID]
@@ -299,6 +299,40 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
        tr))
    ptransform schema))
 
+(defprotocol ToApply
+  (tapply [pcoll nam tr]))
+
+(defrecord GroupSpecs [specs]
+  PInput
+  (expand [this] (map first specs))
+  (finishSpecifying [this] nil)
+  (getPipeline [this] (let [^PInput pval (-> specs (first) (first))]
+                        (.getPipeline pval))))
+
+(extend-protocol ToApply
+  PCollection
+  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
+                           (.apply pcoll nam tr)
+                           (.apply pcoll tr)))
+  PCollectionList
+  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
+                           (.apply pcoll nam tr)
+                           (.apply pcoll tr)))
+  PBegin
+  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
+                           (.apply pcoll nam tr)
+                           (.apply pcoll tr)))
+  Pipeline
+  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
+                           (.apply pcoll nam tr)
+                           (.apply pcoll tr)))
+  KeyedPCollectionTuple
+  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
+                           (.apply pcoll nam tr)
+                           (.apply pcoll tr)))
+  GroupSpecs
+  (tapply [group-specs _ tr] (.apply tr group-specs)))
+
 (defn apply-transform
   "apply the PTransform to the given Pcoll applying options according to schema."
   [pcoll ^PTransform transform schema
@@ -306,9 +340,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (let [nam (some-> options (:name) (name))
         clean-opts (dissoc options :name :coder :coll-name)
         configured-transform (with-opts schema clean-opts transform)
-        bound (if (and nam (not (empty? nam)))
-                (.apply pcoll nam configured-transform)
-                (.apply pcoll configured-transform))]
+        bound (tapply pcoll nam configured-transform)]
     (-> bound
         (cond-> coder (.setCoder coder))
         (cond-> coll-name (.setName coll-name)))))
@@ -956,8 +988,6 @@ Example:
    :added "0.1.0"}
   ([from options p]
    (let [opts (assoc options
-                     :label (str "read-text-file-from"
-                                 (clean-filename from))
                      :coder (or
                              (:coder options)
                              (StringUtf8Coder/of)))]
@@ -966,16 +996,6 @@ Example:
          (apply-transform (TextIO$Read/from from)
                           (merge named-schema text-reader-schema) opts))))
   ([from p] (read-text-file from {} p)))
-
-(defn- read-edn-file-transform
-  [from options]
-  (let [safe-opts (dissoc options :name)]
-    (ptransform
-     :read-edn-file
-     [p]
-     (->> p
-          (read-text-file from (dissoc options :coder))
-          (from-edn options)))))
 
 (defn read-edn-file
   {:doc (with-opts-docstr "Reads a PCollection of edn strings from disk or Google Storage, with records separated by newlines.
@@ -990,22 +1010,16 @@ Example:
    :added "0.1.0"}
   ([from options ^Pipeline p]
    (let [opts (assoc options
-                     :label (str "read-edn-file-from-"
-                                 (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))]
-     (apply-transform p (read-edn-file-transform from opts)
-                      (merge base-schema text-reader-schema) opts)))
+     (pt->>
+      (or (:name options) (str "read-text-file-from"
+                               (clean-filename from)))
+      p
+      (read-text-file from (-> options
+                               (dissoc :coder)
+                               (assoc :name "read-text-file")))
+      (from-edn (assoc options :name "parse-edn")))))
   ([from p] (read-edn-file from {} p)))
-
-(defn- write-edn-file-transform
-  [to options]
-  (let [safe-opts (dissoc options :name :coder)]
-    (ptransform
-     :write-edn-file
-     [^PCollection pcoll]
-     (->> pcoll
-          (to-edn safe-opts)
-          (write-text-file to safe-opts)))))
 
 (defn write-edn-file
   {:doc (with-opts-docstr
@@ -1020,31 +1034,17 @@ Example:
           base-schema text-writer-schema)
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label (str "write-edn-file-to-" (clean-filename to))
-                     :coder nil)]
-     (apply-transform pcoll (write-edn-file-transform to opts)
-                      named-schema opts)))
+   (let [opts (assoc options :coder nil)]
+     (pt->>
+      (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
+      pcoll
+      (to-edn (assoc options :name "encode-edn"))
+      (write-text-file to (assoc options :name "write-file")))))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (def json-reader-schema
   {:key-fn {:docstr "Selects a policy for parsing map keys. If true, keywordizes the keys. If given a fn, uses it to transform each map key."}
    :return-type {:docstr "Allows passing in a function to specify what kind of types to return."}})
-
-(defn- read-json-file-transform
-  [from {:keys [key-fn return-type] :as options}]
-  (let [safe-opts (dissoc options :name :key-fn :return-type)]
-    (ptransform
-     :read-json-file
-     [p]
-     (->> p
-          (read-text-file from (dissoc safe-opts :coder))
-          (dmap (fn [l]
-                  (cond
-                    (and key-fn return-type) (json/decode l key-fn return-type)
-                    key-fn (json/decode l key-fn)
-                    return-type (json/decode l nil return-type)
-                    :else (json/decode l)))
-                safe-opts)))))
 
 (defn read-json-file
   {:doc (with-opts-docstr "Reads a PCollection of JSON strings from disk or Google Storage, with records separated by newlines.
@@ -1057,13 +1057,24 @@ Example:
 ```"
           base-schema text-reader-schema json-reader-schema)
    :added "0.2.0"}
-  ([from options ^Pipeline p]
+  ([from {:keys [key-fn return-type] :as options} ^Pipeline p]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))]
-     (apply-transform p (read-json-file-transform from opts)
-                      (merge base-schema text-reader-schema) opts)))
+     (pt->>
+      (or (:name options) ("read-json-file-from-" (clean-filename from)))
+      p
+      (read-text-file from (-> options
+                               (dissoc :coder)
+                               (assoc :name "read-text-file")))
+      (dmap (fn [l]
+              (cond
+                (and key-fn return-type) (json/decode l key-fn return-type)
+                key-fn (json/decode l key-fn)
+                return-type (json/decode l nil return-type)
+                :else (json/decode l)))
+            (assoc options :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
 
 (def json-writer-schema
@@ -1095,10 +1106,14 @@ Example:
           base-schema text-writer-schema json-writer-schema)
    :added "0.2.0"}
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label (str "write-json-file-to-" (clean-filename to))
-                     :coder nil)]
-     (apply-transform pcoll (write-json-file-transform to opts)
-                      named-schema opts)))
+   (let [json-opts (select-keys options (keys json-writer-schema))]
+     (pt->>
+      (or (:name options) "write-json-file")
+      pcoll
+      (dmap (fn [l] (json/encode l json-opts)) (assoc options
+                                                      :name "encode-json"
+                                                      :coder (StringUtf8Coder/of)))
+      (write-text-file to (assoc options :name "write-text-file")))))
   ([to pcoll] (write-json-file to {} pcoll)))
 
 (defn make-partition-mapping
@@ -1145,6 +1160,7 @@ Example:
 ;;;;;;;;;;;
 
 (defn make-keyed-pcollection-tuple
+  ^KeyedPCollectionTuple
   [pcolls]
   (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
     (reduce
@@ -1153,6 +1169,20 @@ Example:
              new-coll-tuple (.and coll-tuple tag pcoll)]
          new-coll-tuple))
      empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
+
+(defn make-group-specs
+  [specs]
+  (if (instance? GroupSpecs specs)
+    specs
+    (let [safe-specs (into []
+                           (doall
+                            (for [[pcoll key-fn spec] specs]
+                              (cond
+                                (nil? spec) [pcoll key-fn {:type :optional}]
+                                (keyword? spec) [pcoll key-fn {:type spec}]
+                                (map? spec) [pcoll key-fn spec]
+                                :else (throw (ex-info "Invalid spec for cogroup" {:specs specs}))))))]
+      (GroupSpecs. safe-specs))))
 
 (defn greedy-read-cogbkresult
   [raw-values tag]
@@ -1174,44 +1204,67 @@ Example:
         (recur it)))))
 
 (defn cogroup-transform
-  ([specs {:keys [join-nil?] :as options}]
+  ([{:keys [join-nil?] :as options}]
    (let [opts (assoc options :label :raw-cogroup)]
      (ptransform
       :cogroup
-      [^KeyedPCollectionTuple pcolltuple]
-      (let [ordered-tags (->> pcolltuple
+      [^GroupSpecs group-specs]
+      (let [root-name (or (:name options) "cogroup")
+            pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
+                         (map-indexed (fn [idx s] (if (instance? PCollection s)
+                                                    [idx [s nil nil]] [idx s])) (:specs group-specs))]
+                     (let [local-name (str root-name "-" (.getName pcoll))
+                           op (if f
+                                (with-keys f {:name (str local-name "-group-by")} pcoll)
+                                pcoll)]
+                       (if drop-nil?
+                         (dfilter (if f
+                                    (fn [^KV kv] (not (nil? (.getKey kv))))
+                                    (fn [v] (not (nil? v))))
+                                  {:name (str local-name "-drop-nil")
+                                   :without-coercion-to-clj true}
+                                  op)
+                         op)))
+            pcolltuple (make-keyed-pcollection-tuple pcolls)
+            ordered-tags (->> pcolltuple
                               (.getKeyedCollections)
                               (map #(.getTupleTag %))
                               (sort-by #(.getId %)))
             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
+            required-set (->> (:specs group-specs)
+                              (map-indexed (fn [idx [_ _ {:keys [type]}]]
+                                             (when (= type :required) idx)))
+                              (remove nil?)
+                              (into #{}))
+            required-count (count required-set)
             final-rel (pardo
                        (fn [^DoFn$ProcessContext c]
                          (let [^KV kv (.element c)
                                k (.getKey kv)
-                               ^CoGbkResult raw-values (.getValue kv)
-                               required-list (->> specs
-                                                  (map-indexed
-                                                   (fn [idx {:keys [type]}]
-                                                     (when (= type :required) idx)))
-                                                  (remove nil?))
-                               required-count (count required-list)]
+                               ^CoGbkResult raw-values (.getValue kv)]
                            ;; skip if a required part of the group is empty
                            (when-not (some identity
-                                           (map (fn [tag {:keys [type]}]
-                                                  (if (= type :required)
-                                                    (not (.hasNext (.iterator (.getAll raw-values tag))))
-                                                    false))
-                                                ordered-tags specs))
+                                           (map-indexed (fn [idx tag]
+                                                          (if (required-set idx)
+                                                            (not (-> (.getAll raw-values tag)
+                                                                     (.iterator)
+                                                                     (.hasNext)))
+                                                            false))
+                                                        ordered-tags))
                              (if (and (not join-nil?) (nil? k))
                                (cond
-                                 (= required-count 0) (doseq [[idx tag] (map-indexed (fn [idx tag] [idx tag]) ordered-tags)]
-                                                        (greedy-emit-cogbkresult raw-values (count ordered-tags) idx tag c))
-                                 (= required-count 1) (greedy-emit-cogbkresult raw-values
-                                                                               (count ordered-tags)
-                                                                               (first required-list)
-                                                                               (nth ordered-tags
-                                                                                    (first required-list))
-                                                                               c)
+                                 (= required-count 0) (doseq [[idx tag]
+                                                              (map-indexed
+                                                               (fn [idx tag] [idx tag]) ordered-tags)]
+                                                        (greedy-emit-cogbkresult
+                                                         raw-values (count ordered-tags) idx tag c))
+                                 (= required-count 1) (greedy-emit-cogbkresult
+                                                       raw-values
+                                                       (count ordered-tags)
+                                                       (first required-set)
+                                                       (nth ordered-tags
+                                                            (first required-set))
+                                                       c)
                                  :else nil)
                                (let [values (mapv
                                              (fn [tag]
@@ -1219,11 +1272,11 @@ Example:
                                              ordered-tags)]
                                  (.output c (make-kv k values)))))))
                        (assoc opts
+                              :name (str root-name "-apply-requirements")
                               :without-coercion-to-clj true
                               :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
                                                     (make-nippy-coder)))
                        rel)]
-
         final-rel)))))
 
 (defn cogroup
@@ -1234,8 +1287,8 @@ Example:
 
 Example:
 ```
-(let [pcoll1 (ds/generate [[:a 11] [:b 12] [:a 13]])
-      pcoll2 (ds/generate [[:a 21] [:c 22]])]
+(let [pcoll1 (ds/generate-input [[:a 11] [:b 12] [:a 13]])
+      pcoll2 (ds/generate-input [[:a 21] [:c 22]])]
   (ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2]))
 ;; returns:
 ;; '([:a ['(11 13) '(21)]]
@@ -1243,18 +1296,28 @@ Example:
 ;;   [:c [nil '(22)]])
 
 ```
-
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
           base-schema)
    :added "0.1.0"}
-  [specs options pcolls]
-  (let [opts (assoc options :label :cogroup)
-        pcolltuple (make-keyed-pcollection-tuple pcolls)]
-    (apply-transform pcolltuple (cogroup-transform specs opts) base-schema opts)))
+  ([specs options]
+   (let [opts (assoc options :label :cogroup)]
+     (apply-transform (make-group-specs specs) (cogroup-transform opts) named-schema opts)))
+  ([specs] (cogroup specs nil)))
+
+(defn cogroup-by-transform
+  [options reduce-fn]
+  (ptransform
+   :cogroup-by
+   [^GroupSpecs group-specs]
+   (let [grouped-colls (cogroup group-specs options)
+         root-name (or (:name options) "cogroup-by")]
+     (if reduce-fn
+       (dmap reduce-fn (assoc options :name (str root-name "-collector")) grouped-colls)
+       grouped-colls))))
 
 (defn cogroup-by
   {:doc (with-opts-docstr
-          "Takes a specification of the join between pcolls, and returns a PCollection of KVs with values being list of values corresponding to the key-fn. The specification is a list of triple
+          "Takes a specification of the join between pcolls, a function producing the key on which to join and returns a PCollection of KVs with values being list of values corresponding to the key-fn. The specification is a list of triple.
 
  Only one option is supported:
 
@@ -1265,43 +1328,30 @@ Example:
 (ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2])
 
 ```
-
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
-          base-schema)
+          named-schema)
    :added "0.1.0"}
   ([options specs reduce-fn]
-   (let [safe-opts (dissoc options :name)
-         pcolls (for [[idx [pcoll f {:keys [drop-nil?]}]] (map-indexed vector specs)]
-                  (let [op (with-keys f (assoc safe-opts :name (str "group-by-" idx)) pcoll)]
-                    (if drop-nil?
-                      (dfilter (fn [^KV kv] (not (nil? (.getKey kv))))
-                               {:name (str "drop-nil-" idx)
-                                :without-coercion-to-clj true}
-                               op)
-                      op)))
-         safe-specs (into []
-                          (doall
-                           (for [[pcoll key-fn spec] specs]
-                             (cond
-                               (nil? spec) {:type :optional}
-                               (keyword? spec) {:type spec}
-                               (map? spec) spec
-                               :else (throw (ex-info "Invalid spec for cogroup" {:specs specs}))))))
-         grouped-coll (cogroup safe-specs safe-opts pcolls)]
-     (if reduce-fn
-       (dmap reduce-fn safe-opts grouped-coll)
-       grouped-coll)))
+   (let [group-specs (make-group-specs specs)
+         cogroup-by-tr (cogroup-by-transform options reduce-fn) ]
+     (apply-transform group-specs cogroup-by-tr named-schema options)))
   ([options specs] (cogroup-by options specs nil)))
 
 (defn join-by
   ([options specs join-fn]
-   (->> (cogroup-by options specs)
-        (dmapcat (fn [^KV kv]
-                   (let [results (.getValue kv)
-                         results-ok (map #(if (empty? %) [nil] %) results)
-                         raw-res (apply combo/cartesian-product results-ok)
-                         res (map (fn [prod] (apply join-fn prod)) raw-res)]
-                     res)) {:without-coercion-to-clj true })))
+   (let [nam (or (:name options) "join-by")]
+     (pt->>
+      (or (:name options) "join-by")
+      (cogroup-by (assoc options :name (str nam "-cogroup-by")) specs)
+      (dmapcat (fn [^KV kv]
+                 (let [results (.getValue kv)
+                       results-ok (map #(if (empty? %) [nil] %) results)
+                       raw-res (apply combo/cartesian-product results-ok)
+                       res (map (fn [prod] (apply join-fn prod)) raw-res)]
+                   res))
+               {:name (let [root-name (or (:name options) "join-by")]
+                        (str root-name "-cartesian-product"))
+                :without-coercion-to-clj true }))))
   ([specs join-fn] (join-by {} specs join-fn)))
 
 (defn ddistinct
