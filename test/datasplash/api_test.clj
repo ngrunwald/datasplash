@@ -129,9 +129,6 @@
                      [:c [#{} #{{:key :c, :foo 42}}]]
                      [:b [#{{:key :b, :val 56}} #{}]]}))))))
 
-;; (not (= #{[({:val 56}) [#{} #{}]] [:a [#{{:key :a, :val 42} {:key :a, :lue 65}} #{{:key :a, :lav 42}}]]}
-;;         #{[nil [#{} #{{:uel 65}}]] [:b [#{{:key :b, :val 56}} #{}]] [:c [#{} #{{:key :c, :foo 42}}]] [:a [#{{:key :a, :val 42} {:key :a, :lue 65}} #{{:key :a, :lav 42}}]] [nil [#{{:val 56}} #{}]]}))
-
 (deftest cogroup-drop-nil-test
   (with-files [cogroup-drop-nil-test]
     (let [p (make-test-pipeline)
