@@ -1279,80 +1279,97 @@ Example:
                        rel)]
         final-rel)))))
 
-(defn cogroup
-  {:doc (with-opts-docstr
-          "Takes a specification of the join between pcolls of KVs, and returns a PCollection of KVs with values being a list of lists of values in the same order as the pcolls were given. The specs is a list of maps in the same order as the list of pcolls. Only one option is supported:
-
-  - :type -> :optional or :required to select between left and right join. Defaults to :optional
-
-Example:
-```
-(let [pcoll1 (ds/generate-input [[:a 11] [:b 12] [:a 13]])
-      pcoll2 (ds/generate-input [[:a 21] [:c 22]])]
-  (ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2]))
-;; returns:
-;; '([:a ['(11 13) '(21)]]
-;;   [:b ['(12) nil]]
-;;   [:c [nil '(22)]])
-
-```
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
-          base-schema)
-   :added "0.1.0"}
-  ([specs options]
-   (let [opts (assoc options :label :cogroup)]
-     (apply-transform (make-group-specs specs) (cogroup-transform opts) named-schema opts)))
-  ([specs] (cogroup specs nil)))
-
 (defn cogroup-by-transform
-  [options reduce-fn]
+  [{:keys [collector] :as options}]
   (ptransform
    :cogroup-by
    [^GroupSpecs group-specs]
-   (let [grouped-colls (cogroup group-specs options)
+   (let [grouped-colls (apply-transform group-specs (cogroup-transform options) named-schema options)
          root-name (or (:name options) "cogroup-by")]
-     (if reduce-fn
-       (dmap reduce-fn (assoc options :name (str root-name "-collector")) grouped-colls)
+     (if collector
+       (dmap collector (assoc options :name (str root-name "-collector")) grouped-colls)
        grouped-colls))))
 
+(def cogroup-by-schema
+  {:collector {:docstr "A collector fn to apply after the cogroup. The signature is
+```
+(fn [[key [list-of-elts-from-pcoll1 list-of-elts-from-pcoll2]]] ...)
+```"}})
 (defn cogroup-by
   {:doc (with-opts-docstr
-          "Takes a specification of the join between pcolls, a function producing the key on which to join and returns a PCollection of KVs with values being list of values corresponding to the key-fn. The specification is a list of triple.
+          "Takes a specification of the join between pcolls and returns a PCollection of KVs (unless a :collector fn is given) with values being list of values corresponding to the key-fn. The specification is a list of triple [pcoll f options].
 
- Only one option is supported:
+  - pcoll is a pcoll on which to join
+  - f is a joining function, used to produce the keys on which to join. Can be nil if the coll is already made up of KVs
+  - options is a map configuring each sides of the join
+
+ Only one option is supported for now in join:
 
   - :type -> :optional or :required to select between left and right join. Defaults to :optional
 
 Example:
 ```
-(ds/cogroup [{:type :required} {:type :optional}] {:name :my-cogroup} [pcoll1 pcoll2])
+(ds/cogroup-by {:name :my-cogroup-by
+                :collector (fn [[key [list-of-elts-from-pcoll1 list-of-elts-from-pcoll2]]]
+                               [key (concat list-of-elts-from-pcoll1 list-of-elts-from-pcoll2)])}
+               [[pcoll1 :id {:type :required}]
+                [pcoll2 (fn [elt] (:foreign-key elt)) {:type :optional}]])
 
 ```
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a more idiomatic approach to joins [[cogroup-by]] and [[join-by]]"
-          named-schema)
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a different approach to joins see [[join-by]]"
+          named-schema cogroup-by-schema)
    :added "0.1.0"}
   ([options specs reduce-fn]
-   (let [group-specs (make-group-specs specs)
-         cogroup-by-tr (cogroup-by-transform options reduce-fn) ]
-     (apply-transform group-specs cogroup-by-tr named-schema options)))
+   (let [full-opts (if reduce-fn (assoc options :collector reduce-fn) options)
+         group-specs (make-group-specs specs)
+         cogroup-by-tr (cogroup-by-transform full-opts)]
+     (apply-transform group-specs cogroup-by-tr named-schema full-opts)))
   ([options specs] (cogroup-by options specs nil)))
 
+(def join-by-schema
+  {:collector {:docstr "A collector fn to apply after the join. The signature is like map, one element for each pcoll in the join."}})
+
 (defn join-by
+  {:doc (with-opts-docstr
+          "Takes a specification of the join between pcolls and returns a PCollection of the cartesian product (only difference from cogroup-by) of all elements joined according to the spec. The specification is a list of triple [pcoll f options].
+
+  - pcoll is a pcoll on which to join
+  - f is a joining function, used to produce the keys on which to join. Can be nil if the coll is already made up of KVs
+  - options is a map configuring each sides of the join
+
+ Only one option is supported for now in join:
+
+  - :type -> :optional or :required to select between left and right join. Defaults to :optional
+
+Example:
+```
+(ds/join-by {:name :my-join-by
+                :collector (fn [elt1 elt2]
+                               (merge elt1 elt2))}
+               [[pcoll1 :id {:type :required}]
+                [pcoll2 (fn [elt] (:foreign-key elt)) {:type :optional}]])
+
+```
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a different approach to joins see [[cogroup-by]]"
+          named-schema join-by-schema)
+   :added "0.1.0"}
   ([options specs join-fn]
-   (let [nam (or (:name options) "join-by")]
+   (let [root-name (or (:name options) "join-by")
+         clean-join-fn (or join-fn (:collector options))]
      (pt->>
-      (or (:name options) "join-by")
-      (cogroup-by (assoc options :name (str nam "-cogroup-by")) specs)
+      root-name
+      (cogroup-by (assoc options :name (str root-name "-cogroup-by")) specs)
       (dmapcat (fn [^KV kv]
                  (let [results (.getValue kv)
                        results-ok (map #(if (empty? %) [nil] %) results)
                        raw-res (apply combo/cartesian-product results-ok)
-                       res (map (fn [prod] (apply join-fn prod)) raw-res)]
+                       res (map (fn [prod] (apply clean-join-fn prod)) raw-res)]
                    res))
-               {:name (let [root-name (or (:name options) "join-by")]
-                        (str root-name "-cartesian-product"))
+               {:name (str root-name "-cartesian-product")
                 :without-coercion-to-clj true }))))
-  ([specs join-fn] (join-by {} specs join-fn)))
+  ([options specs] (if (fn? specs)
+                     (throw (ex-info "Wrong type of argument for join-by, join-fn is now passed as a :collector key in options" {:specs specs}))
+                     (join-by options specs nil))))
 
 (defn ddistinct
   {:doc (with-opts-docstr
