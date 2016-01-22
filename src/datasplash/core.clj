@@ -76,6 +76,52 @@
   [at]
   `(try (deref required-ns) (catch ClassCastException e# (require 'datasplash.core) #{})))
 
+(defmacro safe-exec-cfg
+  "Like [[safe-exec]], but takes a map as first argument containing the name of the ptransform for better error message"
+  [config & body]
+  `(let [pt-name# (-> ~config
+                      (get :name)
+                      (some-> (name)))]
+     (try
+       ~@body
+       (catch ExceptionInfo e#
+         (throw (ExceptionInfo. (.getMessage e#)
+                                (if pt-name# (assoc (ex-data e#) :name pt-name#) (ex-data e#))
+                                (if-let [root# (.getCause e#)] root# e#))))
+       (catch Exception e#
+         ;; if var is unbound, nothing has been required
+         (let [required-at-start# (try-deref required-ns)]
+           ;; lock on something that should exist!
+           (locking #'locking
+             (let [already-required# (try-deref required-ns)]
+               (let [nss# (unloaded-ns-from-ex e#)]
+                 (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
+                             (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
+                 (if (empty? nss#)
+                   (throw (ex-info "Runtime exception intercepted" (-> {:hostname (get-hostname)}
+                                                                       (cond-> pt-name# (assoc :name pt-name#))) e#))
+                   (let [missings# nss# ;; (remove already-required# nss#)
+                         missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
+                     (if-not (empty? missings#)
+                       (do
+                         (log/debugf "Requiring missing namespaces at runtime: %s" (into [] missings#))
+                         (doseq [missing# missings#]
+                           (require missing#)
+                           (swap! required-ns conj missing#))
+                         ~@body)
+                       (if missing-at-start?#
+                         ~@body
+                         (do
+                           (log/fatalf
+                            "Dynamic reloading of namespace failure. Already required: %s Attempted: %s"
+                            (into [] nss#) (into [] already-required#))
+                           (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                           (-> {:ns-from-exception (into [] nss#)
+                                                :ns-load-attempted (into [] already-required#)
+                                                :hostname (get-hostname)}
+                                               (cond-> pt-name# (assoc :name pt-name#)))
+                                           e#)))))))))))))))
+
 (defmacro safe-exec
   "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure in distributed mode. Always wrap try block with this if you intend to eat every Exception produced.
   ```
@@ -87,41 +133,7 @@
           pcoll)
   ```"
   [& body]
-  `(try
-     ~@body
-     (catch ExceptionInfo e#
-       (throw e#))
-     (catch Exception e#
-       ;; if var is unbound, nothing has been required
-       (let [required-at-start# (try-deref required-ns)]
-         ;; lock on something that should exist!
-         (locking #'locking
-           (let [already-required# (try-deref required-ns)]
-             (let [nss# (unloaded-ns-from-ex e#)]
-               (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
-                           (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
-               (if (empty? nss#)
-                 (throw (ex-info "Runtime exception intercepted" {:hostname (get-hostname)} e#))
-                 (let [missings# nss# ;; (remove already-required# nss#)
-                       missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
-                   (if-not (empty? missings#)
-                     (do
-                       (log/debugf "Requiring missing namespaces at runtime: %s" (into [] missings#))
-                       (doseq [missing# missings#]
-                         (require missing#)
-                         (swap! required-ns conj missing#))
-                       ~@body)
-                     (if missing-at-start?#
-                       ~@body
-                       (do
-                         (log/fatalf
-                          "Dynamic reloading of namespace failure. Already required: %s Attempted: %s"
-                          (into [] nss#) (into [] already-required#))
-                         (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                         {:ns-from-exception (into [] nss#)
-                                          :ns-load-attempted (into [] already-required#)
-                                          :hostname (get-hostname)}
-                                         e#))))))))))))))
+  `(safe-exec-cfg {} ~@body))
 
 (defn make-kv
   {:doc "Returns a KV object from the given arg(s), either [k v] or a MapEntry or seq of two elements."
@@ -157,13 +169,14 @@
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs]
+              side-inputs side-outputs name]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)}
        :as opts}]
    (proxy [DoFn] []
      (processElement [^DoFn$ProcessContext context]
-       (safe-exec
+       (safe-exec-cfg
+        opts
         (let [side-ins (persistent!
                         (reduce
                          (fn [acc [k pview]]
@@ -174,8 +187,8 @@
                     *coerce-to-clj* (not without-coercion-to-clj)
                     *side-inputs* side-ins]
             (f context)))))
-     (startBundle [^DoFn$Context context] (safe-exec (start-bundle context)))
-     (finishBundle [^DoFn$Context context] (safe-exec (finish-bundle context)))))
+     (startBundle [^DoFn$Context context] (safe-exec-cfg opts (start-bundle context)))
+     (finishBundle [^DoFn$Context context] (safe-exec-cfg opts (finish-bundle context)))))
   ([f] (dofn f {})))
 
 (defn context
