@@ -96,7 +96,7 @@
                                   (if pt-name# (assoc (ex-data e#) :name pt-name#) (ex-data e#))
                                   (if-let [root# (.getCause e#)] root# e#)))))
        (catch Exception e#
-         (if-let [root-exinfo (unwrap-ex-info e#)]
+         (if-let (unwrap-ex-info e#)
            (throw e#)
            ;; if var is unbound, nothing has been required
            (let [required-at-start# (try-deref required-ns)]
