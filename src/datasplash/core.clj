@@ -20,7 +20,7 @@
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
-           [com.google.cloud.dataflow.sdk.util GcsUtil]
+           [com.google.cloud.dataflow.sdk.util GcsUtil UserCodeException]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList PInput]
@@ -79,7 +79,7 @@
 (defn unwrap-ex-info
   [e]
   (let [c (.getCause e)]
-    (if (and c (instance? ExceptionInfo c)) c e)))
+    (if (and c (instance? e UserCodeException) (instance? ExceptionInfo c)) c e)))
 
 (defmacro safe-exec-cfg
   "Like [[safe-exec]], but takes a map as first argument containing the name of the ptransform for better error message"
@@ -96,7 +96,7 @@
                                   (if pt-name# (assoc (ex-data e#) :name pt-name#) (ex-data e#))
                                   (if-let [root# (.getCause e#)] root# e#)))))
        (catch Exception e#
-         (if-let (unwrap-ex-info e#)
+         (if (unwrap-ex-info e#)
            (throw e#)
            ;; if var is unbound, nothing has been required
            (let [required-at-start# (try-deref required-ns)]
