@@ -1371,7 +1371,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
          clean-join-fn (or join-fn (:collector options))]
      (pt->>
       root-name
-      (cogroup-by (assoc options :name (str root-name "-cogroup-by")) specs)
+      (cogroup-by (-> options
+                      (assoc :name (str root-name "-cogroup-by"))
+                      (dissoc :collector))
+                  specs)
       (dmapcat (fn [^KV kv]
                  (let [results (.getValue kv)
                        results-ok (map #(if (empty? %) [nil] %) results)

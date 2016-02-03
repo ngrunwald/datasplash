@@ -194,6 +194,22 @@
         (is (= res #{{:key :b, :val 56} {:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
                      {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
 
+(deftest join-test-required
+  (with-files [join-test-required]
+    (let [p (make-test-pipeline)
+          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+          grouped (ds/join-by {:name "join-test-required" :collector merge}
+                              [[input1 :key]
+                               [input2 :key {:type :required}]]
+                              merge)
+          output (ds/write-edn-file join-test-required grouped)]
+      (ds/run-pipeline p)
+      (is "join-test-required" (.getName grouped))
+      (let [res (into #{} (read-file (first (glob-file join-test-required))))]
+        (is (= res #{{:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
+                     {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
+
 (deftest combine-pipeline
   (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
