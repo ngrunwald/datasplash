@@ -76,6 +76,11 @@
   [at]
   `(try (deref required-ns) (catch ClassCastException e# (require 'datasplash.core) #{})))
 
+(defn unwrap-ex-info
+  [e]
+  (let [c (.getCause e)]
+    (if (and c (instance? ExceptionInfo c)) c e)))
+
 (defmacro safe-exec-cfg
   "Like [[safe-exec]], but takes a map as first argument containing the name of the ptransform for better error message"
   [config & body]
@@ -91,7 +96,7 @@
                                   (if pt-name# (assoc (ex-data e#) :name pt-name#) (ex-data e#))
                                   (if-let [root# (.getCause e#)] root# e#)))))
        (catch Exception e#
-         (if (instance? ExceptionInfo e#)
+         (if-let [root-exinfo (unwrap-ex-info e#)]
            (throw e#)
            ;; if var is unbound, nothing has been required
            (let [required-at-start# (try-deref required-ns)]
