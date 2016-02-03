@@ -3,7 +3,7 @@
             [clojure.java.shell :refer [sh]]
             [clojure.string :as str]
             [clj-time [coerce :as tc]
-                      [format :as tf]]
+             [format :as tf]]
             [clojure.tools.logging :as log]
             [datasplash.core :refer :all])
   (:import
@@ -188,7 +188,9 @@
      (let [schema (:schema options)
            base-coll pcoll]
        (->> base-coll
-            (dmap clj-nested->table-row (assoc safe-opts :coder (TableRowJsonCoder/of)))
+            (dmap clj-nested->table-row (-> safe-opts
+                                            (assoc :coder (TableRowJsonCoder/of))
+                                            (dissoc :schema)))
             (write-bq-table-raw to safe-opts))))))
 
 (defn write-bq-table
