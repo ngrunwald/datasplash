@@ -95,41 +95,41 @@
            (throw (ExceptionInfo. (.getMessage e#)
                                   (if pt-name# (assoc (ex-data e#) :name pt-name#) (ex-data e#))
                                   (if-let [root# (.getCause e#)] root# e#)))))
+       (catch UserCodeException e#
+         (throw e#))
        (catch Exception e#
-         (if (unwrap-ex-info e#)
-           (throw e#)
-           ;; if var is unbound, nothing has been required
-           (let [required-at-start# (try-deref required-ns)]
-             ;; lock on something that should exist!
-             (locking #'locking
-               (let [already-required# (try-deref required-ns)]
-                 (let [nss# (unloaded-ns-from-ex e#)]
-                   (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
-                               (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
-                   (if (empty? nss#)
-                     (throw (ex-info "Runtime exception intercepted" (-> {:hostname (get-hostname)}
-                                                                         (cond-> pt-name# (assoc :name pt-name#))) e#))
-                     (let [missings# nss# ;; (remove already-required# nss#)
-                           missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
-                       (if-not (empty? missings#)
+         ;; if var is unbound, nothing has been required
+         (let [required-at-start# (try-deref required-ns)]
+           ;; lock on something that should exist!
+           (locking #'locking
+             (let [already-required# (try-deref required-ns)]
+               (let [nss# (unloaded-ns-from-ex e#)]
+                 (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
+                             (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
+                 (if (empty? nss#)
+                   (throw (ex-info "Runtime exception intercepted" (-> {:hostname (get-hostname)}
+                                                                       (cond-> pt-name# (assoc :name pt-name#))) e#))
+                   (let [missings# nss# ;; (remove already-required# nss#)
+                         missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
+                     (if-not (empty? missings#)
+                       (do
+                         (log/debugf "Requiring missing namespaces at runtime: %s" (into [] missings#))
+                         (doseq [missing# missings#]
+                           (require missing#)
+                           (swap! required-ns conj missing#))
+                         ~@body)
+                       (if missing-at-start?#
+                         ~@body
                          (do
-                           (log/debugf "Requiring missing namespaces at runtime: %s" (into [] missings#))
-                           (doseq [missing# missings#]
-                             (require missing#)
-                             (swap! required-ns conj missing#))
-                           ~@body)
-                         (if missing-at-start?#
-                           ~@body
-                           (do
-                             (log/fatalf
-                              "Dynamic reloading of namespace failure. Already required: %s Attempted: %s"
-                              (into [] nss#) (into [] already-required#))
-                             (throw (ex-info "Dynamic reloading of namespace seems not to work"
-                                             (-> {:ns-from-exception (into [] nss#)
-                                                  :ns-load-attempted (into [] already-required#)
-                                                  :hostname (get-hostname)}
-                                                 (cond-> pt-name# (assoc :name pt-name#)))
-                                             e#))))))))))))))))
+                           (log/fatalf
+                            "Dynamic reloading of namespace failure. Already required: %s Attempted: %s"
+                            (into [] nss#) (into [] already-required#))
+                           (throw (ex-info "Dynamic reloading of namespace seems not to work"
+                                           (-> {:ns-from-exception (into [] nss#)
+                                                :ns-load-attempted (into [] already-required#)
+                                                :hostname (get-hostname)}
+                                               (cond-> pt-name# (assoc :name pt-name#)))
+                                           e#)))))))))))))))
 
 (defmacro safe-exec
   "Executes body while trying to sanely require missing ns if the runtime is not yet properly loaded for Clojure in distributed mode. Always wrap try block with this if you intend to eat every Exception produced.

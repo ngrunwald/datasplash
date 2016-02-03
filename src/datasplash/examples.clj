@@ -14,7 +14,6 @@
 
 (defn tokenize
   [l]
-  (/ 1 0)
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
 (ds/defoptions WordCountOptions
