@@ -1235,7 +1235,7 @@ Example:
             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
                          (map-indexed (fn [idx s] (if (instance? PCollection s)
                                                     [idx [s nil nil]] [idx s])) (:specs group-specs))]
-                     (let [local-name (str root-name "-" (.getName pcoll))
+                     (let [local-name (str root-name "-" (if pcoll (.getName pcoll) "pcoll"))
                            op (if f
                                 (with-keys f {:name (str local-name "-group-by")} pcoll)
                                 pcoll)]
