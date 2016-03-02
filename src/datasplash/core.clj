@@ -1231,7 +1231,7 @@ Example:
      (ptransform
       :cogroup
       [^GroupSpecs group-specs]
-      (let [root-name (or (:name options) "cogroup")
+      (let [root-name (or (name (:name options)) "cogroup")
             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
                          (map-indexed (fn [idx s] (if (instance? PCollection s)
                                                     [idx [s nil nil]] [idx s])) (:specs group-specs))]
