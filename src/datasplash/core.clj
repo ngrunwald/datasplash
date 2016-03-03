@@ -1376,7 +1376,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           named-schema join-by-schema)
    :added "0.1.0"}
   ([options specs join-fn]
-   (let [root-name (or (:name options) "join-by")
+   (let [root-name (or (name (:name options)) "join-by")
          clean-join-fn (or join-fn (:collector options))]
      (pt->>
       root-name
