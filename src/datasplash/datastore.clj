@@ -5,12 +5,10 @@
            [com.google.cloud.dataflow.sdk.values PBegin PCollection]))
 
 (defn write-datastore-raw
-  [{:keys [dataset host] :as options} p]
+  [{:keys [dataset host] :as options} pcoll]
   (let [opts (assoc options :label :write-datastore)
         ptrans (-> (DatastoreIO/sink)
-                   (.withDataset dataset)
+                   (.withDataset (name dataset))
                    (cond-> host (.withHost host))
                    (Write/to))]
-    (-> p
-        (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform ptrans named-schema opts))))
+    (apply-transform pcoll ptrans named-schema opts)))
