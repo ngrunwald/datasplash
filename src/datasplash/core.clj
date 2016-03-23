@@ -1226,12 +1226,12 @@ Example:
         (recur it)))))
 
 (defn cogroup-transform
-  ([{:keys [join-nil?] :as options}]
+  ([{:keys [join-nil?] nam :name :as options}]
    (let [opts (assoc options :label :raw-cogroup)]
      (ptransform
       :cogroup
       [^GroupSpecs group-specs]
-      (let [root-name (or (name (:name options)) "cogroup")
+      (let [root-name (if nam (name nam) "cogroup")
             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
                          (map-indexed (fn [idx s] (if (instance? PCollection s)
                                                     [idx [s nil nil]] [idx s])) (:specs group-specs))]
@@ -1375,8 +1375,8 @@ Example:
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a different approach to joins see [[cogroup-by]]"
           named-schema join-by-schema)
    :added "0.1.0"}
-  ([options specs join-fn]
-   (let [root-name (or (name (:name options)) "join-by")
+  ([{nam :name :as options} specs join-fn]
+   (let [root-name (if nam (name nam) "join-by")
          clean-join-fn (or join-fn (:collector options))]
      (pt->>
       root-name
