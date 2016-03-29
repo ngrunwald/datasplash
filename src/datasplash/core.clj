@@ -1085,7 +1085,7 @@ Example:
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) ("read-json-file-from-" (clean-filename from)))
+      (or (:name options) (str "read-json-file-from-" (clean-filename from)))
       p
       (read-text-file from (-> options
                                (dissoc :coder)
