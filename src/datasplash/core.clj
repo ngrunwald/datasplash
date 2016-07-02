@@ -23,7 +23,8 @@
            [com.google.cloud.dataflow.sdk.util GcsUtil UserCodeException]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
-           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag PBegin PCollectionList PInput]
+           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag TupleTagList PBegin
+            PCollectionList PInput PCollectionTuple]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]
            [java.util UUID]
@@ -172,6 +173,7 @@
 (def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
+(def ^{:dynamic true :no-doc true} *main-output* nil)
 
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
@@ -191,10 +193,10 @@
                          (fn [acc [k pview]]
                            (assoc! acc k (.sideInput context pview)))
                          (transient {}) side-inputs))]
-
           (binding [*context* context
                     *coerce-to-clj* (not without-coercion-to-clj)
-                    *side-inputs* side-ins]
+                    *side-inputs* side-ins
+                    *main-output* (when side-outputs (first (sort side-outputs)))]
             (f context)))))
      (startBundle [^DoFn$Context context] (safe-exec-cfg opts (start-bundle context)))
      (finishBundle [^DoFn$Context context] (safe-exec-cfg opts (finish-bundle context)))))
@@ -224,10 +226,30 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
     (if *coerce-to-clj*
-      (if (instance? KV element)
-        (kv->clj element)
-        element)
+      ( if (instance? KV element)
+       (kv->clj element)
+       element)
       element)))
+
+(defrecord MultiResult [kvs])
+
+(defn side-outputs
+  "Returns multiple outputs keyed by keyword"
+  [& kvs]
+  (MultiResult. (partition 2 kvs)))
+
+(defn output-to-context
+  ([tx ^DoFn$ProcessContext context result]
+   (if (instance? MultiResult result)
+     (let [main-name (name *main-output*)]
+       (doseq [[tag res] (:kvs result)
+               :let [tag-name (name tag)]]
+         (if (= tag-name main-name)
+           (.output context (tx res))
+           (.sideOutput context (TupleTag. tag-name) (tx res)))))
+     (.output context (tx result))))
+  ([context result]
+   (output-to-context identity context result)))
 
 (defn clj->kv
   "Coerce from Clojure data to KV objects"
@@ -247,7 +269,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
           result (f elt)]
-      (.output c result))))
+      (output-to-context c result))))
 
 (defn map-kv-fn
   "Returns a function that corresponds to a Clojure map operation inside a ParDo coercing to KV the return"
@@ -255,7 +277,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
           result (f elt)]
-      (.output c (clj->kv result)))))
+      (output-to-context clj->kv c result))))
 
 (defn mapcat-fn
   "Returns a function that corresponds to a Clojure mapcat operation inside a ParDo"
@@ -264,7 +286,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (let [elt (get-element-from-context c)
           result (f elt)]
       (doseq [res result]
-        (.output c res)))))
+        (output-to-context c res)))))
 
 (defn pardo-fn
   "Returns a function that uses the raw ProcessContext from ParDo"
@@ -355,17 +377,34 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   GroupSpecs
   (tapply [group-specs _ tr] (.apply tr group-specs)))
 
+(defn pcolltuple->map
+  [^PCollectionTuple pcolltuple]
+  (let [all (.getAll pcolltuple)]
+    (persistent!
+     (reduce
+      (fn [acc [^TupleTag tag pcoll]]
+        (assoc! acc (keyword (.getId tag)) pcoll))
+      (transient {}) all))))
+
 (defn apply-transform
   "apply the PTransform to the given Pcoll applying options according to schema."
   [pcoll ^PTransform transform schema
-   {:keys [coder coll-name] :as options}]
+   {:keys [coder coll-name side-outputs] :as options}]
   (let [nam (some-> options (:name) (name))
         clean-opts (dissoc options :name :coder :coll-name)
         configured-transform (with-opts schema clean-opts transform)
         bound (tapply pcoll nam configured-transform)]
-    (-> bound
-        (cond-> coder (.setCoder coder))
-        (cond-> coll-name (.setName coll-name)))))
+    (if-not side-outputs
+      (-> bound
+          (cond-> coder (.setCoder coder))
+          (cond-> coll-name (.setName coll-name)))
+      (let [pct (pcolltuple->map bound)]
+        (if coder
+          (do
+            (doseq [^PCollection pcoll (vals pct)]
+              (.setCoder pcoll coder))
+            pct)
+          pct)))))
 
 (defn with-opts-docstr
   [doc-string & schemas]
@@ -406,6 +445,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    {:side-inputs {:docstr "Adds a map of PCollectionViews as side inputs to the underlying ParDo Transform. They can be accessed there by key in the return of side-inputs fn."
                   :action (fn [transform inputs]
                             (.withSideInputs transform (map val (sort-by key inputs))))}
+    :side-outputs {:docstr "Defines as a seq of keywords the output tags for the underlying ParDo Transform. The map fn should return a map with keys set to the same set of keywords."
+                   :action (fn [transform kws]
+                             (let [ordered (sort kws)]
+                               (.withOutputTags transform
+                                                (TupleTag. (name (first ordered)))
+                                                (TupleTagList/of (map (comp #(TupleTag. %) name)
+                                                                      (rest ordered))))))}
     :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op

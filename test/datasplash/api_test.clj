@@ -98,6 +98,20 @@
     (let [res (into #{} (read-file (first (glob-file side-test))))]
       (is (= res #{:a :b :c :d :e})))))
 
+(deftest side-outputs-test
+  (with-files [sideout-simple-test sideout-multi-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
+          {:keys [simple multi]} (ds/map (fn [x] (ds/side-outputs :simple x :multi (* x 10)))
+                                         {:side-outputs [:simple :multi]} input)
+          output-simple (ds/write-edn-file sideout-simple-test simple)
+          output-multi (ds/write-edn-file sideout-multi-test multi)]
+      (ds/run-pipeline p))
+    (let [res-simple (into #{} (read-file (first (glob-file sideout-simple-test))))
+          res-multi (into #{} (read-file (first (glob-file sideout-multi-test))))]
+      (is (= res-simple #{1 2 3 4 5}))
+      (is (= res-multi #{10 20 30 40 50})))))
+
 (deftest group-test
   (with-files [group-test]
     (let [p (make-test-pipeline)
@@ -254,17 +268,3 @@
         (is (= '(1 3.0 5 15) (sort res))))
       (let [res (read-file (first (glob-file sample-test)))]
         (is (= 2 (count res)))))))
-
-;; Problem with unique stable names of generated writes
-;; (deftest write-by
-;;   (with-files [true-vals false-vals]
-;;     (let [p (make-test-pipeline)
-;;           input (ds/generate-input [1 2 3 4 5] p)
-;;           mapping (ds/make-partition-mapping [true false])
-;;           _ (ds/write-edn-file-by even? mapping (fn [res] (if res true-vals false-vals)) {:name "write-by"} input)]
-;;       (ds/run-pipeline p)
-
-;;       (let [res-true (into #{} (read-file (first (glob-file true-vals))))
-;;             res-false (into #{} (read-file (first (glob-file false-vals))))]
-;;         (is (= #{2 4} res-true))
-;;         (is (= #{1 3 5} res-false))))))
