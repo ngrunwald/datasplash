@@ -1,7 +1,8 @@
 (ns datasplash.api
   (:refer-clojure :exclude [map filter mapcat group-by
                             distinct flatten concat juxt identity
-                            max min count frequencies key val partition-by])
+                            max min count frequencies key val partition-by
+                            cond->> ->>])
   (:require [datasplash
              [core :as dt]
              [bq :as bq]
@@ -67,6 +68,8 @@
 
 (intern *ns* (with-meta 'ptransform (meta #'dt/ptransform)) @#'dt/ptransform)
 (intern *ns* (with-meta 'pt->> (meta #'dt/pt->>)) @#'dt/pt->>)
+(intern *ns* (with-meta '->> (meta #'dt/pt->>)) @#'dt/pt->>)
+(intern *ns* (with-meta 'cond->> (meta #'dt/pt-cond->>)) @#'dt/pt-cond->>)
 (intern *ns* (with-meta 'make-kv (meta #'dt/make-kv)) @#'dt/make-kv)
 
 (intern *ns* (with-meta 'key (meta #'dt/dkey)) @#'dt/dkey)

@@ -78,13 +78,25 @@
   (with-files [pt-test]
     (let [p (make-test-pipeline)
           input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          pipe (ds/pt->> :pipelined input
-                         (ds/map inc {:name :inc})
-                         (ds/filter even? {:name :even?}))
+          pipe (ds/->> :pipelined input
+                       (ds/map inc {:name :inc})
+                       (ds/filter even? {:name :even?}))
           output (ds/write-edn-file pt-test pipe)]
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file pt-test))))]
       (is (= res #{2 4 6})))))
+
+(deftest pt-cond-macro-test
+  (with-files [pt-cond-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
+          pipe (ds/cond->> :pipelined input
+                           true (ds/map inc {:name :inc})
+                           false (ds/filter even? {:name :even?}))
+          output (ds/write-edn-file pt-cond-test pipe)]
+      (ds/run-pipeline p))
+    (let [res (into #{} (read-file (first (glob-file pt-cond-test))))]
+      (is (= res #{2 3 4 5 6})))))
 
 (deftest side-inputs-test
   (with-files [side-test]

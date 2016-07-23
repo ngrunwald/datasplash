@@ -791,7 +791,7 @@ Example (actual implementation of the group-by transform):
 
 Example:
 ```
-(ds/pt->> :pipeline-name input-pcollection
+(ds/pt->> :transform-name input-pcollection
           (ds/map inc {:name :inc})
           (ds/filter even? {:name :even?}))
 ```"
@@ -802,6 +802,24 @@ Example:
                   [pcoll#]
                   (->> pcoll#
                        ~@body))]
+     (apply-transform ~input ptrans# base-schema {:name ~nam})))
+
+(defmacro pt-cond->>
+  {:doc "Creates and applies a single named PTransform from a sequence of transforms on a single PCollection according to the results of the given predicates. You can use it as you would use cond->> in Clojure.
+
+Example:
+```
+(ds/cond->> :transform-name input-pcollection
+          (:do-inc? config) (ds/map inc {:name :inc})
+          (:do-filter? config) (ds/filter even? {:name :even?}))
+```"
+   :added "0.2.3"}
+  [nam input & body]
+  `(let [ptrans# (ptransform
+                  ~nam
+                  [pcoll#]
+                  (cond->> pcoll#
+                    ~@body))]
      (apply-transform ~input ptrans# base-schema {:name ~nam})))
 
 (defn- group-by-transform
