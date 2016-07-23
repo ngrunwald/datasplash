@@ -343,39 +343,25 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
        tr))
    ptransform schema))
 
-(defprotocol ToApply
-  (tapply [pcoll nam tr]))
+(definterface IApply
+  (apply [nam ptrans])
+  (apply [ptrans]))
 
 (defrecord GroupSpecs [specs]
   PInput
   (expand [this] (map first specs))
   (finishSpecifying [this] nil)
   (getPipeline [this] (let [^PInput pval (-> specs (first) (first))]
-                        (.getPipeline pval))))
+                        (.getPipeline pval)))
+  IApply
+  (apply [this nam ptrans] (Pipeline/applyTransform (name nam) this ptrans))
+  (apply [this ptrans] (Pipeline/applyTransform this ptrans)))
 
-(extend-protocol ToApply
-  PCollection
-  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
-                           (.apply pcoll nam tr)
-                           (.apply pcoll tr)))
-  PCollectionList
-  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
-                           (.apply pcoll nam tr)
-                           (.apply pcoll tr)))
-  PBegin
-  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
-                           (.apply pcoll nam tr)
-                           (.apply pcoll tr)))
-  Pipeline
-  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
-                           (.apply pcoll nam tr)
-                           (.apply pcoll tr)))
-  KeyedPCollectionTuple
-  (tapply [pcoll nam tr] (if (and nam (not (empty? nam)))
-                           (.apply pcoll nam tr)
-                           (.apply pcoll tr)))
-  GroupSpecs
-  (tapply [group-specs _ tr] (.apply tr group-specs)))
+(defn tapply
+  [pcoll nam tr]
+  (if (and nam (not (empty? nam)))
+    (.apply pcoll nam tr)
+    (.apply pcoll tr)))
 
 (defn pcolltuple->map
   [^PCollectionTuple pcolltuple]
