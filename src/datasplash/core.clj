@@ -6,7 +6,8 @@
             [clojure.math.combinatorics :as combo]
             [clojure.tools.logging :as log]
             [superstring.core :as str]
-            [taoensso.nippy :as nippy])
+            [taoensso.nippy :as nippy]
+            [clj-time.coerce :as timc])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
@@ -238,18 +239,58 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [& kvs]
   (MultiResult. (partition 2 kvs)))
 
+(defrecord TimeStamped [timestamp result])
+
+(defn with-timestamp
+  [timestamp result]
+  (->TimeStamped (timc/to-long timestamp) result))
+
+(defn output-value!
+  [^DoFn$ProcessContext context {:keys [entity bindings]}]
+  (let [{:keys [tag timestamp]} bindings]
+    (cond
+      (and tag timestamp) (if (= (name tag) (name *main-output*))
+                            (.outputWithTimestamp context entity timestamp)
+                            (.sideOutputWithTimestamp context (TupleTag. (name tag)) entity timestamp))
+      tag (if (= (name tag) (name *main-output*))
+            (.output context entity)
+            (.sideOutput context (TupleTag. (name tag)) entity))
+      timestamp (.outputWithTimestamp context entity timestamp)
+      :else (.output context entity))))
+
 (defn output-to-context
-  ([tx ^DoFn$ProcessContext context result]
-   (if (instance? MultiResult result)
-     (let [main-name (name *main-output*)]
-       (doseq [[tag res] (:kvs result)
-               :let [tag-name (name tag)]]
-         (if (= tag-name main-name)
-           (.output context (tx res))
-           (.sideOutput context (TupleTag. tag-name) (tx res)))))
-     (.output context (tx result))))
+  ([tx context result]
+   (loop [todo [{:entity result :bindings {}}]]
+     (when-let [{:keys [entity bindings]} (first todo)]
+       (cond
+         (instance? MultiResult entity) (recur
+                                         (concat (rest todo)
+                                                 (map (fn [[tag sub-entity]]
+                                                        {:entity sub-entity
+                                                         :bindings (assoc bindings :tag tag)})
+                                                      (:kvs entity))))
+         (instance? TimeStamped entity) (recur
+                                         (conj (rest todo)
+                                               {:entity (:result entity)
+                                                :bindings (assoc bindings :timestamp (:timestamp entity))}))
+         :else (do
+                 (output-value! context {:entity (tx entity) :bindings bindings})
+                 (recur (rest todo)))))))
   ([context result]
    (output-to-context identity context result)))
+
+;; (defn output-to-context
+;;   ([tx ^DoFn$ProcessContext context result]
+;;    (if (instance? MultiResult result)
+;;      (let [main-name (name *main-output*)]
+;;        (doseq [[tag res] (:kvs result)
+;;                :let [tag-name (name tag)]]
+;;          (if (= tag-name main-name)
+;;            (.output context (tx res))
+;;            (.sideOutput context (TupleTag. tag-name) (tx res)))))
+;;      (.output context (tx result))))
+;;   ([context result]
+;;    (output-to-context identity context result)))
 
 (defn clj->kv
   "Coerce from Clojure data to KV objects"
