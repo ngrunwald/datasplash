@@ -242,11 +242,17 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defrecord TimeStamped [timestamp result])
 
 (defn with-timestamp
+  "Returns element(s) with the given timestamp as Timestamp. Anything that can be coerced by clj-time can be given as input.
+   It can be nested inside a `(side-outputs)` or outside (in which case it applies to all results).
+   Exemple:
+  ```
+  (ds/map (fn [e] (ds/with-timestamp (clj-time.core/now) (* 2 e)) pcoll))
+  ```"
   [timestamp result]
   (->TimeStamped (timc/to-long timestamp) result))
 
 (defn output-value!
-  [^DoFn$ProcessContext context {:keys [entity bindings]}]
+  [^DoFn$ProcessContext context entity bindings]
   (let [{:keys [tag timestamp]} bindings]
     (cond
       (and tag timestamp) (if (= (name tag) (name *main-output*))
@@ -274,23 +280,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                {:entity (:result entity)
                                                 :bindings (assoc bindings :timestamp (:timestamp entity))}))
          :else (do
-                 (output-value! context {:entity (tx entity) :bindings bindings})
+                 (output-value! context (tx entity) bindings)
                  (recur (rest todo)))))))
   ([context result]
    (output-to-context identity context result)))
-
-;; (defn output-to-context
-;;   ([tx ^DoFn$ProcessContext context result]
-;;    (if (instance? MultiResult result)
-;;      (let [main-name (name *main-output*)]
-;;        (doseq [[tag res] (:kvs result)
-;;                :let [tag-name (name tag)]]
-;;          (if (= tag-name main-name)
-;;            (.output context (tx res))
-;;            (.sideOutput context (TupleTag. tag-name) (tx res)))))
-;;      (.output context (tx result))))
-;;   ([context result]
-;;    (output-to-context identity context result)))
 
 (defn clj->kv
   "Coerce from Clojure data to KV objects"

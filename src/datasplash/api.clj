@@ -58,6 +58,7 @@
 
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
 (intern *ns* (with-meta 'side-outputs (meta #'dt/side-outputs)) @#'dt/side-outputs)
+(intern *ns* (with-meta 'with-timestamp (meta #'dt/with-timestamp)) @#'dt/with-timestamp)
 (intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
 
 (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
