@@ -51,8 +51,9 @@
          nss (list)]
     (let [{:keys [message trace-elems cause] :as current-ex} todo]
       (if message
-        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var" message)
+        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:" message)
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
+                                   (re-find #"Unbound: #'([^/]+)/" message)
                                    (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message))
                 ns-to-add (->> trace-elems
                                (filter #(:clojure %))
@@ -1315,75 +1316,77 @@ Example:
      (ptransform
       :cogroup
       [^GroupSpecs group-specs]
-      (let [root-name (if nam (name nam) "cogroup")
-            pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
-                         (map-indexed (fn [idx s] (if (instance? PCollection s)
-                                                    [idx [s nil nil]] [idx s])) (:specs group-specs))]
-                     (let [local-name (str root-name "-" (if pcoll (.getName pcoll) "pcoll"))
-                           op (if f
-                                (with-keys f {:name (str local-name "-group-by")} pcoll)
-                                pcoll)]
-                       (if drop-nil?
-                         (dfilter (if f
-                                    (fn [^KV kv] (not (nil? (.getKey kv))))
-                                    (fn [v] (not (nil? v))))
-                                  {:name (str local-name "-drop-nil")
-                                   :without-coercion-to-clj true}
-                                  op)
-                         op)))
-            pcolltuple (make-keyed-pcollection-tuple pcolls)
-            ordered-tags (->> pcolltuple
-                              (.getKeyedCollections)
-                              (map #(.getTupleTag %))
-                              (sort-by #(.getId %)))
-            rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
-            required-set (->> (:specs group-specs)
-                              (map-indexed (fn [idx [_ _ {:keys [type]}]]
-                                             (when (= type :required) idx)))
-                              (remove nil?)
-                              (into #{}))
-            required-count (count required-set)
-            final-rel (pardo
-                       (fn [^DoFn$ProcessContext c]
-                         (let [^KV kv (.element c)
-                               k (.getKey kv)
-                               ^CoGbkResult raw-values (.getValue kv)]
-                           ;; skip if a required part of the group is empty
-                           (when-not (some identity
-                                           (map-indexed (fn [idx tag]
-                                                          (if (required-set idx)
-                                                            (not (-> (.getAll raw-values tag)
-                                                                     (.iterator)
-                                                                     (.hasNext)))
-                                                            false))
-                                                        ordered-tags))
-                             (if (and (not join-nil?) (nil? k))
-                               (cond
-                                 (= required-count 0) (doseq [[idx tag]
-                                                              (map-indexed
-                                                               (fn [idx tag] [idx tag]) ordered-tags)]
-                                                        (greedy-emit-cogbkresult
-                                                         raw-values (count ordered-tags) idx tag c))
-                                 (= required-count 1) (greedy-emit-cogbkresult
-                                                       raw-values
-                                                       (count ordered-tags)
-                                                       (first required-set)
-                                                       (nth ordered-tags
-                                                            (first required-set))
-                                                       c)
-                                 :else nil)
-                               (let [values (mapv
-                                             (fn [tag]
-                                               (greedy-read-cogbkresult raw-values tag))
-                                             ordered-tags)]
-                                 (.output c (make-kv k values)))))))
-                       (assoc opts
-                              :name (str root-name "-apply-requirements")
-                              :without-coercion-to-clj true
-                              :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
-                                                    (make-nippy-coder)))
-                       rel)]
-        final-rel)))))
+      (safe-exec-cfg
+       options
+       (let [root-name (if nam (name nam) "cogroup")
+             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
+                          (map-indexed (fn [idx s] (if (instance? PCollection s)
+                                                     [idx [s nil nil]] [idx s])) (:specs group-specs))]
+                      (let [local-name (str root-name "-" (if pcoll (.getName pcoll) "pcoll"))
+                            op (if f
+                                 (with-keys f {:name (str local-name "-group-by")} pcoll)
+                                 pcoll)]
+                        (if drop-nil?
+                          (dfilter (if f
+                                     (fn [^KV kv] (not (nil? (.getKey kv))))
+                                     (fn [v] (not (nil? v))))
+                                   {:name (str local-name "-drop-nil")
+                                    :without-coercion-to-clj true}
+                                   op)
+                          op)))
+             pcolltuple (make-keyed-pcollection-tuple pcolls)
+             ordered-tags (->> pcolltuple
+                               (.getKeyedCollections)
+                               (map #(.getTupleTag %))
+                               (sort-by #(.getId %)))
+             rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
+             required-set (->> (:specs group-specs)
+                               (map-indexed (fn [idx [_ _ {:keys [type]}]]
+                                              (when (= type :required) idx)))
+                               (remove nil?)
+                               (into #{}))
+             required-count (count required-set)
+             final-rel (pardo
+                        (fn [^DoFn$ProcessContext c]
+                          (let [^KV kv (.element c)
+                                k (.getKey kv)
+                                ^CoGbkResult raw-values (.getValue kv)]
+                            ;; skip if a required part of the group is empty
+                            (when-not (some identity
+                                            (map-indexed (fn [idx tag]
+                                                           (if (required-set idx)
+                                                             (not (-> (.getAll raw-values tag)
+                                                                      (.iterator)
+                                                                      (.hasNext)))
+                                                             false))
+                                                         ordered-tags))
+                              (if (and (not join-nil?) (nil? k))
+                                (cond
+                                  (= required-count 0) (doseq [[idx tag]
+                                                               (map-indexed
+                                                                (fn [idx tag] [idx tag]) ordered-tags)]
+                                                         (greedy-emit-cogbkresult
+                                                          raw-values (count ordered-tags) idx tag c))
+                                  (= required-count 1) (greedy-emit-cogbkresult
+                                                        raw-values
+                                                        (count ordered-tags)
+                                                        (first required-set)
+                                                        (nth ordered-tags
+                                                             (first required-set))
+                                                        c)
+                                  :else nil)
+                                (let [values (mapv
+                                              (fn [tag]
+                                                (greedy-read-cogbkresult raw-values tag))
+                                              ordered-tags)]
+                                  (.output c (make-kv k values)))))))
+                        (assoc opts
+                               :name (str root-name "-apply-requirements")
+                               :without-coercion-to-clj true
+                               :coder (make-kv-coder (.getKeyCoder (.getCoder rel))
+                                                     (make-nippy-coder)))
+                        rel)]
+         final-rel))))))
 
 (defn cogroup-by-transform
   [{:keys [collector] :as options}]
