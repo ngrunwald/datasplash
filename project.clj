@@ -11,13 +11,12 @@
                  [org.clojure/math.combinatorics "0.1.3"]
                  [org.clojure/tools.logging "0.3.1"]
                  [clj-time "0.12.0"]
-                 [superstring "2.1.0"]
-                 ;; exclude these if you want something else
-                 [org.slf4j/slf4j-api "1.7.21"]
-                 [org.slf4j/slf4j-jdk14 "1.7.21"]]
+                 [superstring "2.1.0"]]
   :profiles {:dev {:dependencies [[junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]
-                                  [org.hamcrest/hamcrest-all "1.3"]]
+                                  [org.hamcrest/hamcrest-all "1.3"]
+                                  [org.slf4j/slf4j-api "1.7.21"]
+                                  [org.slf4j/slf4j-jdk14 "1.7.21"]]
                    :aot [datasplash.api-test datasplash.examples clj-time.core]
                    :codox {:namespaces [datasplash.api datasplash.bq]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
