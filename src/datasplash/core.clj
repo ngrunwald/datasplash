@@ -1175,13 +1175,13 @@ Example:
       (read-text-file from (-> options
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (dmap (fn [l]
-              (cond
-                (and key-fn return-type) (json/decode l key-fn return-type)
-                key-fn (json/decode l key-fn)
-                return-type (json/decode l nil return-type)
-                :else (json/decode l)))
-            (assoc options :name "json-decode")))))
+      (let [decode-fn (cond
+                        (and key-fn return-type) #(json/decode % key-fn return-type)
+                        key-fn #(json/decode % key-fn)
+                        return-type #(json/decode % nil return-type)
+                        :else #(json/decode %))]
+        (dmap decode-fn
+              (assoc options :name "json-decode"))))))
   ([from p] (read-json-file from {} p)))
 
 (def json-writer-schema
