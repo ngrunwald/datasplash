@@ -1168,20 +1168,20 @@ Example:
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
-                     :coder (or (:coder options) (make-nippy-coder)))]
+                     :coder (or (:coder options) (make-nippy-coder)))
+         decode-fn (cond
+                     (and key-fn return-type) #(json/decode % key-fn return-type)
+                     key-fn #(json/decode % key-fn)
+                     return-type #(json/decode % nil return-type)
+                     :else #(json/decode %))]
      (pt->>
       (or (:name options) (str "read-json-file-from-" (clean-filename from)))
       p
       (read-text-file from (-> options
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (let [decode-fn (cond
-                        (and key-fn return-type) #(json/decode % key-fn return-type)
-                        key-fn #(json/decode % key-fn)
-                        return-type #(json/decode % nil return-type)
-                        :else #(json/decode %))]
-        (dmap decode-fn
-              (assoc options :name "json-decode"))))))
+      (dmap decode-fn
+            (assoc options :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
 
 (def json-writer-schema
