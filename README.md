@@ -1,6 +1,6 @@
-# datasplash
+# Datasplash
 
-Clojure API for a more dynamic Google Dataflow.
+Clojure API for a more dynamic [Google Cloud Dataflow](https://cloud.google.com/dataflow/).
 
 ## Usage
 

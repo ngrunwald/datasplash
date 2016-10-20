@@ -1,5 +1,5 @@
-(defproject datasplash "0.2.2-SNAPSHOT"
-  :description "Clojure API for a more dynamic Google Dataflow"
+(defproject datasplash "0.3.0"
+  :description "Clojure API for a more dynamic Google Cloud Dataflow"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
