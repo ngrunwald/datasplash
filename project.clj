@@ -19,7 +19,7 @@
                                   [me.raynes/fs "1.4.6"]
                                   [org.hamcrest/hamcrest-all "1.3"]]
                    :aot [datasplash.api-test datasplash.examples clj-time.core]
-                   :codox {:namespaces [datasplash.api datasplash.bq]
+                   :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
                    :plugins [[lein-codox "0.9.1"]]}
