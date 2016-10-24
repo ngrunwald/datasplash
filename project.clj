@@ -17,7 +17,7 @@
                                   [org.hamcrest/hamcrest-all "1.3"]
                                   [org.slf4j/slf4j-api "1.7.21"]
                                   [org.slf4j/slf4j-jdk14 "1.7.21"]]
-                   :aot [datasplash.api-test datasplash.examples clj-time.core]
+                   :aot [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core]
                    :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/master/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
