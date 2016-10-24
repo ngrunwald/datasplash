@@ -16,27 +16,3 @@
   [topic options pcoll]
   (-> pcoll
       (apply-transform (PubsubIO$Write/topic topic) {} options)))
-
-; Example
-;(def read-subscription "projects/my-project/subscriptions/my-subscription")
-;(def write-transformed-topic "projects/my-project/topics/my-transformed-topic")
-;(def read-transformed-subscription "projects/my-project/subscriptions/my-transformed-subscription")
-;
-;(defn stream-interactions-from-pubsub
-;  [pipeline]
-;  (->> pipeline
-;       (read-from-pubsub read-subscription {:name "read-interactions-from-pubsub"})
-;       (ds/map (fn [message]
-;                 (do
-;                   (log/info (str "Got message:\n" message))
-;                   message)) {:name "log-message"})
-;       (write-to-pubsub write-transformed-topic {:name "write-forwarded-interactions-to-pubsub"})))
-;
-;(defn stream-forwarded-interactions-from-pubsub
-;  [pipeline]
-;  (->> pipeline
-;       (read-from-pubsub read-transformed-subscription {:name "read-transformed-interactions-from-pubsub"})
-;       (ds/map (fn [message]
-;                 (do
-;                   (log/info (str "Got transformed message:\n" message))
-;                   message)) {:name "log-transformed-message"})))
