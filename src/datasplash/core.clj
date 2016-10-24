@@ -16,7 +16,7 @@
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
            [com.google.cloud.dataflow.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
-            Partition Partition$PartitionFn
+            Partition Partition$PartitionFn IntraBundleParallelization
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
@@ -110,8 +110,11 @@
                  (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
                              (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
                  (if (empty? nss#)
-                   (throw (ex-info "Runtime exception intercepted" (-> {:hostname (get-hostname)}
-                                                                       (cond-> pt-name# (assoc :name pt-name#))) e#))
+                   (do
+                     (log/errorf e# "ClojureRuntimeException in [%s]" pt-name#)
+                     (throw (ex-info "Runtime exception intercepted"
+                                     (-> {:hostname (get-hostname)}
+                                         (cond-> pt-name# (assoc :name pt-name#))) e#)))
                    (let [missings# nss# ;; (remove already-required# nss#)
                          missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
                      (if-not (empty? missings#)
@@ -473,12 +476,15 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 (TupleTag. (name (first ordered)))
                                                 (TupleTagList/of (map (comp #(TupleTag. %) name)
                                                                       (rest ordered))))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}
+    :intra-bundle-parallelization {:docstr "Adds thread parallelization to a DoFn, with given thread numbers. Only useful ifblocking calls are made. Incompatible with side-inputs or side-outputs. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/IntraBundleParallelization"}}))
 
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
   (fn make-map-op
-    ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
+    ([f {:keys [key-coder value-coder coder
+                intra-bundle-parallelization] :as options}
+      ^PCollection pcoll]
      (let [default-coder (cond
                            isomorph? (.getCoder pcoll)
                            kv? (or coder
@@ -487,7 +493,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                     (or value-coder (make-nippy-coder))))
                            :else (make-nippy-coder))
            opts (merge (assoc base-options :coder default-coder) options)
-           pardo (ParDo/of (dofn (transform f) opts))]
+           ^DoFn bare-dofn (dofn (transform f) opts)
+           pardo (if intra-bundle-parallelization
+                   (.withMaxParallelism
+                    (IntraBundleParallelization/of bare-dofn) intra-bundle-parallelization)
+                   (ParDo/of bare-dofn))]
        (apply-transform pcoll pardo pardo-schema opts)))
     ([f pcoll] (make-map-op f {} pcoll))))
 
@@ -1168,19 +1178,19 @@ Example:
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
-                     :coder (or (:coder options) (make-nippy-coder)))]
+                     :coder (or (:coder options) (make-nippy-coder)))
+         decode-fn (cond
+                     (and key-fn return-type) #(json/decode % key-fn return-type)
+                     key-fn #(json/decode % key-fn)
+                     return-type #(json/decode % nil return-type)
+                     :else #(json/decode %))]
      (pt->>
       (or (:name options) (str "read-json-file-from-" (clean-filename from)))
       p
       (read-text-file from (-> options
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (dmap (fn [l]
-              (cond
-                (and key-fn return-type) (json/decode l key-fn return-type)
-                key-fn (json/decode l key-fn)
-                return-type (json/decode l nil return-type)
-                :else (json/decode l)))
+      (dmap decode-fn
             (assoc options :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
 

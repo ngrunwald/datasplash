@@ -74,6 +74,18 @@
     (is "read-json" (.getName input))
     (ds/run-pipeline p)))
 
+(deftest intra-bundle-parallelization-test
+  (with-files [intra-bundle-parallelization-test]
+    (let [p (make-test-pipeline)
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
+          pipe (ds/->> :pipelined input
+                       (ds/map inc {:name :inc :intra-bundle-parallelization 5})
+                       (ds/filter even? {:name :even? :intra-bundle-parallelization 5}))
+          output (ds/write-edn-file intra-bundle-parallelization-test pipe)]
+      (ds/run-pipeline p))
+    (let [res (into #{} (read-file (first (glob-file intra-bundle-parallelization-test))))]
+      (is (= res #{2 4 6})))))
+
 (deftest pt-macro-test
   (with-files [pt-test]
     (let [p (make-test-pipeline)
@@ -104,7 +116,8 @@
           input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
           side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] {:name :side-gen} p))
           proc (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
-                       {:side-inputs {:mapping side-input}} input)
+                       {:side-inputs {:mapping side-input}}
+                       input)
           output (ds/write-edn-file side-test proc)]
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file side-test))))]
