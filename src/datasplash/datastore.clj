@@ -19,6 +19,17 @@
     (apply-transform pcoll ptrans named-schema opts)))
 
 
+(defn read-datastore-raw
+  "Read a datastore source return a pcoll of raw datastore entities"
+  [{:keys [project-id query] :as options} pcoll]
+  (let [opts (assoc options :label :write-datastore)
+        ptrans (-> (DatastoreIO/v1)
+                   (.read)
+                   (.withProjectId project-id)
+                   (cond-> query (.withQuery query)))]
+    (apply-transform pcoll ptrans named-schema opts)))
+
+
 (defn make-ds-entity
   "Generate a datastore entity. Take as parameters the string key of the entity, a map containing the different fields and an options map defining the datastore namespace and kind"
   [raw-key raw-values {:keys [ds-namespace ds-kind excluded-from-index] :as options}]
