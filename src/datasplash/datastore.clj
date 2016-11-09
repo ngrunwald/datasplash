@@ -21,13 +21,16 @@
 
 (defn make-ds-entity
   "Generate a datastore entity. Take as parameters the string key of the entity, a map containing the different fields and an options map defining the datastore namespace and kind"
-  [raw-key raw-values {:keys [ds-namespace ds-kind] :as options}]
+  [raw-key raw-values {:keys [ds-namespace ds-kind excluded-from-index] :as options}]
   (let [key-builder (DatastoreHelper/makeKey (into-array [ds-kind raw-key]))
+        excluded-set (into #{} (map name excluded-from-index))
         _ (when ds-namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) ds-namespace))
         entity-builder (Entity/newBuilder)
         _ (.setKey entity-builder (.build key-builder))
         _ (doseq [[v-key v-val] raw-values]
             (.put (.getMutableProperties entity-builder)
                   (if (keyword? v-key) (name v-key) v-key )
-                  (.build (DatastoreHelper/makeValue v-val))))]
+                  (-> (DatastoreHelper/makeValue v-val)
+                      (cond-> (excluded-set (name v-key)) (.setExcludeFromIndexes true))
+                      (.build ))))]
     (.build entity-builder)))
