@@ -84,7 +84,8 @@
         ^Entity$Builder entity-builder (Entity/newBuilder)]
     (when ds-namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) ds-namespace))
     (.setKey entity-builder (.build key-builder))
-    (doseq [[v-key v-val] raw-values]
+    (doseq [[v-key v-val] raw-values
+            :when v-val]
       (.put (.getMutableProperties entity-builder)
             (if (keyword? v-key) (name v-key) v-key)
             (let [^Value$Builder val-builder (make-ds-value-builder v-val options)]
