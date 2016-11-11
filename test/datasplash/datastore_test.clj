@@ -7,7 +7,8 @@
 (deftest datastore-conversion
   (let [o {:string "string" :integer 42 :double 65.78 :nil nil
            :array [1 "two" 3] :entity {:deeply "nested"}}
-        coord {:ds-key "key" :ds-kind "kind" :ds-namespace "ns"}
+        coord {:key "key" :kind "kind" :namespace "ns" :path [{:kind "kind" :key "first"}
+                                                              {:kind "kind" :key "last"}]}
         entity (make-ds-entity o)
         ba (byte-array [(byte 0x43)])
         now (Date.)]

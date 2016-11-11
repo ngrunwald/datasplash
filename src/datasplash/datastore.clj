@@ -56,22 +56,23 @@
       (throw (ex-info (format "Datastore type not supported: %s" t) {:value v :type t})))))
 
 (defn entity->clj
-  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :ds-key, :ds-kind and :ds-namespace in the meta of the returned map"
+  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :key, :kind, :namespace and :ancestors in the meta of the returned map"
   [^Entity e]
   (let [props (persistent!
                (reduce (fn [acc ^Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry kv]
                          (let [value (value->clj (.getValue kv))]
                            (assoc! acc (keyword (.getKey kv)) value)))
                        (transient {}) (.getProperties e)))
-        [^Key k key-name kind] (when (.hasKey e) (let [k (.getKey e)
-                                                       ^Key$PathElement fpl (first (.getPathList k))
-                                                       kind (.getKind fpl)
-                                                       key (.getName fpl)]
-                                                   [k key kind]))
+        [^Key k key-name kind path] (when (.hasKey e) (let [k (.getKey e)
+                                                            results (map (fn [^Key$PathElement p]
+                                                                           {:kind (.getKind p) :key (.getName p)})
+                                                                         (.getPathList k))
+                                                            {:keys [kind key]} (last results)]
+                                                        [k key kind (butlast results)]))
         namespace (when (and k (.hasPartitionId k))
                     (some-> k (.getPartitionId) (.getNamespaceId)))]
     (-> props
-        (cond-> k (with-meta {:ds-key key-name :ds-kind kind :ds-namespace namespace})))))
+        (cond-> k (with-meta {:key key-name :kind kind :namespace namespace :path path})))))
 
 (defprotocol IValDS
   "Protocol governing to conversion to datastore Value types"
@@ -108,15 +109,24 @@
   Object
   (make-ds-value-builder [v] (DatastoreHelper/makeValue v)))
 
+(defn make-ds-key
+  [{:keys [kind key namespace path]}]
+  (let [path (for [ancestor path]
+               (if (instance? Key ancestor)
+                 ancestor
+                 (make-ds-key (merge {:namespace namespace :kind kind}
+                                     (if (map? ancestor) ancestor {:key ancestor})))))
+        key-builder (DatastoreHelper/makeKey (into-array Object (concat path [kind key])))]
+    (when namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) namespace))
+    (.build key-builder)))
+
 (defn- add-ds-key-namespace-kind
-  [^Entity$Builder builder {:keys [ds-key ds-namespace ds-kind] :as options}]
-  (let [^Key$Builder key-builder (DatastoreHelper/makeKey (into-array [ds-kind ds-key]))]
-    (when ds-namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) ds-namespace))
-    (.setKey builder (.build key-builder))
-    builder))
+  [^Entity$Builder builder options]
+  (.setKey builder (make-ds-key options))
+  builder)
 
 (defn- make-ds-entity-builder
-  [raw-values {:keys [ds-key ds-namespace ds-kind exclude-from-index] :as options}]
+  [raw-values {:keys [exclude-from-index] :as options}]
   (let [excluded-set (into #{} (map name exclude-from-index))
         ^Entity$Builder entity-builder (Entity/newBuilder)]
     (doseq [[v-key v-val] raw-values]
@@ -133,9 +143,9 @@
   (.build ^Value$Builder (make-ds-value-builder v)))
 
 (defn make-ds-entity
-  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
-  ([raw-values {:keys [ds-key ds-namespace ds-kind exclude-from-index] :as options}]
+  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, ancestor, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
+  ([raw-values {:keys [key namespace kind ancestors exclude-from-index] :as options}]
    (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
-                                     (cond-> ds-key (add-ds-key-namespace-kind options)))]
+                                     (cond-> key (add-ds-key-namespace-kind options)))]
      (.build builder)))
   ([raw-values] (make-ds-entity raw-values {})))
