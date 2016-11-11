@@ -4,7 +4,7 @@
    [com.google.datastore.v1.client DatastoreHelper]
    [com.google.cloud.dataflow.sdk.io.datastore DatastoreIO]
    [com.google.datastore.v1 Entity Value Key Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase Key$PathElement]
-   [com.google.protobuf ByteString]
+   [com.google.protobuf ByteString NullValue]
    [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date])
   (:gen-class))
 
@@ -42,13 +42,7 @@
                                                  (mapv value->clj (.getValuesList (.getArrayValue v))))
    (Value$ValueTypeCase/valueOf "ENTITY_VALUE") (fn [^Value v]
                                                   (entity->clj (.getEntityValue v)))
-   (Value$ValueTypeCase/valueOf "TIMESTAMP_VALUE") (fn [^Value v]
-                                                     (let [ts (.getTimestampValue v)
-                                                           secs (.getSeconds ts)
-                                                           nanos (.getNanos ts)]
-                                                       (Date.
-                                                        (long (+ (* 1000 secs)
-                                                                 (/ nanos 1000000.0))))))
+   (Value$ValueTypeCase/valueOf "TIMESTAMP_VALUE") (fn [^Value v] (DatastoreHelper/toDate v))
    (Value$ValueTypeCase/valueOf "GEO_POINT_VALUE") (fn [^Value v] (.getGeoPointValue v))
    (Value$ValueTypeCase/valueOf "NULL_VALUE") (constantly nil)})
 
@@ -80,12 +74,15 @@
         (cond-> k (with-meta {:ds-key key-name :ds-kind kind :ds-namespace namespace})))))
 
 (defprotocol IValDS
-  (make-ds-value-builder [v]))
+  "Protocol governing to conversion to datastore Value types"
+  (make-ds-value-builder [v] "Returns a Datastore Value builder for this particular value"))
 
 (declare make-ds-value)
 (declare make-ds-entity)
 
 (extend-protocol IValDS
+  (Class/forName "[B")
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue (ByteString/copyFrom ^bytes v)))
   String
   (make-ds-value-builder [^String v] (DatastoreHelper/makeValue v))
   clojure.lang.Keyword
@@ -106,6 +103,8 @@
   (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
   clojure.lang.PersistentTreeMap
   (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
+  nil
+  (make-ds-value-builder [v] (-> (Value/newBuilder) (.setNullValue (NullValue/valueOf "NULL_VALUE"))))
   Object
   (make-ds-value-builder [v] (DatastoreHelper/makeValue v)))
 
@@ -120,8 +119,7 @@
   [raw-values {:keys [ds-key ds-namespace ds-kind exclude-from-index] :as options}]
   (let [excluded-set (into #{} (map name exclude-from-index))
         ^Entity$Builder entity-builder (Entity/newBuilder)]
-    (doseq [[v-key v-val] raw-values
-            :when v-val]
+    (doseq [[v-key v-val] raw-values]
       (.put (.getMutableProperties entity-builder)
             (if (keyword? v-key) (name v-key) v-key)
             (let [^Value$Builder val-builder (make-ds-value-builder v-val)]
