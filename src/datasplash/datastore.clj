@@ -3,10 +3,9 @@
   (:import
    [com.google.datastore.v1.client DatastoreHelper]
    [com.google.cloud.dataflow.sdk.io.datastore DatastoreIO]
-   [com.google.cloud.dataflow.sdk Pipeline]
-   [com.google.cloud.dataflow.sdk.values PBegin PCollection]
-   [com.google.datastore.v1 Entity Value Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase]
-   [com.google.protobuf ByteString])
+   [com.google.datastore.v1 Entity Value Key Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase Key$PathElement]
+   [com.google.protobuf ByteString]
+   [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry])
   (:gen-class))
 
 (defn write-datastore-raw
@@ -30,77 +29,105 @@
     (apply-transform pcoll ptrans named-schema opts)))
 
 (declare value->clj)
+(declare entity->clj)
 
 (def type-mapping {(Value$ValueTypeCase/valueOf "INTEGER_VALUE") (fn [^Value v] (.getIntegerValue v))
                    (Value$ValueTypeCase/valueOf "DOUBLE_VALUE") (fn [^Value v] (.getDoubleValue v))
                    (Value$ValueTypeCase/valueOf "STRING_VALUE") (fn [^Value v] (.getStringValue v))
                    (Value$ValueTypeCase/valueOf "BOOLEAN_VALUE") (fn [^Value v] (.getBooleanValue v))
-                   (Value$ValueTypeCase/valueOf "BLOB_VALUE") (fn [^Value v] (.toByteArray (.getBlobValue v)))
-                   (Value$ValueTypeCase/valueOf "ARRAY_VALUE") (fn [^Value v] (mapv value->clj (.getValuesList (.getArrayValue v))))
+                   (Value$ValueTypeCase/valueOf "BLOB_VALUE") (fn [^Value v]
+                                                                (.toByteArray (.getBlobValue v)))
+                   (Value$ValueTypeCase/valueOf "ARRAY_VALUE") (fn [^Value v]
+                                                                 (mapv value->clj (.getValuesList (.getArrayValue v))))
+                   (Value$ValueTypeCase/valueOf "ENTITY_VALUE") (fn [^Value v]
+                                                                  (entity->clj (.getEntityValue v)))
                    (Value$ValueTypeCase/valueOf "NULL_VALUE") (constantly nil)})
 
 (defn value->clj
-  [v]
+  [^Value v]
   (let [t (.getValueTypeCase v)
         tx (type-mapping t)]
     (if tx
       (tx v)
-      (throw (ex-info (format "Datastore type not supported: %s" t) {:value v})))))
+      (throw (ex-info (format "Datastore type not supported: %s" t) {:value v :type t})))))
 
 (defn entity->clj
-  [e]
-  (reduce (fn [acc kv]
-            (let [value (value->clj (.getValue kv))]
-              (assoc acc (keyword (.getKey kv)) value)))
-          {} (.getProperties e)))
+  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :ds-key, :ds-kind and :ds-namespace in the meta of the returned map"
+  [^Entity e]
+  (let [props (persistent!
+               (reduce (fn [acc ^Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry kv]
+                         (let [value (value->clj (.getValue kv))]
+                           (assoc! acc (keyword (.getKey kv)) value)))
+                       (transient {}) (.getProperties e)))
+        [^Key k key-name kind] (when (.hasKey e) (let [k (.getKey e)
+                                                       ^Key$PathElement fpl (first (.getPathList k))
+                                                       kind (.getKind fpl)
+                                                       key (.getName fpl)]
+                                                   [k key kind]))
+        namespace (when (and k (.hasPartitionId k))
+                    (some-> k (.getPartitionId) (.getNamespaceId)))]
+    (-> props
+        (cond-> k (with-meta {:ds-key key-name :ds-kind kind :ds-namespace namespace})))))
 
 (defprotocol IValDS
-  (make-ds-value-builder [v options]))
+  (make-ds-value-builder [v]))
 
 (declare make-ds-value)
+(declare make-ds-entity)
 
 (extend-protocol IValDS
   String
-  (make-ds-value-builder [^String v _] (DatastoreHelper/makeValue v))
+  (make-ds-value-builder [^String v] (DatastoreHelper/makeValue v))
   clojure.lang.Keyword
-  (make-ds-value-builder [v _] (DatastoreHelper/makeValue (name v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue (name v)))
   java.util.Date
-  (make-ds-value-builder [^java.util.Date v _] (DatastoreHelper/makeValue v))
+  (make-ds-value-builder [^java.util.Date v] (DatastoreHelper/makeValue v))
   clojure.lang.PersistentList
-  (make-ds-value-builder [v options] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value % options) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
   clojure.lang.PersistentHashSet
-  (make-ds-value-builder [v options] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value % options) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
   clojure.lang.PersistentTreeSet
-  (make-ds-value-builder [v options] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value % options) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
   clojure.lang.PersistentVector
-  (make-ds-value-builder [v options] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value % options) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
+  clojure.lang.PersistentHashMap
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
+  clojure.lang.PersistentArrayMap
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
+  clojure.lang.PersistentTreeMap
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
   Object
-  (make-ds-value-builder [v _] (DatastoreHelper/makeValue v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue v)))
+
+(defn- add-ds-key-namespace-kind
+  [^Entity$Builder builder {:keys [ds-key ds-namespace ds-kind] :as options}]
+  (let [^Key$Builder key-builder (DatastoreHelper/makeKey (into-array [ds-kind ds-key]))]
+    (when ds-namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) ds-namespace))
+    (.setKey builder (.build key-builder))
+    builder))
 
 (defn- make-ds-entity-builder
-  [raw-key raw-values {:keys [ds-namespace ds-kind exclude-from-index] :as options}]
-  (let [^Key$Builder key-builder (DatastoreHelper/makeKey (into-array [ds-kind raw-key]))
-        excluded-set (into #{} (map name exclude-from-index))
+  [raw-values {:keys [ds-key ds-namespace ds-kind exclude-from-index] :as options}]
+  (let [excluded-set (into #{} (map name exclude-from-index))
         ^Entity$Builder entity-builder (Entity/newBuilder)]
-    (when ds-namespace (.setNamespaceId (.getPartitionIdBuilder key-builder) ds-namespace))
-    (.setKey entity-builder (.build key-builder))
     (doseq [[v-key v-val] raw-values
             :when v-val]
       (.put (.getMutableProperties entity-builder)
             (if (keyword? v-key) (name v-key) v-key)
-            (let [^Value$Builder val-builder (make-ds-value-builder v-val options)]
+            (let [^Value$Builder val-builder (make-ds-value-builder v-val)]
               (-> val-builder
                   (cond-> (excluded-set (name v-key)) (.setExcludeFromIndexes true))
                   (.build)))))
     entity-builder))
 
 (defn- make-ds-value
-  [v options]
-  ;; stop building here when print bug id fixed in gcloud and handle excluded afterwards
-  (.build ^Value$Builder (make-ds-value-builder v options)))
+  [v]
+  (.build ^Value$Builder (make-ds-value-builder v)))
 
 (defn make-ds-entity
-  "Builds a Datastore Entity with the given key, value is a map corresponding to the desired entity, and options contains namespace, kind and an optional set of keys that shoud not be indexed (irrespective of nesting). For now repeated fields are supported but not nested entity"
-  [raw-key raw-values {:keys [ds-namespace ds-kind exclude-from-index] :as options}]
-  (-> ^Entity$Builder (make-ds-entity-builder raw-key raw-values options)
-      (.build)))
+  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
+  ([raw-values {:keys [ds-key ds-namespace ds-kind exclude-from-index] :as options}]
+   (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
+                                     (cond-> ds-key (add-ds-key-namespace-kind options)))]
+     (.build builder)))
+  ([raw-values] (make-ds-entity raw-values {})))
