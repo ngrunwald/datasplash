@@ -2,8 +2,10 @@
   (:require [clojure.string :as str]
             [datasplash
              [api :as ds]
-             [bq :as bq]]
+             [bq :as bq]
+             [datastore :as dts]]
             [clojure.edn :as edn])
+  (:import [java.util UUID])
   (:gen-class))
 
 ;;;;;;;;;;;;;;;
@@ -180,6 +182,52 @@
                          results)
       (ds/write-edn-file output results))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; DatastoreWordCount ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
+
+(ds/defoptions DatastoreWordCountOptions
+  {:input {:type String
+           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :description "Path of the file to read from"}
+   :output {:type String
+            :default "kinglear-freqs.txt"
+            :description "Path of the file to write to"}
+   :dataset {:type String
+             :description "Dataset ID to read from Cloud Datastore"}
+   :kind {:type String
+          :description "Cloud Datastore Entity Kind"}
+   :namespace {:type String
+               :description "Dataset Namespace"}
+   :isReadOnly {:type Boolean
+                :description "Read an existing dataset, do not write first"}
+   :numShards {:type Long
+               :description "Number of output shards"
+               :default 0}})
+
+(defn run-datastore-word-count
+  [str-args]
+  (let [p (ds/make-pipeline 'DatastoreWordCountOptions str-args)
+        {:keys [input output dataset kind
+                namespace isReadOnly numShards]} (ds/get-pipeline-configuration p)
+        root (dts/make-ds-key {:kind kind :namespace namespace :key "root"})]
+    (when-not isReadOnly
+      (->> p
+           (ds/read-text-file input {:name "King-Lear"})
+           (ds/map (fn [content]
+                     (dts/make-ds-entity
+                      {:content content}
+                      {:namespace namespace
+                       :key (-> (UUID/randomUUID) (.toString))
+                       :kind kind
+                       :path [root]}))
+                   {:name "create-entities"})
+           (dts/write-datastore-raw
+            {:project-id dataset :name :write-datastore})))))
+
+
 ;;;;;;;;;;
 ;; Main ;;
 ;;;;;;;;;;
@@ -192,5 +240,6 @@
         "dedup" (run-dedup args)
         "filter" (run-filter args)
         "combine-per-key" (run-combine-per-key args)
-        "max-per-key" (run-max-per-key args))
+        "max-per-key" (run-max-per-key args)
+        "datastore-word-count" (run-datastore-word-count args))
       (ds/run-pipeline)))
