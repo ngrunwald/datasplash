@@ -5,7 +5,7 @@
    [com.google.cloud.dataflow.sdk.io.datastore DatastoreIO]
    [com.google.datastore.v1 Entity Value Key Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase Key$PathElement]
    [com.google.protobuf ByteString]
-   [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry])
+   [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date])
   (:gen-class))
 
 (defn write-datastore-raw
@@ -31,19 +31,29 @@
 (declare value->clj)
 (declare entity->clj)
 
-(def type-mapping {(Value$ValueTypeCase/valueOf "INTEGER_VALUE") (fn [^Value v] (.getIntegerValue v))
-                   (Value$ValueTypeCase/valueOf "DOUBLE_VALUE") (fn [^Value v] (.getDoubleValue v))
-                   (Value$ValueTypeCase/valueOf "STRING_VALUE") (fn [^Value v] (.getStringValue v))
-                   (Value$ValueTypeCase/valueOf "BOOLEAN_VALUE") (fn [^Value v] (.getBooleanValue v))
-                   (Value$ValueTypeCase/valueOf "BLOB_VALUE") (fn [^Value v]
-                                                                (.toByteArray (.getBlobValue v)))
-                   (Value$ValueTypeCase/valueOf "ARRAY_VALUE") (fn [^Value v]
-                                                                 (mapv value->clj (.getValuesList (.getArrayValue v))))
-                   (Value$ValueTypeCase/valueOf "ENTITY_VALUE") (fn [^Value v]
-                                                                  (entity->clj (.getEntityValue v)))
-                   (Value$ValueTypeCase/valueOf "NULL_VALUE") (constantly nil)})
+(def ^:dynamic type-mapping
+  {(Value$ValueTypeCase/valueOf "INTEGER_VALUE") (fn [^Value v] (.getIntegerValue v))
+   (Value$ValueTypeCase/valueOf "DOUBLE_VALUE") (fn [^Value v] (.getDoubleValue v))
+   (Value$ValueTypeCase/valueOf "STRING_VALUE") (fn [^Value v] (.getStringValue v))
+   (Value$ValueTypeCase/valueOf "BOOLEAN_VALUE") (fn [^Value v] (.getBooleanValue v))
+   (Value$ValueTypeCase/valueOf "BLOB_VALUE") (fn [^Value v]
+                                                (.toByteArray (.getBlobValue v)))
+   (Value$ValueTypeCase/valueOf "ARRAY_VALUE") (fn [^Value v]
+                                                 (mapv value->clj (.getValuesList (.getArrayValue v))))
+   (Value$ValueTypeCase/valueOf "ENTITY_VALUE") (fn [^Value v]
+                                                  (entity->clj (.getEntityValue v)))
+   (Value$ValueTypeCase/valueOf "TIMESTAMP_VALUE") (fn [^Value v]
+                                                     (let [ts (.getTimestampValue v)
+                                                           secs (.getSeconds ts)
+                                                           nanos (.getNanos ts)]
+                                                       (Date.
+                                                        (long (+ (* 1000 secs)
+                                                                 (/ nanos 1000000.0))))))
+   (Value$ValueTypeCase/valueOf "GEO_POINT_VALUE") (fn [^Value v] (.getGeoPointValue v))
+   (Value$ValueTypeCase/valueOf "NULL_VALUE") (constantly nil)})
 
 (defn value->clj
+  "Converts a Datastore Value to its Clojure equivalent"
   [^Value v]
   (let [t (.getValueTypeCase v)
         tx (type-mapping t)]
