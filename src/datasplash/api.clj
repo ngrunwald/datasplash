@@ -7,7 +7,8 @@
              [core :as dt]
              [bq :as bq]
              [options :as opt]
-             [datastore :as dts]]))
+             [datastore :as dts]
+             [pubsub :as ps]]))
 
 ;;;;;;;;;;;;
 ;; Coders ;;
