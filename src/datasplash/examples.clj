@@ -222,6 +222,8 @@
   [{:keys [kind namespace]}]
   (dts/make-ds-key {:kind kind :namespace namespace :key "root"}))
 
+;; Query is not wrapped yet, use Interop
+;; PR welcome :)
 (defn make-ancestor-kind-query
   [{:keys [kind namespace] :as opts}]
   (let [qb (Query/newBuilder)]
