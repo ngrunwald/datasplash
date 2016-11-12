@@ -1,9 +1,11 @@
 (ns datasplash.examples
   (:require [clojure.string :as str]
+            [clojure.tools.logging :as log]
             [datasplash
              [api :as ds]
              [bq :as bq]
-             [datastore :as dts]]
+             [datastore :as dts]
+             [pubsub :as ps]]
             [clojure.edn :as edn])
   (:import [java.util UUID]
            [com.google.datastore.v1 Query PropertyFilter$Operator]
@@ -264,6 +266,55 @@
          (ds/write-text-file output {:num-shards numShards}))
     p))
 
+
+;;;;;;;;;;;;;
+;; Pub/Sub ;;
+;;;;;;;;;;;;;
+
+;; Run using: lein run pub-sub --project=[your google cloud project] --stagingLocation=gs://[your-bucket]/jars
+;; You must create the my-subscription and my-transformed-subscription subscriptions, and the my-transformed-topic topics
+;; before you run this
+
+(ds/defoptions PubSubOptions
+   {:project {:type String
+              :description "Google Cloud Project where your PubSub runs."}
+    :stagingLocation {:type String
+                      :description "Google Cloud Storage to stage local files."}})
+
+(defn stream-interactions-from-pubsub
+ [pipeline read-subscription write-transformed-topic]
+ (->> pipeline
+      (ps/read-from-pubsub read-subscription {:name "read-interactions-from-pubsub"})
+      (ds/map (fn [message]
+                (do
+                  (log/info (str "Got message:\n" message))
+                  (str/reverse message))) {:name "log-message"})
+      (ps/write-to-pubsub write-transformed-topic {:name "write-forwarded-interactions-to-pubsub"})))
+
+(defn stream-forwarded-interactions-from-pubsub
+ [pipeline read-transformed-subscription]
+ (->> pipeline
+      (ps/read-from-pubsub read-transformed-subscription {:name "read-transformed-interactions-from-pubsub"})
+      (ds/map (fn [message]
+                (do
+                  (log/info (str "Got transformed message:\n" message))
+                  message)) {:name "log-transformed-message"})))
+
+
+(defn run-pub-sub
+  [str-args]
+  (let [pipeline (ds/make-pipeline
+                  'PubSubOptions
+                  str-args
+                  {:runner "DataflowPipelineRunner"
+                   :streaming true})
+        {:keys [project]} (ds/get-pipeline-configuration pipeline)
+        read-subscription (format "projects/%s/subscriptions/my-subscription" project)
+        write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
+        read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]
+    (stream-interactions-from-pubsub pipeline read-subscription write-transformed-topic)
+    (stream-forwarded-interactions-from-pubsub pipeline read-transformed-subscription)))
+
 ;;;;;;;;;;
 ;; Main ;;
 ;;;;;;;;;;
@@ -277,5 +328,6 @@
         "filter" (run-filter args)
         "combine-per-key" (run-combine-per-key args)
         "max-per-key" (run-max-per-key args)
-        "datastore-word-count" (run-datastore-word-count args))
+        "datastore-word-count" (run-datastore-word-count args)
+        "pub-sub" (run-pub-sub args))
       (ds/run-pipeline)))
