@@ -20,6 +20,16 @@
   [l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
+(defn count-words
+  [p]
+  (ds/->> :count-words p
+          (ds/mapcat tokenize {:name :tokenize})
+          (ds/frequencies)))
+
+(defn format-count
+  [[k v]]
+  (format "%s: %d" k v))
+
 (ds/defoptions WordCountOptions
   {:input {:type String
            :default "gs://dataflow-samples/shakespeare/kinglear.txt"
@@ -37,9 +47,8 @@
         {:keys [input output numShards]} (ds/get-pipeline-configuration p)]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
-         (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies)
-         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
+         (count-words)
+         (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))))
 
 ;;;;;;;;;;;
@@ -247,10 +256,9 @@
                                   :query (make-ancestor-kind-query opts)
                                   :namespace namespace})
          (ds/map dts/entity->clj {:name "convert-clj"})
-         (ds/map :content)
-         (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies)
-         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
+         (ds/map :content) {:name "get-content"}
+         (count-words)
+         (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))
     p))
 

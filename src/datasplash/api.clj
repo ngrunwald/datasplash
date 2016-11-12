@@ -6,7 +6,8 @@
   (:require [datasplash
              [core :as dt]
              [bq :as bq]
-             [options :as opt]]))
+             [options :as opt]
+             [datastore :as dts]]))
 
 ;;;;;;;;;;;;
 ;; Coders ;;
