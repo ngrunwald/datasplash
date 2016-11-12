@@ -5,7 +5,9 @@
              [bq :as bq]
              [datastore :as dts]]
             [clojure.edn :as edn])
-  (:import [java.util UUID])
+  (:import [java.util UUID]
+           [com.google.datastore.v1 Query PropertyFilter$Operator]
+           [com.google.datastore.v1.client DatastoreHelper])
   (:gen-class))
 
 ;;;;;;;;;;;;;;;
@@ -207,12 +209,26 @@
                :description "Number of output shards"
                :default 0}})
 
+(defn make-ancestor-key
+  [{:keys [kind namespace]}]
+  (dts/make-ds-key {:kind kind :namespace namespace :key "root"}))
+
+(defn make-ancestor-kind-query
+  [{:keys [kind namespace] :as opts}]
+  (let [qb (Query/newBuilder)]
+    (-> qb (.addKindBuilder) (.setName kind))
+    (.setFilter qb (DatastoreHelper/makeFilter
+                     "__key__"
+                     (PropertyFilter$Operator/valueOf "HAS_ANCESTOR")
+                     (dts/make-ds-value (make-ancestor-key opts))))
+    (.build qb)))
+
 (defn run-datastore-word-count
   [str-args]
   (let [p (ds/make-pipeline 'DatastoreWordCountOptions str-args)
         {:keys [input output dataset kind
-                namespace isReadOnly numShards]} (ds/get-pipeline-configuration p)
-        root (dts/make-ds-key {:kind kind :namespace namespace :key "root"})]
+                namespace isReadOnly numShards] :as opts} (ds/get-pipeline-configuration p)
+        root (make-ancestor-key opts)]
     (when-not isReadOnly
       (->> p
            (ds/read-text-file input {:name "King-Lear"})
@@ -225,8 +241,18 @@
                        :path [root]}))
                    {:name "create-entities"})
            (dts/write-datastore-raw
-            {:project-id dataset :name :write-datastore})))))
-
+            {:project-id dataset :name :write-datastore})))
+    (->> p
+         (dts/read-datastore-raw {:project-id dataset
+                                  :query (make-ancestor-kind-query opts)
+                                  :namespace namespace})
+         (ds/map dts/entity->clj {:name "convert-clj"})
+         (ds/map :content)
+         (ds/mapcat tokenize {:name :tokenize})
+         (ds/frequencies)
+         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
+         (ds/write-text-file output {:num-shards numShards}))
+    p))
 
 ;;;;;;;;;;
 ;; Main ;;

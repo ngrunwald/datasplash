@@ -20,12 +20,14 @@
 
 (defn read-datastore-raw
   "Read a datastore source return a pcoll of raw datastore entities"
-  [{:keys [project-id query] :as options} pcoll]
+  [{:keys [project-id query namespace num-query-split] :as options} pcoll]
   (let [opts (assoc options :label :write-datastore)
         ptrans (-> (DatastoreIO/v1)
                    (.read)
                    (.withProjectId project-id)
-                   (cond-> query (.withQuery query)))]
+                   (cond-> query (.withQuery query))
+                   (cond-> namespace (.withNamespace namespace))
+                   (cond-> num-query-split (.withNumQuerySplit num-query-split)))]
     (apply-transform pcoll ptrans named-schema opts)))
 
 (declare value->clj)
@@ -138,7 +140,7 @@
                   (.build)))))
     entity-builder))
 
-(defn- make-ds-value
+(defn make-ds-value
   [v]
   (.build ^Value$Builder (make-ds-value-builder v)))
 
