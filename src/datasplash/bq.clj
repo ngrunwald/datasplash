@@ -121,16 +121,21 @@
   (let [opts (assoc options :label :read-bq-table)]
     (apply-transform p (read-bq-clj-transform opts) base-schema opts)))
 
+(defn- clj->TableFieldSchema
+  [defs transform-keys]
+  (for [{:keys [type mode] field-name :name nested-fields :fields} defs]
+       (-> (TableFieldSchema.)
+           (.setName (transform-keys (clean-name field-name)))
+           (.setType  (str/upper-case (name type)))
+           (cond-> mode (.setMode mode))
+           (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
+
 (defn ->schema
   ^TableSchema
   ([defs transform-keys]
    (if (instance? TableSchema defs)
      defs
-     (let [fields (for [{:keys [type mode] field-name :name} defs]
-                    (-> (TableFieldSchema.)
-                        (.setName (transform-keys (clean-name field-name)))
-                        (.setType  (str/upper-case (name type)))
-                        (cond-> mode (.setMode mode))))]
+     (let [fields (clj->TableFieldSchema defs transform-keys)]
        (-> (TableSchema.) (.setFields fields)))))
   ([defs] (->schema defs (fn [k] (name k)))))
 
