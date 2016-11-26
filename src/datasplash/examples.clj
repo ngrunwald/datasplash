@@ -4,10 +4,12 @@
             [datasplash
              [api :as ds]
              [bq :as bq]
+             [datastore :as dts]
              [pubsub :as ps]]
             [clojure.edn :as edn])
-  (:import
-   (com.google.cloud.dataflow.sdk.options DataflowPipelineOptions))
+  (:import [java.util UUID]
+           [com.google.datastore.v1 Query PropertyFilter$Operator]
+           [com.google.datastore.v1.client DatastoreHelper])
   (:gen-class))
 
 ;;;;;;;;;;;;;;;
@@ -19,6 +21,16 @@
 (defn tokenize
   [l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
+
+(defn count-words
+  [p]
+  (ds/->> :count-words p
+          (ds/mapcat tokenize {:name :tokenize})
+          (ds/frequencies)))
+
+(defn format-count
+  [[k v]]
+  (format "%s: %d" k v))
 
 (ds/defoptions WordCountOptions
   {:input {:type String
@@ -37,9 +49,8 @@
         {:keys [input output numShards]} (ds/get-pipeline-configuration p)]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
-         (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies)
-         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
+         (count-words)
+         (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))))
 
 ;;;;;;;;;;;
@@ -184,6 +195,77 @@
                          results)
       (ds/write-edn-file output results))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;
+;; DatastoreWordCount ;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
+
+(ds/defoptions DatastoreWordCountOptions
+  {:input {:type String
+           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :description "Path of the file to read from"}
+   :output {:type String
+            :default "kinglear-freqs.txt"
+            :description "Path of the file to write to"}
+   :dataset {:type String
+             :description "Dataset ID to read from Cloud Datastore"}
+   :kind {:type String
+          :description "Cloud Datastore Entity Kind"}
+   :namespace {:type String
+               :description "Dataset Namespace"}
+   :isReadOnly {:type Boolean
+                :description "Read an existing dataset, do not write first"}
+   :numShards {:type Long
+               :description "Number of output shards"
+               :default 0}})
+
+(defn make-ancestor-key
+  [{:keys [kind namespace]}]
+  (dts/make-ds-key {:kind kind :namespace namespace :key "root"}))
+
+;; Query is not wrapped yet, use Interop
+;; PR welcome :)
+(defn make-ancestor-kind-query
+  [{:keys [kind namespace] :as opts}]
+  (let [qb (Query/newBuilder)]
+    (-> qb (.addKindBuilder) (.setName kind))
+    (.setFilter qb (DatastoreHelper/makeFilter
+                     "__key__"
+                     (PropertyFilter$Operator/valueOf "HAS_ANCESTOR")
+                     (dts/make-ds-value (make-ancestor-key opts))))
+    (.build qb)))
+
+(defn run-datastore-word-count
+  [str-args]
+  (let [p (ds/make-pipeline 'DatastoreWordCountOptions str-args)
+        {:keys [input output dataset kind
+                namespace isReadOnly numShards] :as opts} (ds/get-pipeline-configuration p)
+        root (make-ancestor-key opts)]
+    (when-not isReadOnly
+      (->> p
+           (ds/read-text-file input {:name "King-Lear"})
+           (ds/map (fn [content]
+                     (dts/make-ds-entity
+                      {:content content}
+                      {:namespace namespace
+                       :key (-> (UUID/randomUUID) (.toString))
+                       :kind kind
+                       :path [root]}))
+                   {:name "create-entities"})
+           (dts/write-datastore-raw
+            {:project-id dataset :name :write-datastore})))
+    (->> p
+         (dts/read-datastore-raw {:project-id dataset
+                                  :query (make-ancestor-kind-query opts)
+                                  :namespace namespace})
+         (ds/map dts/entity->clj {:name "convert-clj"})
+         (ds/map :content) {:name "get-content"}
+         (count-words)
+         (ds/map format-count {:name :format-count})
+         (ds/write-text-file output {:num-shards numShards}))
+    p))
+
 
 ;;;;;;;;;;;;;
 ;; Pub/Sub ;;
@@ -246,5 +328,6 @@
         "filter" (run-filter args)
         "combine-per-key" (run-combine-per-key args)
         "max-per-key" (run-max-per-key args)
+        "datastore-word-count" (run-datastore-word-count args)
         "pub-sub" (run-pub-sub args))
       (ds/run-pipeline)))
