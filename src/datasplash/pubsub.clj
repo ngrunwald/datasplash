@@ -6,10 +6,11 @@
 
 (defn read-from-pubsub
   "Create an unbounded PCollection from a pubsub stream"
-  [subscription options p]
-  (-> p
-      (cond-> (instance? Pipeline p) (PBegin/in))
-      (apply-transform (PubsubIO$Read/subscription subscription) {} options)))
+  [subscription-or-topic options p]
+  (cond-> p
+          (instance? Pipeline p) (PBegin/in)
+          (re-find #"subscriptions" subscription-or-topic) (apply-transform (PubsubIO$Read/subscription subscription-or-topic) {} options)
+          (re-find #"topics" subscription-or-topic) (apply-transform (PubsubIO$Read/topic subscription-or-topic) {} options)))
 
 (defn write-to-pubsub
   "Write the contents of an unbounded PCollection to to a pubsub stream"
