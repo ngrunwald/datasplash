@@ -239,7 +239,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defrecord MultiResult [kvs])
 
 (defn side-outputs
-  "Returns multiple outputs keyed by keyword"
+  "Returns multiple outputs keyed by keyword.
+   Example:
+   ```
+(let [input (ds/generate-input [1 2 3 4 5] p)
+      ;; simple and multi are pcoll with their respective elements)
+      {:keys [simple multi]} (ds/map (fn [x] (ds/side-outputs :simple x :multi (* x 10)))
+                                     {:side-outputs [:simple :multi]} input)])
+   ```"
   [& kvs]
   (MultiResult. (partition 2 kvs)))
 
