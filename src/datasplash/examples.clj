@@ -195,6 +195,37 @@
                          results)
       (ds/write-edn-file output results))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; StandardSQL WordCount > 500;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Example showing how to enable support for StandardSQL in your queries querying for words in the
+;; shakespeare dataset that has more than 500 words
+;; Test calling lein run standard-sql --usingStandardSql=true --stagingLocation=gs://[your-bucket]/jars
+
+(ds/defoptions StandardSQLOptions
+  {:input {:type String
+           :default "bigquery-public-data.samples.shakespeare"
+           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
+   :output {:type String
+            :default "standardSql.edn"
+            :description "File to write the result to"}
+   :tempLocation {:type String
+                     :description "Google Cloud Storage where BigQuery.Read stage local files."}})
+
+(defn run-standard-sql-query
+  [str-args]
+  (let [p (ds/make-pipeline
+           'StandardSQLOptions
+           str-args
+           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet 
+        {:keys [input output usingStandardSql]} (ds/get-pipeline-configuration p)
+        query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
+        results (->> p
+                     (bq/read-bq {:query query
+                                  :usingStandardSql true}))] ;; the usingStandardSql is passed to bq/read-bq
+      (ds/write-edn-file output results)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DatastoreWordCount ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -328,6 +359,7 @@
         "filter" (run-filter args)
         "combine-per-key" (run-combine-per-key args)
         "max-per-key" (run-max-per-key args)
+        "standard-sql" (run-standard-sql-query args)
         "datastore-word-count" (run-datastore-word-count args)
         "pub-sub" (run-pub-sub args))
       (ds/run-pipeline)))
