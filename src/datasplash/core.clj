@@ -1785,7 +1785,7 @@ Example:
                        (.every  (->duration step))
                        (Window/into))]
      (apply-transform pcoll transform named-schema options)))
-  ([width step ^PCollection pcoll] (sliding-windows width step pcoll)))
+  ([width step ^PCollection pcoll] (sliding-windows width step {} pcoll)))
 
 (defn session-windows
   {:doc (with-opts-docstr
@@ -1805,4 +1805,4 @@ Example:
                        (Sessions/withGapDuration)
                        (Window/into))]
      (apply-transform pcoll transform named-schema options)))
-  ([gap ^PCollection pcoll] (sliding-windows gap pcoll)))
+  ([gap ^PCollection pcoll] (sliding-windows gap {} pcoll)))
