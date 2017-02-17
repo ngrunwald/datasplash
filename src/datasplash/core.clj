@@ -7,7 +7,8 @@
             [clojure.tools.logging :as log]
             [superstring.core :as str]
             [taoensso.nippy :as nippy]
-            [clj-time.coerce :as timc])
+            [clj-time.coerce :as timc]
+            [clj-time.core :as time])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [com.google.cloud.dataflow.sdk Pipeline]
            [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
@@ -30,7 +31,9 @@
            [java.net URI]
            [java.util UUID]
            [org.joda.time DateTimeUtils DateTimeZone]
-           [org.joda.time.format DateTimeFormat DateTimeFormatter]))
+           [org.joda.time.format DateTimeFormat DateTimeFormatter]
+           [com.google.cloud.dataflow.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions]
+           [org.joda.time Duration]))
 
 (def required-ns (atom #{}))
 
@@ -1757,3 +1760,49 @@ Example:
    (let [opts (assoc options :label :frequencies)]
      (apply-transform pcoll (Count/perElement) named-schema opts)))
   ([pcoll] (dfrequencies {} pcoll)))
+
+(defn- ->duration
+  [time]
+  (or (and (instance? Duration time) time)
+      (.toStandardDuration time)))
+
+(defn sliding-windows
+  {:doc (with-opts-docstr
+          "Apply a sliding window input PCollection (useful for unbounded PCollections).
+
+See https://cloud.google.com/dataflow/model/windowing#setting-sliding-time-windows
+
+Example:
+```
+(require '[clj-time.core :as time])
+(ds/sliding-windows (time/minutes 30) (time/seconds 5) pcoll)
+```"
+          named-schema)
+   :added "0.4.1"}
+  ([width step options ^PCollection pcoll]
+   (let [transform (-> (->duration width)
+                       (SlidingWindows/of)
+                       (.every  (->duration step))
+                       (Window/into))]
+     (apply-transform pcoll transform named-schema options)))
+  ([width step ^PCollection pcoll] (sliding-windows width step pcoll)))
+
+(defn session-windows
+  {:doc (with-opts-docstr
+          "Apply a Session window input PCollection (useful for unbounded PCollections).
+
+See https://cloud.google.com/dataflow/model/windowing#setting-session-windows
+
+Example:
+```
+(require '[clj-time.core :as time])
+(ds/session-windows (time/minutes 10) pcoll)
+```"
+          named-schema)
+   :added "0.4.1"}
+  ([gap options ^PCollection pcoll]
+   (let [transform (-> (->duration gap)
+                       (Sessions/withGapDuration)
+                       (Window/into))]
+     (apply-transform pcoll transform named-schema options)))
+  ([gap ^PCollection pcoll] (sliding-windows gap pcoll)))
