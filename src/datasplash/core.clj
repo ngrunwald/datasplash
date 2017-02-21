@@ -1776,7 +1776,7 @@ Example:
    {:trigger {:docstr "Adds a Trigger to the Window."
               :action (fn [transform ^Trigger t] (.triggering transform t))}
     :with-allowed-lateness {:docstr "Allow late data. Mandatory for custom trigger"
-                            :action (fn [transform d] (.withAllowedLateness (->duration d)))}
+                            :action (fn [transform d] (.withAllowedLateness transform (->duration d)))}
     :accumulate-mode {:docstr "Accumulate mode when a Trigger is fired (accumulate or discard)"
                       :action (fn [transform acc] ((get accumulation-mode-enum acc) transform))}}))
 
@@ -1798,7 +1798,7 @@ Example:
                        (SlidingWindows/of)
                        (.every  (->duration step))
                        (Window/into))]
-     (apply-transform pcoll transform named-schema options)))
+     (apply-transform pcoll transform window-schema options)))
   ([width step ^PCollection pcoll] (sliding-windows width step {} pcoll)))
 
 (defn session-windows
@@ -1818,5 +1818,5 @@ Example:
    (let [transform (-> (->duration gap)
                        (Sessions/withGapDuration)
                        (Window/into))]
-     (apply-transform pcoll transform named-schema options)))
+     (apply-transform pcoll transform window-schema options)))
   ([gap ^PCollection pcoll] (sliding-windows gap {} pcoll)))
