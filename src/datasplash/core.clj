@@ -1190,7 +1190,7 @@ Example:
                      (and key-fn return-type) #(json/decode % key-fn return-type)
                      key-fn #(json/decode % key-fn)
                      return-type #(json/decode % nil return-type)
-                     :else #(json/decode %))]
+                     :else json/decode)]
      (pt->>
       (or (:name options) (str "read-json-file-from-" (clean-filename from)))
       p
