@@ -195,6 +195,37 @@
                          results)
       (ds/write-edn-file output results))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; StandardSQL WordCount > 500;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Example showing how to enable support for StandardSQL in your queries querying for words in the
+;; shakespeare dataset that has more than 500 words
+;; Test calling lein run standard-sql --usingStandardSql=true --stagingLocation=gs://[your-bucket]/jars
+
+(ds/defoptions StandardSQLOptions
+  {:input {:type String
+           :default "bigquery-public-data.samples.shakespeare"
+           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
+   :output {:type String
+            :default "standardSql.edn"
+            :description "File to write the result to"}
+   :tempLocation {:type String
+                     :description "Google Cloud Storage where BigQuery.Read stage local files."}})
+
+(defn run-standard-sql-query
+  [str-args]
+  (let [p (ds/make-pipeline
+           'StandardSQLOptions
+           str-args
+           {:runner "InProcessPipelineRunner"})
+        {:keys [input output usingStandardSql]} (ds/get-pipeline-configuration p)
+        query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
+        results (->> p
+                     (bq/read-bq {:query query
+                                  :usingStandardSql true}))] ;; the usingStandardSql is passed to bq/read-bq
+      (ds/write-edn-file output results)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DatastoreWordCount ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -282,9 +313,9 @@
                       :description "Google Cloud Storage to stage local files."}})
 
 (defn stream-interactions-from-pubsub
- [pipeline read-subscription write-transformed-topic]
+ [pipeline read-topic write-transformed-topic]
  (->> pipeline
-      (ps/read-from-pubsub read-subscription {:name "read-interactions-from-pubsub"})
+      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub"})
       (ds/map (fn [message]
                 (do
                   (log/info (str "Got message:\n" message))
@@ -309,10 +340,10 @@
                   {:runner "DataflowPipelineRunner"
                    :streaming true})
         {:keys [project]} (ds/get-pipeline-configuration pipeline)
-        read-subscription (format "projects/%s/subscriptions/my-subscription" project)
+        read-topic (format "projects/%s/topics/my-topic" project)
         write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
         read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]
-    (stream-interactions-from-pubsub pipeline read-subscription write-transformed-topic)
+    (stream-interactions-from-pubsub pipeline read-topic write-transformed-topic)
     (stream-forwarded-interactions-from-pubsub pipeline read-transformed-subscription)))
 
 ;;;;;;;;;;
@@ -328,6 +359,7 @@
         "filter" (run-filter args)
         "combine-per-key" (run-combine-per-key args)
         "max-per-key" (run-max-per-key args)
+        "standard-sql" (run-standard-sql-query args)
         "datastore-word-count" (run-datastore-word-count args)
         "pub-sub" (run-pub-sub args))
       (ds/run-pipeline)))

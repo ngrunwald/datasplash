@@ -19,7 +19,7 @@
    [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-raw
-  [{:keys [query table] :as options} p]
+  [{:keys [query table usingStandardSql] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (BigQueryIO$Read/fromQuery query)
@@ -29,7 +29,10 @@
                                {:options options})))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform ptrans named-schema opts))))
+        (apply-transform
+         (cond-> ptrans
+                usingStandardSql .usingStandardSql)
+         named-schema opts))))
 
 (defn auto-parse-val
   [v]
@@ -125,16 +128,21 @@
   (let [opts (assoc options :label :read-bq-table)]
     (apply-transform p (read-bq-clj-transform opts) base-schema opts)))
 
+(defn- clj->TableFieldSchema
+  [defs transform-keys]
+  (for [{:keys [type mode] field-name :name nested-fields :fields} defs]
+       (-> (TableFieldSchema.)
+           (.setName (transform-keys (clean-name field-name)))
+           (.setType  (str/upper-case (name type)))
+           (cond-> mode (.setMode mode))
+           (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
+
 (defn ->schema
   ^TableSchema
   ([defs transform-keys]
    (if (instance? TableSchema defs)
      defs
-     (let [fields (for [{:keys [type mode] field-name :name} defs]
-                    (-> (TableFieldSchema.)
-                        (.setName (transform-keys (clean-name field-name)))
-                        (.setType  (str/upper-case (name type)))
-                        (cond-> mode (.setMode mode))))]
+     (let [fields (clj->TableFieldSchema defs transform-keys)]
        (-> (TableSchema.) (.setFields fields)))))
   ([defs] (->schema defs (fn [k] (name k)))))
 
