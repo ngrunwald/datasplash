@@ -218,7 +218,7 @@
   (let [p (ds/make-pipeline
            'StandardSQLOptions
            str-args
-           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet 
+           {:runner "InProcessPipelineRunner"})
         {:keys [input output usingStandardSql]} (ds/get-pipeline-configuration p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
