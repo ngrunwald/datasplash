@@ -19,7 +19,7 @@
    [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-raw
-  [{:keys [query table usingStandardSql] :as options} p]
+  [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (BigQueryIO$Read/fromQuery query)
@@ -30,8 +30,9 @@
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
         (apply-transform
-         (cond-> ptrans
-                usingStandardSql .usingStandardSql)
+         (if (and standard-sql? query)
+           (.usingStandardSql ptrans)
+           ptrans)
          named-schema opts))))
 
 (defn auto-parse-val
