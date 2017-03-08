@@ -312,9 +312,9 @@
                       :description "Google Cloud Storage to stage local files."}})
 
 (defn stream-interactions-from-pubsub
- [pipeline read-subscription write-transformed-topic]
+ [pipeline read-topic write-transformed-topic]
  (->> pipeline
-      (ps/read-from-pubsub read-subscription {:name "read-interactions-from-pubsub"})
+      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub"})
       (ds/map (fn [message]
                 (do
                   (log/info (str "Got message:\n" message))
@@ -339,10 +339,10 @@
                   {:runner "DataflowPipelineRunner"
                    :streaming true})
         {:keys [project]} (ds/get-pipeline-configuration pipeline)
-        read-subscription (format "projects/%s/subscriptions/my-subscription" project)
+        read-topic (format "projects/%s/topics/my-topic" project)
         write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
         read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]
-    (stream-interactions-from-pubsub pipeline read-subscription write-transformed-topic)
+    (stream-interactions-from-pubsub pipeline read-topic write-transformed-topic)
     (stream-forwarded-interactions-from-pubsub pipeline read-transformed-subscription)))
 
 ;;;;;;;;;;
