@@ -65,6 +65,9 @@
 
 (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
 
+(intern *ns* (with-meta 'sliding-windows (meta #'dt/sliding-windows)) @#'dt/sliding-windows)
+(intern *ns* (with-meta 'session-windows (meta #'dt/session-windows)) @#'dt/session-windows)
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Syntactic Sugar ;;
 ;;;;;;;;;;;;;;;;;;;;;
