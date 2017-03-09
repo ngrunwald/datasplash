@@ -1780,9 +1780,29 @@ Example:
     :accumulate-mode {:docstr "Accumulate mode when a Trigger is fired (accumulate or discard)"
                       :action (fn [transform acc] ((get accumulation-mode-enum acc) transform))}}))
 
+(defn fixed-windows
+  {:doc (with-opts-docstr
+          "Apply a fixed window to divide a PCollection (useful for unbounded PCollections).
+
+See https://cloud.google.com/dataflow/model/windowing#setting-fixed-time-windows
+
+Example:
+```
+(require '[clj-time.core :as time])
+(ds/fixed-windows (time/minutes 30) pcoll)
+```"
+          window-schema)
+   :added "0.4.1"}
+  ([width options ^PCollection pcoll]
+   (let [transform (-> (->duration width)
+                       (FixedWindows/of)
+                       (Window/into))]
+     (apply-transform pcoll transform window-schema options)))
+  ([width ^PCollection pcoll] (fixed-windows width {} pcoll)))
+
 (defn sliding-windows
   {:doc (with-opts-docstr
-          "Apply a sliding window input PCollection (useful for unbounded PCollections).
+          "Apply a sliding window to divide a PCollection (useful for unbounded PCollections).
 
 See https://cloud.google.com/dataflow/model/windowing#setting-sliding-time-windows
 
@@ -1803,7 +1823,7 @@ Example:
 
 (defn session-windows
   {:doc (with-opts-docstr
-          "Apply a Session window input PCollection (useful for unbounded PCollections).
+          "Apply a Session window to divide a PCollection (useful for unbounded PCollections).
 
 See https://cloud.google.com/dataflow/model/windowing#setting-session-windows
 
@@ -1819,4 +1839,4 @@ Example:
                        (Sessions/withGapDuration)
                        (Window/into))]
      (apply-transform pcoll transform window-schema options)))
-  ([gap ^PCollection pcoll] (sliding-windows gap {} pcoll)))
+  ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
