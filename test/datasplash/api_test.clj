@@ -319,4 +319,5 @@
         session (->> (ds/session-windows (time/seconds 2) p)
                      (ds/group-by-key)
                      (ds/map (fn [[_ elts]] (reduce + (map (fn [[k v]] v) elts))) {:name :sum}))]
-    (.. DataflowAssert (that session) (containsInAnyOrder #{0 3 4}))))
+    (.. DataflowAssert (that session) (containsInAnyOrder #{0 3 4}))
+    (ds/run-pipeline p)))
