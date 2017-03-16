@@ -314,7 +314,7 @@
 (defn stream-interactions-from-pubsub
  [pipeline read-topic write-transformed-topic]
  (->> pipeline
-      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub"})
+      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub" :kind :topic})
       (ds/map (fn [message]
                 (do
                   (log/info (str "Got message:\n" message))
