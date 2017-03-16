@@ -5,10 +5,12 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [datasplash
-             [api :as ds]]
+             [api :as ds]
+             [core :as ds-core]]
             [me.raynes.fs :as fs]
             [clj-time.core :as time])
   (:import [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
+           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory]
            [java.io PushbackReader]))
 
 (defn glob-file
@@ -36,9 +38,14 @@
           acc
           (recur (conj acc line)))))))
 
+(ds/defoptions TestPipelineOptions
+               {:testValue {:type String
+                            :default "test"
+                            :description "A simple test value"}})
+
 (defn make-test-pipeline
   []
-  (let [p (TestPipeline/create)
+  (let [p (TestPipeline/fromOptions (PipelineOptionsFactory/as (ds-core/interface->class 'TestPipelineOptions)))
         coder-registry (.getCoderRegistry p)]
     (doto coder-registry
       (.registerCoder clojure.lang.IPersistentCollection (ds/make-nippy-coder))
@@ -53,7 +60,22 @@
     (.. DataflowAssert (that input) (containsInAnyOrder #{1 2 3 4 5}))
     (.. DataflowAssert (that proc) (containsInAnyOrder #{2 3 4 5 6}))
     (.. DataflowAssert (that filter) (containsInAnyOrder #{2 4 6}))
-    (is "increment" (.getName proc))
+    (is (= "increment.out" (.getName proc)))
+    (ds/run-pipeline p)))
+
+(deftest passing-pipeline-to-get-pipeline-configuration
+  (let [p (make-test-pipeline)]
+      (is (= "test" (:testValue (ds/get-pipeline-configuration p))))
+      (ds/run-pipeline p)))
+
+(deftest get-pipeline-options-in-context
+  (let [p (make-test-pipeline)
+        input (ds/generate-input [1] p)
+        context-config (ds/map (fn [x]
+                                 (let[conf (ds/get-pipeline-configuration)]
+                                  (.getName (:runner conf))))
+                               {:name "get-config"} input)]
+    (.. DataflowAssert (that context-config) (containsInAnyOrder #{"com.google.cloud.dataflow.sdk.runners.DirectPipelineRunner"}))
     (ds/run-pipeline p)))
 
 (def test-data [1 2 3 4 5])
