@@ -1,4 +1,4 @@
-(defproject datasplash "0.4.1-SNAPSHOT"
+(defproject datasplash "0.4.2-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
@@ -19,7 +19,7 @@
                                   [org.slf4j/slf4j-jdk14 "1.7.24"]]
                    :aot [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core]
                    :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
-                           :source-uri "https://github.com/ngrunwald/datasplash/blob/devel/{filepath}#L{line}"
+                           :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.4.1/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
                    :plugins [[lein-codox "0.9.1"]]}
              :uberjar {:aot :all}}

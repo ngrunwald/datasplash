@@ -19,7 +19,7 @@
    [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-raw
-  [{:keys [query table usingStandardSql] :as options} p]
+  [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (BigQueryIO$Read/fromQuery query)
@@ -30,8 +30,9 @@
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
         (apply-transform
-         (cond-> ptrans
-                usingStandardSql .usingStandardSql)
+         (if (and standard-sql? query)
+           (.usingStandardSql ptrans)
+           ptrans)
          named-schema opts))))
 
 (defn auto-parse-val
@@ -47,11 +48,11 @@
       (reduce
        (fn [acc k]
          (assoc! acc (keyword k)
-                 (let [raw-v (.get row k)]
+                 (let [raw-v (get row k)]
                    (cond
-                     (sequential? raw-v) (if (instance? java.util.AbstractMap (first raw-v))
-                                           (map #(table-row->clj {:auto-parse auto-parse} %) raw-v)
-                                           (map #(if auto-parse (auto-parse-val %) %) raw-v))
+                     (instance? java.util.List raw-v) (if (instance? java.util.AbstractMap (first raw-v))
+                                                        (map #(table-row->clj {:auto-parse auto-parse} %) raw-v)
+                                                        (map #(if auto-parse (auto-parse-val %) %) raw-v))
                      (instance? java.util.AbstractMap raw-v) (table-row->clj {:auto-parse auto-parse} raw-v)
                      :else (if auto-parse (auto-parse-val raw-v) raw-v)))))
        (transient {}) keyset))))

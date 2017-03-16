@@ -6,7 +6,8 @@
             [clojure.test :refer :all]
             [datasplash
              [api :as ds]]
-            [me.raynes.fs :as fs])
+            [me.raynes.fs :as fs]
+            [clj-time.core :as time])
   (:import [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
            [java.io PushbackReader]))
 
@@ -293,3 +294,30 @@
         (is (= '(1 3.0 5 15) (sort res))))
       (let [res (read-file (first (glob-file sample-test)))]
         (is (= 2 (count res)))))))
+
+(deftest timestamp
+  (let [p (make-test-pipeline)
+        input (ds/generate-input [1 2 3 4 5] p)
+        proc (ds/map (fn [e] (ds/with-timestamp (time/now) e)) input)]
+    (ds/run-pipeline p)))
+
+(deftest windows
+  (let [now (time/now)
+        p (->> (make-test-pipeline)
+               (ds/generate-input [0. 0.5 2.5 3.])
+               (ds/map (fn [e] (ds/with-timestamp (time/minus now (time/seconds e)) e)) {:name :timestamp}))
+        sliding (ds/sliding-windows (time/seconds 2) (time/seconds 1) {:name :sliding} p)
+        fixed (ds/fixed-windows (time/seconds 2) {:name :fixed} p)]
+    (ds/run-pipeline p)))
+
+(deftest session-windows
+  (let [now (time/now)
+        p (->> (make-test-pipeline)
+               (ds/generate-input [[:k0 0] [:k1 1] [:k1 2] [:k0 4]])
+               (ds/map (fn [[k e]] (ds/with-timestamp (time/minus now (time/seconds e)) [k e])) {:name :timestamp})
+               (ds/with-keys (fn [e] (get e 0))))
+        session (->> (ds/session-windows (time/seconds 2) p)
+                     (ds/group-by-key)
+                     (ds/map (fn [[_ elts]] (reduce + (map (fn [[k v]] v) elts))) {:name :sum}))]
+    (.. DataflowAssert (that session) (containsInAnyOrder #{0 3 4}))
+    (ds/run-pipeline p)))

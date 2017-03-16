@@ -201,14 +201,13 @@
 
 ;; Example showing how to enable support for StandardSQL in your queries querying for words in the
 ;; shakespeare dataset that has more than 500 words
-;; Test calling lein run standard-sql --usingStandardSql=true --stagingLocation=gs://[your-bucket]/jars
+;; Test calling lein run standard-sql --stagingLocation=gs://[your-bucket]/jars --output gs://[your-bucket]/
 
 (ds/defoptions StandardSQLOptions
   {:input {:type String
            :default "bigquery-public-data.samples.shakespeare"
            :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
    :output {:type String
-            :default "standardSql.edn"
             :description "File to write the result to"}
    :tempLocation {:type String
                      :description "Google Cloud Storage where BigQuery.Read stage local files."}})
@@ -218,12 +217,12 @@
   (let [p (ds/make-pipeline
            'StandardSQLOptions
            str-args
-           {:runner "InProcessPipelineRunner"})
-        {:keys [input output usingStandardSql]} (ds/get-pipeline-configuration p)
+           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet
+        {:keys [input output]} (ds/get-pipeline-configuration p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
                      (bq/read-bq {:query query
-                                  :usingStandardSql true}))] ;; the usingStandardSql is passed to bq/read-bq
+                                  :standard-sql? true}))]
       (ds/write-edn-file output results)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
