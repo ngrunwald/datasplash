@@ -6,7 +6,7 @@
 
 (defn read-from-pubsub
   "Create an unbounded PCollection from a pubsub stream. Takes a :kind option that specifies if the input is a :subscription or a :topic"
-  [subscription-or-topic {:keys [kind] :or {:kind :subscription} :as options} p]
+  [subscription-or-topic {:keys [kind] :or {kind :subscription} :as options} p]
   (let [pipe (if (instance? Pipeline p) (PBegin/in p) p)]
     (cond
       (= :subscription kind) (apply-transform pipe (PubsubIO$Read/subscription subscription-or-topic) {} options)

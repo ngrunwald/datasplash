@@ -217,7 +217,7 @@
   (let [p (ds/make-pipeline
            'StandardSQLOptions
            str-args
-           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet 
+           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet
         {:keys [input output]} (ds/get-pipeline-configuration p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
@@ -314,7 +314,7 @@
 (defn stream-interactions-from-pubsub
  [pipeline read-topic write-transformed-topic]
  (->> pipeline
-      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub"})
+      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub" :kind :topic})
       (ds/map (fn [message]
                 (do
                   (log/info (str "Got message:\n" message))
