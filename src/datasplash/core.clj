@@ -11,7 +11,7 @@
             [clj-time.core :as time])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [com.google.cloud.dataflow.sdk Pipeline]
-           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
+           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder]
            [com.google.cloud.dataflow.sdk.io
             TextIO$Read TextIO$Write TextIO$CompressionType]
            [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
@@ -20,16 +20,14 @@
             Partition Partition$PartitionFn IntraBundleParallelization
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
-            CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
-           [com.google.cloud.dataflow.sdk.util GcsUtil UserCodeException]
+           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
+           [com.google.cloud.dataflow.sdk.util UserCodeException DoFnRunnerBase$DoFnContext DoFnRunnerBase$DoFnProcessContext]
            [com.google.cloud.dataflow.sdk.util.common Reiterable]
            [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
            [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]
-           [java.util UUID]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [com.google.cloud.dataflow.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
@@ -992,16 +990,37 @@ It means the template %A-%U-%T is equivalent to the default jobName"
         (.getPipeline)
         (.run))))
 
+(defprotocol PipelineOptionsRetreiver
+  "Protocol dispatching on different types of Contexts and getting it's PipelineOptions"
+  (get-pipeline-options [c] "Getting PipelineOptions from the underlying java object"))
+
+(defn- bean-to-map
+  [^com.google.cloud.dataflow.sdk.options.PipelineOptions opts]
+  (-> opts
+      (bean)
+      (dissoc :class)))
+
+(extend-protocol PipelineOptionsRetreiver
+  DoFn$Context
+  (get-pipeline-options [c]
+    (bean-to-map (.getPipelineOptions c)))
+
+  DoFnRunnerBase$DoFnContext
+  (get-pipeline-options [c]
+    (bean-to-map (.getPipelineOptions c)))
+
+  DoFnRunnerBase$DoFnProcessContext
+  (get-pipeline-options [c]
+    (bean-to-map (.getPipelineOptions c))))
+
 (defn get-pipeline-configuration
   {:doc "Returns a map corresponding to the bean of options. With arity one, can be called on a Pipeline. With arity zero, returns the same thing inside a ParDo."
    :added "0.1.0"}
   ([^Pipeline p]
    (dissoc (bean (.getOptions p)) :class))
   ([]
-   (when-let [^DoFn$Context c *context*]
-     (-> (.getPipelineOptions c)
-         (bean)
-         (dissoc :class)))))
+   (when-let [c *context*]
+     (get-pipeline-options c))))
 
 ;;;;;;;;;;;;;
 ;; Text IO ;;
@@ -1011,9 +1030,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
   "Clean filename for transform name building purpose."
   [s]
   (-> s
-      (str/replace #"^\w+:/" "")
-      ;; (str/replace #"/" "\\")
-      ))
+      (str/replace #"^\w+:/" "")))
 
 (defn ->options
   [o]
@@ -1498,7 +1515,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                        res (map (fn [prod] (apply clean-join-fn prod)) raw-res)]
                    res))
                {:name (str root-name "-cartesian-product")
-                :without-coercion-to-clj true }))))
+                :without-coercion-to-clj true}))))
   ([options specs] (if (fn? specs)
                      (throw (ex-info "Wrong type of argument for join-by, join-fn is now passed as a :collector key in options" {:specs specs}))
                      (join-by options specs nil))))

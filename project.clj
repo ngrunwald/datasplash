@@ -15,8 +15,8 @@
   :profiles {:dev {:dependencies [[junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]
                                   [org.hamcrest/hamcrest-all "1.3"]
-                                  [org.slf4j/slf4j-api "1.7.24"]
-                                  [org.slf4j/slf4j-jdk14 "1.7.24"]]
+                                  [org.slf4j/slf4j-api "1.7.25"]
+                                  [org.slf4j/slf4j-jdk14 "1.7.25"]]
                    :aot [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core]
                    :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.4.1/{filepath}#L{line}"
