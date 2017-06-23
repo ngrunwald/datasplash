@@ -1,8 +1,8 @@
 (ns datasplash.pubsub
   (:require [datasplash.core :refer :all])
-  (:import (com.google.cloud.dataflow.sdk.io PubsubIO$Read PubsubIO$Write)
-           (com.google.cloud.dataflow.sdk.values PBegin)
-           (com.google.cloud.dataflow.sdk Pipeline)))
+  (:import (org.apache.beam.sdk.io.gcp.pubsub PubsubIO$Read PubsubIO$Write)
+           (org.apache.beam.sdk.values PBegin)
+           (org.apache.beam.sdk Pipeline)))
 
 (defn read-from-pubsub
   "Create an unbounded PCollection from a pubsub stream. Takes a :kind option that specifies if the input is a :subscription or a :topic"

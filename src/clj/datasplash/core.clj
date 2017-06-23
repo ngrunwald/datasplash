@@ -10,22 +10,22 @@
             [clj-time.coerce :as timc]
             [clj-time.core :as time])
   (:import [clojure.lang MapEntry ExceptionInfo]
-           [com.google.cloud.dataflow.sdk Pipeline]
-           [com.google.cloud.dataflow.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
-           [com.google.cloud.dataflow.sdk.io
+           [org.apache.beam.sdk Pipeline]
+           [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
+           [org.apache.beam.sdk.io
             TextIO$Read TextIO$Write TextIO$CompressionType]
-           [com.google.cloud.dataflow.sdk.options PipelineOptionsFactory GcsOptions]
-           [com.google.cloud.dataflow.sdk.transforms
+           [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory GcsOptions]
+           [org.apache.beam.sdk.transforms
             DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
             Partition Partition$PartitionFn IntraBundleParallelization
             SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
-           [com.google.cloud.dataflow.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
+           [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
-           [com.google.cloud.dataflow.sdk.util GcsUtil UserCodeException]
-           [com.google.cloud.dataflow.sdk.util.common Reiterable]
-           [com.google.cloud.dataflow.sdk.util.gcsfs GcsPath]
-           [com.google.cloud.dataflow.sdk.values KV PCollection TupleTag TupleTagList PBegin
+           [org.apache.beam.sdk.util GcsUtil UserCodeException]
+           [org.apache.beam.sdk.util.common Reiterable]
+           [org.apache.beam.sdk.util.gcsfs GcsPath]
+           [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]

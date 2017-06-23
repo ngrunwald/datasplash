@@ -10,13 +10,13 @@
    [org.codehaus.jackson.map.ObjectMapper]
    [com.google.api.services.bigquery.model
     TableRow TableFieldSchema TableSchema]
-   [com.google.cloud.dataflow.sdk Pipeline]
-   [com.google.cloud.dataflow.sdk.io
+   [org.apache.beam.sdk Pipeline]
+   [org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO$Read BigQueryIO$Write
     BigQueryIO$Write$WriteDisposition
     BigQueryIO$Write$CreateDisposition]
-   [com.google.cloud.dataflow.sdk.values PBegin PCollection]
-   [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
+   [org.apache.beam.sdk.values PBegin PCollection]
+   [org.apache.beam.sdk.coders TableRowJsonCoder]))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
