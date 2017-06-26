@@ -7,7 +7,7 @@
             [datasplash
              [api :as ds]]
             [me.raynes.fs :as fs])
-  (:import [com.google.cloud.dataflow.sdk.testing TestPipeline DataflowAssert]
+  (:import [org.apache.beam.sdk.testing TestPipeline PAssert]
            [java.io PushbackReader]))
 
 (defn glob-file
@@ -40,8 +40,8 @@
   (let [p (TestPipeline/create)
         coder-registry (.getCoderRegistry p)]
     (doto coder-registry
-      (.registerCoder clojure.lang.IPersistentCollection (ds/make-nippy-coder))
-      (.registerCoder clojure.lang.Keyword (ds/make-nippy-coder)))
+      (.registerCoderForClass clojure.lang.IPersistentCollection (ds/make-nippy-coder))
+      (.registerCoderForClass clojure.lang.Keyword (ds/make-nippy-coder)))
     p))
 
 (deftest basic-pipeline
@@ -49,9 +49,9 @@
         input (ds/generate-input [1 2 3 4 5] p)
         proc (ds/map inc {:name "increment"} input)
         filter (ds/filter even? proc)]
-    (.. DataflowAssert (that input) (containsInAnyOrder #{1 2 3 4 5}))
-    (.. DataflowAssert (that proc) (containsInAnyOrder #{2 3 4 5 6}))
-    (.. DataflowAssert (that filter) (containsInAnyOrder #{2 4 6}))
+    (-> (PAssert/that input) (.containsInAnyOrder #{1 2 3 4 5}))
+    (-> (PAssert/that proc)  (.containsInAnyOrder #{2 3 4 5 6}))
+    (-> (PAssert/that filter) (.containsInAnyOrder #{2 4 6}))
     (is "increment" (.getName proc))
     (ds/run-pipeline p)))
 
@@ -70,7 +70,7 @@
 (deftest json-io
   (let [p (make-test-pipeline)
         input (ds/read-json-file json-file-path {:name :read-json} p)]
-    (.. DataflowAssert (that input) (containsInAnyOrder (map int test-data)))
+    (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
     (is "read-json" (.getName input))
     (ds/run-pipeline p)))
 
@@ -253,7 +253,7 @@
   (let [p (make-test-pipeline)
         input (ds/generate-input [1 2 3 4 5] p)
         proc (ds/combine + {:name "combine" :scope :global} input)]
-    (.. DataflowAssert (that proc) (containsInAnyOrder #{15}))
+    (-> (PAssert/that proc) (.containsInAnyOrder #{15}))
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
 

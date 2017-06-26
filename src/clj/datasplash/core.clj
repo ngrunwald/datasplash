@@ -193,7 +193,8 @@
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
               side-inputs side-outputs name window-fn]
        :or {start-bundle (fn [_] nil)
-            finish-bundle (fn [_] nil)}
+            finish-bundle (fn [_] nil)
+            window-fn (fn [_] nil)}
        :as opts}]
    (let [process-ctx-fn (fn [^DoFn$ProcessContext context]
                           (safe-exec-cfg
@@ -208,9 +209,10 @@
                                        *side-inputs* side-ins
                                        *main-output* (when side-outputs (first (sort side-outputs)))]
                                (f context)))))]
-     (if window-fn
-       (ClojureDoFn. process-ctx-fn window-fn)
-       (ClojureDoFn. process-ctx-fn)))
+     (ClojureDoFn. {"dofn" process-ctx-fn
+                    "window-fn" window-fn
+                    "start-bundle" start-bundle
+                    "finish-bundle" finish-bundle}))
 
    ;; (proxy [DoFn] []
    ;;   (processElement [^DoFn$ProcessContext context]
@@ -973,8 +975,8 @@ map. Each value will be a list of the values that match key.
          pipeline (Pipeline/create options)
          coder-registry (.getCoderRegistry pipeline)]
      (doto coder-registry
-       (.registerCoder clojure.lang.IPersistentCollection (make-nippy-coder))
-       (.registerCoder clojure.lang.Keyword (make-nippy-coder)))
+       (.registerCoderForClass clojure.lang.IPersistentCollection (make-nippy-coder))
+       (.registerCoderForClass clojure.lang.Keyword (make-nippy-coder)))
      pipeline))
   ([arg1 arg2]
    (if (or (symbol? arg1) (string? arg1))
