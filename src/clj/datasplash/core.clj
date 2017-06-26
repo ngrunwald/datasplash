@@ -13,12 +13,13 @@
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
-            TextIO$Read TextIO$Write TextIO$CompressionType]
-           [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory GcsOptions]
+            TextIO  TextIO$CompressionType]
+           [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
+           [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
-            DoFn DoFn$Context DoFn$ProcessContext ParDo DoFnTester Create PTransform
-            Partition Partition$PartitionFn IntraBundleParallelization
-            SerializableFunction WithKeys GroupByKey RemoveDuplicates Count
+            DoFn DoFn$ProcessContext ParDo DoFnTester Create PTransform
+            Partition Partition$PartitionFn
+            SerializableFunction WithKeys GroupByKey Distinct Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
@@ -32,8 +33,9 @@
            [java.util UUID]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
-           [com.google.cloud.dataflow.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
-           [org.joda.time Duration]))
+           [org.apache.beam.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
+           [org.joda.time Duration]
+           [datasplash.fns ClojureDoFn]))
 
 (def required-ns (atom #{}))
 
@@ -62,6 +64,7 @@
                                (filter #(:clojure %))
                                (map :ns)
                                (concat (list missing-ns)))]
+
             (recur cause (concat ns-to-add nss)))
           (recur cause nss))
         (->> nss
@@ -188,26 +191,44 @@
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs name]
+              side-inputs side-outputs name window-fn]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)}
        :as opts}]
-   (proxy [DoFn] []
-     (processElement [^DoFn$ProcessContext context]
-       (safe-exec-cfg
-        opts
-        (let [side-ins (persistent!
-                        (reduce
-                         (fn [acc [k pview]]
-                           (assoc! acc k (.sideInput context pview)))
-                         (transient {}) side-inputs))]
-          (binding [*context* context
-                    *coerce-to-clj* (not without-coercion-to-clj)
-                    *side-inputs* side-ins
-                    *main-output* (when side-outputs (first (sort side-outputs)))]
-            (f context)))))
-     (startBundle [^DoFn$Context context] (safe-exec-cfg opts (start-bundle context)))
-     (finishBundle [^DoFn$Context context] (safe-exec-cfg opts (finish-bundle context)))))
+   (let [process-ctx-fn (fn [^DoFn$ProcessContext context]
+                          (safe-exec-cfg
+                           opts
+                           (let [side-ins (persistent!
+                                           (reduce
+                                            (fn [acc [k pview]]
+                                              (assoc! acc k (.sideInput context pview)))
+                                            (transient {}) side-inputs))]
+                             (binding [*context* context
+                                       *coerce-to-clj* (not without-coercion-to-clj)
+                                       *side-inputs* side-ins
+                                       *main-output* (when side-outputs (first (sort side-outputs)))]
+                               (f context)))))]
+     (if window-fn
+       (ClojureDoFn. process-ctx-fn window-fn)
+       (ClojureDoFn. process-ctx-fn)))
+
+   ;; (proxy [DoFn] []
+   ;;   (processElement [^DoFn$ProcessContext context]
+   ;;     (safe-exec-cfg
+   ;;      opts
+   ;;      (let [side-ins (persistent!
+   ;;                      (reduce
+   ;;                       (fn [acc [k pview]]
+   ;;                         (assoc! acc k (.sideInput context pview)))
+   ;;                       (transient {}) side-inputs))]
+   ;;        (binding [*context* context
+   ;;                  *coerce-to-clj* (not without-coercion-to-clj)
+   ;;                  *side-inputs* side-ins
+   ;;                  *main-output* (when side-outputs (first (sort side-outputs)))]
+   ;;          (f context)))))
+   ;;   (startBundle [^DoFn$Context context] (safe-exec-cfg opts (start-bundle context)))
+   ;;   (finishBundle [^DoFn$Context context] (safe-exec-cfg opts (finish-bundle context))))
+   )
   ([f] (dofn f {})))
 
 (defn context
@@ -398,7 +419,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defrecord GroupSpecs [specs]
   PInput
   (expand [this] (map first specs))
-  (finishSpecifying [this] nil)
   (getPipeline [this] (let [^PInput pval (-> specs (first) (first))]
                         (.getPipeline pval)))
   IApply
@@ -486,8 +506,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 (TupleTag. (name (first ordered)))
                                                 (TupleTagList/of (map (comp #(TupleTag. %) name)
                                                                       (rest ordered))))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}
-    :intra-bundle-parallelization {:docstr "Adds thread parallelization to a DoFn, with given thread numbers. Only useful ifblocking calls are made. Incompatible with side-inputs or side-outputs. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/IntraBundleParallelization"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
 
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
@@ -504,10 +523,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                            :else (make-nippy-coder))
            opts (merge (assoc base-options :coder default-coder) options)
            ^DoFn bare-dofn (dofn (transform f) opts)
-           pardo (if intra-bundle-parallelization
-                   (.withMaxParallelism
-                    (IntraBundleParallelization/of bare-dofn) intra-bundle-parallelization)
-                   (ParDo/of bare-dofn))]
+           pardo (ParDo/of bare-dofn)]
        (apply-transform pcoll pardo pardo-schema opts)))
     ([f pcoll] (make-map-op f {} pcoll))))
 
@@ -699,7 +715,7 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
   ([pcoll] (view {} pcoll)))
 
 (defn- to-edn*
-  [^DoFn$Context c]
+  [^DoFn$ProcessContext c]
   (let [elt (.element c)
         result (pr-str elt)]
     (.output c result)))
@@ -998,7 +1014,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
   ([^Pipeline p]
    (dissoc (bean (.getOptions p)) :class))
   ([]
-   (when-let [^DoFn$Context c *context*]
+   (when-let [^DoFn$ProcessContext c *context*]
      (-> (.getPipelineOptions c)
          (bean)
          (dissoc :class)))))
@@ -1020,38 +1036,6 @@ It means the template %A-%U-%T is equivalent to the default jobName"
   (if (instance? Pipeline o)
     (.getOptions o)
     o))
-
-(defn walk-gcs-tree
-  ([options input]
-   (let [base-uri (URI. input)
-         absolute-uri (if (.getScheme base-uri)
-                        base-uri
-                        (URI.
-                         "file"
-                         (.getAuthority base-uri)
-                         (.getPath base-uri)
-                         (.getQuery base-uri)
-                         (.getFragment base-uri)))]
-     (if (= "file" (.getScheme absolute-uri))
-       (let [directory (File. absolute-uri)]
-         (into #{}
-               (for [entry (.list directory)]
-                 (.toUri (File. directory entry)))))
-       (let [opts (->options options)
-             gcs (-> opts (.as GcsOptions) (.getGcsUtil))
-             gcs-uri-glob (URI.
-                           (.getScheme base-uri)
-                           (.getAuthority base-uri)
-                           (.getPath base-uri)
-                           (.getQuery base-uri)
-                           (.getFragment base-uri))
-             gcs-path (GcsPath/fromUri gcs-uri-glob)
-             expanded (.expand gcs gcs-path)]
-         (into #{}
-               (for [entry expanded]
-                 (.toUri entry)))))))
-  ([options] (let [opts (->options options)]
-               (walk-gcs-tree opts (.getInput opts)))))
 
 (def compression-type-enum
   {:auto TextIO$CompressionType/AUTO
@@ -1093,13 +1077,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 ```"
           base-schema text-writer-schema)
    :added "0.1.0"}
-  ([to options ^PCollection pcoll]
+  ([^String to options ^PCollection pcoll]
    (let [opts (-> options
                   (assoc :label (str "write-text-file-to-"
                                      (clean-filename to))
                          :coder nil))]
-     (apply-transform pcoll (TextIO$Write/to to)
-                      (merge named-schema text-writer-schema) opts)))
+     (apply-transform pcoll (.to (TextIO/write) to)
+                      (merge named-schema text-writer-schema) opts))
+   )
   ([to pcoll] (write-text-file to {} pcoll)))
 
 (defn read-text-file
@@ -1120,8 +1105,9 @@ Example:
                              (StringUtf8Coder/of)))]
      (-> p
          (cond-> (instance? Pipeline p) (PBegin/in))
-         (apply-transform (TextIO$Read/from from)
-                          (merge named-schema text-reader-schema) opts))))
+         (apply-transform (.from (TextIO/read) from)
+                          (merge named-schema text-reader-schema) opts)))
+   )
   ([from p] (read-text-file from {} p)))
 
 (defn read-edn-file
@@ -1517,7 +1503,7 @@ Example:
    :added "0.1.0"}
   ([options ^PCollection pcoll]
    (let [opts (assoc options :label :distinct)]
-     (apply-transform pcoll (RemoveDuplicates/create) base-schema opts)))
+     (apply-transform pcoll (Distinct/create) base-schema opts)))
   ([pcoll] (ddistinct {} pcoll)))
 
 (def scoped-ops-schema

@@ -1,6 +1,6 @@
 (ns datasplash.pubsub
   (:require [datasplash.core :refer :all])
-  (:import (org.apache.beam.sdk.io.gcp.pubsub PubsubIO$Read PubsubIO$Write)
+  (:import (org.apache.beam.sdk.io.gcp.pubsub PubsubIO)
            (org.apache.beam.sdk.values PBegin)
            (org.apache.beam.sdk Pipeline)))
 
@@ -9,8 +9,8 @@
   [subscription-or-topic {:keys [kind] :or {:kind :subscription} :as options} p]
   (let [pipe (if (instance? Pipeline p) (PBegin/in p) p)]
     (cond
-      (= :subscription kind) (apply-transform pipe (PubsubIO$Read/subscription subscription-or-topic) {} options)
-      (= :topic kind) (apply-transform pipe (PubsubIO$Read/topic subscription-or-topic) {} options)
+      (= :subscription kind) (apply-transform pipe (.fromSubscription (PubsubIO/readMessages) subscription-or-topic) {} options)
+      (= :topic kind) (apply-transform pipe (.fromTopic (PubsubIO/readMessages)  subscription-or-topic) {} options)
       :else (throw (ex-info (format "Wrong type of :kind for pubsub [%s], should be either :subscription or :topic" kind)
                             {:kind kind})))))
 
@@ -18,4 +18,4 @@
   "Write the contents of an unbounded PCollection to to a pubsub stream"
   [topic options pcoll]
   (-> pcoll
-      (apply-transform (PubsubIO$Write/topic topic) {} options)))
+      (apply-transform (.to (PubsubIO/writeMessages) topic) {} options)))

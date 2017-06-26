@@ -11,9 +11,9 @@
       (last)))
 
 (def annotations-mapping
-  {:default (fn [{:keys [type]}] (symbol (str "com.google.cloud.dataflow.sdk.options.Default$" (extract-default-type type))))
-   :description 'com.google.cloud.dataflow.sdk.options.Description
-   :hidden 'com.google.cloud.dataflow.sdk.options.Hidden})
+  {:default (fn [{:keys [type]}] (symbol (str "org.apache.beam.sdk.options.Default$" (extract-default-type type))))
+   :description 'org.apache.beam.sdk.options.Description
+   :hidden 'org.apache.beam.sdk.options.Hidden})
 
 (defn capitalize-first
   [s]
@@ -24,7 +24,7 @@
   [interface-name specs]
   `(gen-interface
     :name ~interface-name
-    :extends [com.google.cloud.dataflow.sdk.options.PipelineOptions]
+    :extends [org.apache.beam.sdk.options.PipelineOptions]
     :methods
     [~@(apply concat
               (for [[kw {:keys [type] :as spec}] specs

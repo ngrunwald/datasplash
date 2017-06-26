@@ -12,18 +12,17 @@
     TableRow TableFieldSchema TableSchema]
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO$Read BigQueryIO$Write
+    BigQueryIO
     BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition]
-   [org.apache.beam.sdk.values PBegin PCollection]
-   [org.apache.beam.sdk.coders TableRowJsonCoder]))
+    BigQueryIO$Write$CreateDisposition TableRowJsonCoder]
+   [org.apache.beam.sdk.values PBegin PCollection]))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (BigQueryIO$Read/fromQuery query)
-                 table (BigQueryIO$Read/from table)
+                 query (.fromQuery (BigQueryIO/read)  query)
+                 table (.from (BigQueryIO/read) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))]
@@ -189,7 +188,7 @@
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (apply-transform pcoll (BigQueryIO$Write/to to) write-bq-table-schema opts)))
+     (apply-transform pcoll (.to (BigQueryIO/write) to) write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform
