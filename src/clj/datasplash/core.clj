@@ -385,14 +385,24 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    :added "0.1.0"}
   []
   (proxy [CustomCoder] []
-    (encode [obj ^OutputStream out ^Coder$Context context]
-      (safe-exec
-       (let [dos (DataOutputStream. out)]
-         (nippy/freeze-to-out! dos obj))))
-    (decode [^InputStream in ^Coder$Context context]
-      (safe-exec
-       (let [dis (DataInputStream. in)]
-         (nippy/thaw-from-in! dis))))
+    (encode
+      ([obj ^OutputStream out ctx]
+       (safe-exec
+        (let [dos (DataOutputStream. out)]
+          (nippy/freeze-to-out! dos obj))))
+      ([obj ^OutputStream out]
+       (safe-exec
+        (let [dos (DataOutputStream. out)]
+          (nippy/freeze-to-out! dos obj)))))
+    (decode
+      ([^InputStream in ctx]
+       (safe-exec
+        (let [dis (DataInputStream. in)]
+          (nippy/thaw-from-in! dis))))
+      ([^InputStream in ]
+       (safe-exec
+        (let [dis (DataInputStream. in)]
+          (nippy/thaw-from-in! dis)))))
     (verifyDeterministic [] nil)
     (consistentWithEquals [] true)))
 
@@ -420,7 +430,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defrecord GroupSpecs [specs]
   PInput
-  (expand [this] (map first specs))
+  (expand [this] (into {} (map-indexed (fn [idx x] [(TupleTag. (str idx)) (first x)]) specs)))
   (getPipeline [this] (let [^PInput pval (-> specs (first) (first))]
                         (.getPipeline pval)))
   IApply
@@ -1106,7 +1116,6 @@ Example:
                              (:coder options)
                              (StringUtf8Coder/of)))]
      (-> p
-         (cond-> (instance? Pipeline p) (PBegin/in))
          (apply-transform (.from (TextIO/read) from)
                           (merge named-schema text-reader-schema) opts)))
    )
@@ -1126,10 +1135,10 @@ Example:
   ([from options ^Pipeline p]
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
-     (pt->>
-      (or (:name options) (str "read-text-file-from"
-                               (clean-filename from)))
-      p
+     (;; pt->>
+      ;; (or (:name options) (str "read-text-file-from"
+      ;;                          (clean-filename from)))
+      ->> p
       (read-text-file from (-> options
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
@@ -1150,8 +1159,8 @@ Example:
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :coder nil)]
-     (pt->>
-      (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
+     (->>;; pt->>
+      ;; (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
       pcoll
       (to-edn (assoc options :name "encode-edn"))
       (write-text-file to (assoc options :name "write-file")))))
