@@ -294,10 +294,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (cond
       (and tag timestamp) (if (= (name tag) (name *main-output*))
                             (.outputWithTimestamp context entity timestamp)
-                            (.sideOutputWithTimestamp context (TupleTag. (name tag)) entity timestamp))
+                            (.outputWithTimestamp context (TupleTag. (name tag)) entity timestamp))
       tag (if (= (name tag) (name *main-output*))
             (.output context entity)
-            (.sideOutput context (TupleTag. (name tag)) entity))
+            (.output context (TupleTag. (name tag)) entity))
       timestamp (.outputWithTimestamp context entity timestamp)
       :else (.output context entity))))
 
@@ -523,8 +523,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
   (fn make-map-op
-    ([f {:keys [key-coder value-coder coder
-                intra-bundle-parallelization] :as options}
+    ([f {:keys [key-coder value-coder coder] :as options}
       ^PCollection pcoll]
      (let [default-coder (cond
                            isomorph? (.getCoder pcoll)
@@ -866,7 +865,7 @@ Example (actual implementation of the group-by transform):
   [nam input & body]
   `(proxy [PTransform] [(when (and ~nam (not (empty? (name ~nam))))
                           (name ~nam))]
-     (~(symbol "apply") ~input
+     (~(symbol "expand") ~input
       ~@body)))
 
 (defmacro pt->>
@@ -1135,10 +1134,10 @@ Example:
   ([from options ^Pipeline p]
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
-     (;; pt->>
-      ;; (or (:name options) (str "read-text-file-from"
-      ;;                          (clean-filename from)))
-      ->> p
+     (pt->>
+      (or (:name options) (str "read-text-file-from"
+                               (clean-filename from)))
+      p
       (read-text-file from (-> options
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
@@ -1159,8 +1158,8 @@ Example:
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :coder nil)]
-     (->>;; pt->>
-      ;; (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
+     (pt->>
+      (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
       pcoll
       (to-edn (assoc options :name "encode-edn"))
       (write-text-file to (assoc options :name "write-file")))))
