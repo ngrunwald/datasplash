@@ -626,7 +626,7 @@ Example:
   ([coll options ^Pipeline p]
    (let [opts (merge {:coder (make-nippy-coder)}
                      (assoc options :label :generate-input))
-         ptrans (Create/of (seq coll))]
+         ptrans (Create/of coll)]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
 
@@ -1115,6 +1115,7 @@ Example:
                              (:coder options)
                              (StringUtf8Coder/of)))]
      (-> p
+         (cond-> (instance? Pipeline p) (PBegin/in))
          (apply-transform (.from (TextIO/read) from)
                           (merge named-schema text-reader-schema) opts)))
    )
