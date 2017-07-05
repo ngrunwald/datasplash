@@ -188,7 +188,7 @@
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (apply-transform pcoll (.to (BigQueryIO/write) to) write-bq-table-schema opts)))
+     (apply-transform pcoll (.to (BigQueryIO/writeTableRows) to) write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform

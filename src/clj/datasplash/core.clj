@@ -1777,6 +1777,26 @@ Example:
     :accumulate-mode {:docstr "Accumulate mode when a Trigger is fired (accumulate or discard)"
                       :action (fn [transform acc] ((get accumulation-mode-enum acc) transform))}}))
 
+(defn fixed-windows
+  {:doc (with-opts-docstr
+          "Apply a sliding window input PCollection (useful for unbounded PCollections).
+
+See https://cloud.google.com/dataflow/model/windowing#setting-sliding-time-windows
+
+Example:
+```
+(require '[clj-time.core :as time])
+(ds/sliding-windows (time/minutes 30) (time/seconds 5) pcoll)
+```"
+          window-schema)
+   :added "0.5.0"}
+  ([width options ^PCollection pcoll]
+   (let [transform (-> (->duration width)
+                       (FixedWindows/of)
+                       (Window/into))]
+     (apply-transform pcoll transform window-schema options)))
+  ([width step ^PCollection pcoll] (fixed-windows width {} pcoll)))
+
 (defn sliding-windows
   {:doc (with-opts-docstr
           "Apply a sliding window input PCollection (useful for unbounded PCollections).
