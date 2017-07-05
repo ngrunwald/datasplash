@@ -1795,7 +1795,7 @@ Example:
                        (FixedWindows/of)
                        (Window/into))]
      (apply-transform pcoll transform window-schema options)))
-  ([width step ^PCollection pcoll] (fixed-windows width {} pcoll)))
+  ([width ^PCollection pcoll] (fixed-windows width {} pcoll)))
 
 (defn sliding-windows
   {:doc (with-opts-docstr
