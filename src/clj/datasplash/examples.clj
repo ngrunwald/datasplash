@@ -32,21 +32,15 @@
   [[k v]]
   (format "%s: %d" k v))
 
-(ds/defoptions WordCountOptions
-  {:input {:type String
-           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
-           :description "Path of the file to read from"}
-   :output {:type String
-            :default "kinglear-freqs.txt"
-            :description "Path of the file to write to"}
-   :numShards {:type Long
-               :description "Number of output shards (0 if the system should choose automatically)"
-               :default 0}})
+(def WordCountOptions
+  {:input "gs://dataflow-samples/shakespeare/kinglear.txt" 
+   :output "kinglear-freqs.txt"
+   :numShards 0})
 
 (defn run-word-count
   [str-args]
-  (let [p (ds/make-pipeline 'WordCountOptions str-args)
-        {:keys [input output numShards]} (ds/get-pipeline-configuration p)]
+  (let [p (ds/make-pipeline str-args)
+        {:keys [input output numShards]} WordCountOptions]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (count-words)
@@ -60,18 +54,15 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DeDupExample.java
 
-(ds/defoptions DeDupOptions
-  {:input {:type String
-           :default "gs://dataflow-samples/shakespeare/*"
-           :description "Path of the file to read from"}
-   :output {:type String
-            :default "shakespeare-dedup.txt"
-            :description "Path of the file to write to"}})
+(def DeDupOptions
+  {:input "gs://dataflow-samples/shakespeare/*" 
+   :output "shakespeare-dedup.txt"
+   })
 
 (defn run-dedup
   [str-args]
-  (let [p (ds/make-pipeline 'DeDupOptions str-args)
-        {:keys [input output]} (ds/get-pipeline-configuration p)]
+  (let [p (ds/make-pipeline str-args)
+        {:keys [input output]} DeDupOptions]
     (->> p
          (ds/read-text-file input {:name "ReadLines"})
          (ds/distinct {:name "dedup"})
@@ -83,21 +74,15 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/FilterExamples.java
 
-(ds/defoptions FilterOptions
-  {:input {:type String
-           :default "clouddataflow-readonly:samples.weather_stations"
-           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
-   :output {:type String
-            :default "filterRes.edn"
-            :description "Table to write to, specified as <project_id>:<dataset_id>.<table_id>. The dataset_id must already exist. If given a path, writes to edn."}
-   :monthFilter {:type Long
-                 :default 7
-                 :description "Numeric value of month to filter on"}})
+(def FilterOptions
+  {:input "clouddataflow-readonly:samples.weather_stations"
+   :output "filter.edn"
+   :monthFilter 7})
 
 (defn run-filter
   [str-args]
-  (let [p (ds/make-pipeline 'FilterOptions str-args)
-        {:keys [input output monthFilter]} (ds/get-pipeline-configuration p)
+  (let [p (ds/make-pipeline str-args) 
+        {:keys [input output monthFilter]} FilterOptions
         all-rows (->> p
                       (bq/read-bq {:table input})
                       (ds/map (fn [row]
@@ -131,21 +116,15 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/CombinePerKeyExamples.java
 
-(ds/defoptions CombinePerKeyOptions
-  {:input {:type String
-           :default "publicdata:samples.shakespeare"
-           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
-   :output {:type String
-            :default "combinePerKeyRes.edn"
-            :description "Table to write to, specified as <project_id>:<dataset_id>.<table_id>. The dataset_id must already exist. If given a path, writes to edn."}
-   :minWordLength {:type Long
-                   :default 8
-                   :description "Minimum word length."}})
+(def CombinePerKeyOptions
+  {:input "publicdata:samples.shakespeare"
+   :output "combinePerKeyRes.edn"
+   :minWordLength 8})
 
 (defn run-combine-per-key
   [str-args]
-  (let [p (ds/make-pipeline 'CombinePerKeyOptions str-args)
-        {:keys [input output minWordLength]} (ds/get-pipeline-configuration p)
+  (let [p (ds/make-pipeline str-args)
+        {:keys [input output minWordLength]} CombinePerKeyOptions
         results (->> p
                      (bq/read-bq {:table input})
                      (ds/filter (fn [{:keys [word]}] (> (count word) minWordLength)))
@@ -168,18 +147,14 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/MaxPerKeyExamples.java
 
-(ds/defoptions MaxPerKeyOptions
-  {:input {:type String
-           :default "clouddataflow-readonly:samples.weather_stations"
-           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
-   :output {:type String
-            :default "maxperKeyRes.edn"
-            :description "Table to write to, specified as <project_id>:<dataset_id>.<table_id>. The dataset_id must already exist. If given a path, writes to edn."}})
+(def MaxPerKeyOptions
+  {:input "clouddataflow-readonly:samples.weather_stations"
+   :output "maxperKeyRes.edn"})
 
 (defn run-max-per-key
   [str-args]
-  (let [p (ds/make-pipeline 'MaxPerKeyOptions str-args)
-        {:keys [input output]} (ds/get-pipeline-configuration p)
+  (let [p (ds/make-pipeline str-args)
+        {:keys [input output]} MaxPerKeyOptions
         results (->> p
                      (bq/read-bq {:table input})
                      (ds/map-kv (fn [{:keys [month mean_temp]}]
@@ -203,27 +178,22 @@
 ;; shakespeare dataset that has more than 500 words
 ;; Test calling lein run standard-sql --stagingLocation=gs://[your-bucket]/jars --output gs://[your-bucket]/
 
-(ds/defoptions StandardSQLOptions
-  {:input {:type String
-           :default "bigquery-public-data.samples.shakespeare"
-           :description "Table to read from, specified as <project_id>:<dataset_id>.<table_id>"}
-   :output {:type String
-            :description "File to write the result to"}
-   :tempLocation {:type String
-                     :description "Google Cloud Storage where BigQuery.Read stage local files."}})
+(def StandardSQLOptions
+  {:input "bigquery-public-data.samples.shakespeare" 
+   :output "project:dataset.table"
+   :tempLocation "gs://yourbucket"})
 
 (defn run-standard-sql-query
   [str-args]
-  (let [p (ds/make-pipeline
-           'StandardSQLOptions
+  (let [p (ds/make-pipeline 
            str-args
            {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet 
-        {:keys [input output]} (ds/get-pipeline-configuration p)
+        {:keys [input output]} StandardSQLOptions
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
                      (bq/read-bq {:query query
                                   :standard-sql? true}))]
-      (ds/write-edn-file output results)))
+    (ds/write-edn-file output results)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DatastoreWordCount ;;
@@ -231,24 +201,14 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
 
-(ds/defoptions DatastoreWordCountOptions
-  {:input {:type String
-           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
-           :description "Path of the file to read from"}
-   :output {:type String
-            :default "kinglear-freqs.txt"
-            :description "Path of the file to write to"}
-   :dataset {:type String
-             :description "Dataset ID to read from Cloud Datastore"}
-   :kind {:type String
-          :description "Cloud Datastore Entity Kind"}
-   :namespace {:type String
-               :description "Dataset Namespace"}
-   :isReadOnly {:type Boolean
-                :description "Read an existing dataset, do not write first"}
-   :numShards {:type Long
-               :description "Number of output shards"
-               :default 0}})
+(def DatastoreWordCountOptions
+  {:input "gs://dataflow-samples/shakespeare/kinglear.txt" 
+   :output "kinglear-freqs.txt" 
+   :dataset "yourdataset"
+   :kind "yourkind"
+   :namespace "yournamespace"
+   :isReadOnly false
+   :numShards 0})
 
 (defn make-ancestor-key
   [{:keys [kind namespace]}]
@@ -268,9 +228,9 @@
 
 (defn run-datastore-word-count
   [str-args]
-  (let [p (ds/make-pipeline 'DatastoreWordCountOptions str-args)
+  (let [p (ds/make-pipeline str-args)
         {:keys [input output dataset kind
-                namespace isReadOnly numShards] :as opts} (ds/get-pipeline-configuration p)
+                namespace isReadOnly numShards] :as opts} DatastoreWordCountOptions
         root (make-ancestor-key opts)]
     (when-not isReadOnly
       (->> p
@@ -305,11 +265,9 @@
 ;; You must create the my-subscription and my-transformed-subscription subscriptions, and the my-transformed-topic topics
 ;; before you run this
 
-(ds/defoptions PubSubOptions
-   {:project {:type String
-              :description "Google Cloud Project where your PubSub runs."}
-    :stagingLocation {:type String
-                      :description "Google Cloud Storage to stage local files."}})
+(def PubSubOptions
+  {:project "yourproject"
+   :stagingLocation "gs://yourbucket"})
 
 (defn stream-interactions-from-pubsub
  [pipeline read-topic write-transformed-topic]
@@ -333,12 +291,11 @@
 
 (defn run-pub-sub
   [str-args]
-  (let [pipeline (ds/make-pipeline
-                  'PubSubOptions
+  (let [pipeline (ds/make-pipeline 
                   str-args
                   {:runner "DataflowPipelineRunner"
                    :streaming true})
-        {:keys [project]} (ds/get-pipeline-configuration pipeline)
+        {:keys [project]} PubSubOptions
         read-topic (format "projects/%s/topics/my-topic" project)
         write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
         read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]

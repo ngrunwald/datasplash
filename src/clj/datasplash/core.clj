@@ -1022,8 +1022,6 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (defn get-pipeline-configuration
   {:doc "Returns a map corresponding to the bean of options. With arity one, can be called on a Pipeline. With arity zero, returns the same thing inside a ParDo."
    :added "0.1.0"}
-  ([^Pipeline p]
-   (dissoc (bean (.getOptions p)) :class))
   ([]
    (when-let [^DoFn$ProcessContext c *context*]
      (-> (.getPipelineOptions c)
