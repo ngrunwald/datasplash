@@ -10,11 +10,12 @@
    [org.codehaus.jackson.map.ObjectMapper]
    [com.google.api.services.bigquery.model
     TableRow TableFieldSchema TableSchema]
+   [org.apache.beam.sdk.transforms SerializableFunction]
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO
     BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition TableRowJsonCoder]
+    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination]
    [org.apache.beam.sdk.values PBegin PCollection]))
 
 (defn read-bq-raw
@@ -184,11 +185,20 @@
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
     :without-validation {:docstr "Disables validation until runtime."
                          :action (fn [transform] (.withoutValidation transform))}}))
+(defn custom-output-fn [cust-fn]
+  (proxy [SerializableFunction] []
+    (apply [elt]
+      (let [^String out (cust-fn elt)]
+        (TableDestination. out nil)))))
 
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (apply-transform pcoll (.to (BigQueryIO/writeTableRows) to) write-bq-table-schema opts)))
+     (apply-transform pcoll (-> (BigQueryIO/write)
+                                (.to to)
+                                (.withFormatFunction (proxy [SerializableFunction] []
+                                                       (apply [elt] (clj-nested->table-row elt)))))
+                      write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform
@@ -200,9 +210,6 @@
      (let [schema (:schema options)
            base-coll pcoll]
        (->> base-coll
-            (dmap clj-nested->table-row (-> safe-opts
-                                            (assoc :coder (TableRowJsonCoder/of))
-                                            (dissoc :schema)))
             (write-bq-table-raw to safe-opts))))))
 
 (defn write-bq-table

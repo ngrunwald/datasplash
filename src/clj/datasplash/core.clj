@@ -34,7 +34,7 @@
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
-           [org.joda.time Duration]
+           [org.joda.time Duration Instant]
            [datasplash.fns ClojureDoFn]))
 
 (def required-ns (atom #{}))
@@ -286,7 +286,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (ds/map (fn [e] (ds/with-timestamp (clj-time.core/now) (* 2 e)) pcoll))
   ```"
   [timestamp result]
-  (->TimeStamped timestamp result))
+  (->TimeStamped (Instant. (timc/to-long timestamp)) result))
 
 (defn output-value!
   [^DoFn$ProcessContext context entity bindings]

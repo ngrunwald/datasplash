@@ -76,7 +76,7 @@
 
 (def FilterOptions
   {:input "clouddataflow-readonly:samples.weather_stations"
-   :output "filter.edn"
+   :output "youproject:yourdataset.weather_stations_new"
    :monthFilter 7})
 
 (defn run-filter
@@ -101,12 +101,15 @@
                                              (< mean_temp gtemp)))
                                          {:name "ParseAndFilter" :side-inputs {:global-mean global-mean-temp}}))]
     (if (re-find #":[^/]" output)
-      (bq/write-bq-table output {:schema [{:name "year" :type "INTEGER"}
-                                          {:name "month":type "INTEGER"}
-                                          {:name "day"  :type "INTEGER"}
-                                          {:name "mean_temp" :type "FLOAT"}]
-                                 :create-disposition :if-needed
-                                 :write-disposition :truncate}
+      (bq/write-bq-table (bq/custom-output-fn (fn [x]
+                                                (println (.getValue x))
+                                                (str output "_" (:year (.getValue x)))))
+                         {:schema [{:name "year" :type "INTEGER"}
+                                   {:name "month":type "INTEGER"}
+                                   {:name "day"  :type "INTEGER"}
+                                   {:name "mean_temp" :type "FLOAT"}]
+                          :create-disposition :if-needed
+                          :write-disposition :truncate}
                          filtered-results)
       (ds/write-edn-file output filtered-results))))
 
