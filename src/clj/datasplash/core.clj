@@ -13,7 +13,7 @@
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
-            TextIO  TextIO$CompressionType]
+            TextIO  TextIO$CompressionType FileSystems FileBasedSink]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
@@ -43,7 +43,7 @@
   "Coerce from KV to Clojure MapEntry"
   [^KV kv]
   (let [v (.getValue kv)]
-    (if (instance? Reiterable v)
+    (if (instance? Iterable v)
       (MapEntry. (.getKey kv) (seq v))
       (MapEntry. (.getKey kv) v))))
 
@@ -1063,7 +1063,11 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                (fn [transform enum] (.withCompressionType transform enum)))}})
 
 (def text-writer-schema
-  {:num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
+  {:windowed {:docstr "Make windowed writes"
+              :action (fn [transform b] (when b (.withWindowedWrites transform )))}
+   :filename-policy {:docstr "Use withFilenamePolicy"
+                     :action (fn [transform policy] (when policy (.withFilenamePolicy transform policy)))}
+   :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
    :without-sharding {:docstr "Forces a single file output."
                       :action (fn [transform b] (when b (.withoutSharding transform)))}
@@ -1834,4 +1838,4 @@ Example:
                        (Sessions/withGapDuration)
                        (Window/into))]
      (apply-transform pcoll transform window-schema options)))
-  ([gap ^PCollection pcoll] (sliding-windows gap {} pcoll)))
+  ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
