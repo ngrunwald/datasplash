@@ -733,7 +733,8 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
 (defn dpartition-by
   {:doc (with-opts-docstr
           "Partitions the content of pcoll according to the PartitionFn.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Partition"
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Partition.
+The partition function is given two arguments: the current element and the number of partitions."
           named-schema)
    :added "0.1.0"}
   ([f num options ^PCollection pcoll]
