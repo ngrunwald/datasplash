@@ -30,6 +30,8 @@ Here is the classic word count:
    :numShards {:type Long
                :description "Number of output shards (0 if the system should choose automatically)"
                :default 0}})
+               
+(def format-count (fn [[k v]] (format "%s: %d" k v)))
 
 (defn -main
   [str-args]
@@ -39,20 +41,24 @@ Here is the classic word count:
          (ds/read-text-file input {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
          (ds/frequencies)
-         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
-         (ds/write-text-file output {:num-shards numShards}))))
+         (ds/map format-count {:name :format-count})
+         (ds/write-text-file output {:num-shards numShards})
+         (ds/run-pipeline))))
+         
+;; example call:
+;; (-main (into-array ["--input=./in.txt" "--output=./out.txt"]))
 ```
 
 Run it locally with:
 
 ```bash
-lein run --input=in.txt --output=out.txt
+lein run word-count --input=in.txt --output=out.txt
 ```
 
 Run in on Google Cloud (if you have done a `gcloud init` on this machine):
 
 ```bash
-lein run --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=BlockingDataflowPipelineRunner --project=my-project --stagingLocation=gs://my-project-staging
+lein run word-count --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=BlockingDataflowPipelineRunner --project=my-project --stagingLocation=gs://my-project-staging
 ```
 
 Check all options with:
