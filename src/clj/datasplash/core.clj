@@ -1781,14 +1781,14 @@ Example:
 
 (defn fixed-windows
   {:doc (with-opts-docstr
-          "Apply a sliding window input PCollection (useful for unbounded PCollections).
+          "Apply a fixed window input PCollection (useful for unbounded PCollections).
 
-See https://cloud.google.com/dataflow/model/windowing#setting-sliding-time-windows
+See https://cloud.google.com/dataflow/model/windowing#setting-fixed-time-windows
 
 Example:
 ```
 (require '[clj-time.core :as time])
-(ds/sliding-windows (time/minutes 30) (time/seconds 5) pcoll)
+(ds/fixed-windows (time/minutes 30) pcoll)
 ```"
           window-schema)
    :added "0.5.0"}
