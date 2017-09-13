@@ -107,7 +107,6 @@
 (intern *ns* (with-meta 'write-edn-file (meta #'dt/write-edn-file)) @#'dt/write-edn-file)
 (intern *ns* (with-meta 'write-json-file (meta #'dt/write-json-file)) @#'dt/write-json-file)
 (intern *ns* (with-meta 'generate-input (meta #'dt/generate-input)) @#'dt/generate-input)
-(intern *ns* (with-meta 'walk-gcs-tree (meta #'dt/walk-gcs-tree)) @#'dt/walk-gcs-tree)
 
 ;;;;;;;;;;;;;
 ;; Formats ;;

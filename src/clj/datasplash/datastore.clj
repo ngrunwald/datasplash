@@ -2,7 +2,7 @@
   (:require [datasplash.core :refer :all])
   (:import
    [com.google.datastore.v1.client DatastoreHelper]
-   [com.google.cloud.dataflow.sdk.io.datastore DatastoreIO]
+   [org.apache.beam.sdk.io.gcp.datastore DatastoreIO]
    [com.google.datastore.v1 Entity Value Key Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase Key$PathElement]
    [com.google.protobuf ByteString NullValue]
    [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date])
