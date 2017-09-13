@@ -13,7 +13,7 @@
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
-            TextIO  TextIO$CompressionType FileSystems FileBasedSink]
+            TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
@@ -1062,6 +1062,12 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                compression-type-enum
                                (fn [transform enum] (.withCompressionType transform enum)))}})
 
+(def sink-compression-type-enum
+  {:bzip2 FileBasedSink$CompressionType/BZIP2
+   :deflate FileBasedSink$CompressionType/DEFLATE
+   :gzip FileBasedSink$CompressionType/GZIP
+   :uncompressed FileBasedSink$CompressionType/UNCOMPRESSED})
+
 (def text-writer-schema
   {:windowed {:docstr "Make windowed writes"
               :action (fn [transform b] (when b (.withWindowedWrites transform )))}
@@ -1076,7 +1082,13 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :shard-name-template {:docstr "Uses the given shard name template."
                          :action (fn [transform tpl] (.withShardNameTemplate transform tpl))}
    :suffix {:docstr "Uses the given filename suffix."
-            :action (fn [transform suffix] (.withSuffix transform suffix))}})
+            :action (fn [transform suffix] (.withSuffix transform suffix))}
+   :compression-type {:docstr "Choose compression type."
+                      :enum sink-compression-type-enum
+                      :action (select-enum-option-fn
+                               :compression-type
+                               sink-compression-type-enum
+                               (fn [transform enum] (.withWritableByteChannelFactory transform enum)))}})
 
 (defn write-text-file
   {:doc (with-opts-docstr
