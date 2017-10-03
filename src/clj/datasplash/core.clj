@@ -43,7 +43,10 @@
   "Coerce from KV to Clojure MapEntry"
   [^KV kv]
   (let [v (.getValue kv)]
-    (if (instance? Iterable v)
+    (if (and
+         (instance? Iterable v)
+         (not (instance? java.util.Set v))
+         (not (instance? java.util.Map v)))
       (MapEntry. (.getKey kv) (seq v))
       (MapEntry. (.getKey kv) v))))
 
@@ -1019,6 +1022,19 @@ It means the template %A-%U-%T is equivalent to the default jobName"
     (-> topology
         (.getPipeline)
         (.run))))
+
+(defn wait-pipeline-result
+  {:doc "Blocks until this PipelineResult finishes. Returns the final state."
+   :added "0.5.1"}
+  ([pip-res timeout]
+   (-> (if-not timeout
+         (.waitUntilFinish pip-res)
+         (.waitUntilFinish pip-res timeout))
+       (.name)
+       (str/lower-case)
+       (keyword)))
+  ([pip-res]
+   (wait-pipeline-result pip-res nil)))
 
 (defn get-pipeline-configuration
   {:doc "Returns a map corresponding to the bean of options. With arity one, can be called on a Pipeline. With arity zero, returns the same thing inside a ParDo."

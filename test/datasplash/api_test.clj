@@ -259,6 +259,20 @@
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
 
+
+
+(deftest combine-pipeline-map
+  (let [p (ds/make-pipeline [])
+        input (ds/generate-input [{:a 1} {:b 2} {:c 3} {:d 4} {:e 5}] p)
+        proc (ds/combine (ds/combine-fn (fn [acc x] (merge acc x))
+                                        identity
+                                        (fn [& accs] (apply merge accs))
+                                        (fn [] {}))
+                         {:name "combine" :scope :global} input)]
+    (-> (PAssert/that proc) (.containsInAnyOrder #{{:a 1 :b 2 :c 3 :d 4 :e 5}}))
+    (is "combine" (.getName proc))
+    (ds/run-pipeline p)))
+
 (deftest combine-juxt
   (with-files [combine-juxt-test]
     (let [p (ds/make-pipeline [])
