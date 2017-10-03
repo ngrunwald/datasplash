@@ -10,20 +10,20 @@
    [org.codehaus.jackson.map.ObjectMapper]
    [com.google.api.services.bigquery.model
     TableRow TableFieldSchema TableSchema]
-   [com.google.cloud.dataflow.sdk Pipeline]
-   [com.google.cloud.dataflow.sdk.io
-    BigQueryIO$Read BigQueryIO$Write
+   [org.apache.beam.sdk.transforms SerializableFunction]
+   [org.apache.beam.sdk Pipeline]
+   [org.apache.beam.sdk.io.gcp.bigquery
+    BigQueryIO
     BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition]
-   [com.google.cloud.dataflow.sdk.values PBegin PCollection]
-   [com.google.cloud.dataflow.sdk.coders TableRowJsonCoder]))
+    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
+   [org.apache.beam.sdk.values PBegin PCollection]))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (BigQueryIO$Read/fromQuery query)
-                 table (BigQueryIO$Read/from table)
+                 query (.fromQuery (BigQueryIO/read)  query)
+                 table (.from (BigQueryIO/read) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))]
@@ -165,6 +165,10 @@
 (def create-disposition-enum
   {:if-needed BigQueryIO$Write$CreateDisposition/CREATE_IF_NEEDED
    :never BigQueryIO$Write$CreateDisposition/CREATE_NEVER})
+(def retry-policy-enum
+  {:never (InsertRetryPolicy/neverRetry)
+   :always (InsertRetryPolicy/alwaysRetry)
+   :retry-transient (InsertRetryPolicy/retryTransientErrors)})
 
 (def write-bq-table-schema
   (merge
@@ -184,12 +188,27 @@
                                   create-disposition-enum
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
     :without-validation {:docstr "Disables validation until runtime."
-                         :action (fn [transform] (.withoutValidation transform))}}))
+                         :action (fn [transform] (.withoutValidation transform))}
+    :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
+                   :action (select-enum-option-fn
+                            :retry-policy
+                            retry-policy-enum
+                            (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}}))
+
+(defn custom-output-fn [cust-fn]
+  (proxy [SerializableFunction] []
+    (apply [elt]
+      (let [^String out (cust-fn elt)]
+        (TableDestination. out nil)))))
 
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (apply-transform pcoll (BigQueryIO$Write/to to) write-bq-table-schema opts)))
+     (apply-transform pcoll (-> (BigQueryIO/write)
+                                (.to to)
+                                (.withFormatFunction (proxy [SerializableFunction] []
+                                                       (apply [elt] (clj-nested->table-row elt)))))
+                      write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform
@@ -201,9 +220,6 @@
      (let [schema (:schema options)
            base-coll pcoll]
        (->> base-coll
-            (dmap clj-nested->table-row (-> safe-opts
-                                            (assoc :coder (TableRowJsonCoder/of))
-                                            (dissoc :schema)))
             (write-bq-table-raw to safe-opts))))))
 
 (defn write-bq-table
