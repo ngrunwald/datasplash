@@ -12,3 +12,6 @@ pom.xml.asc
 .idea
 *.iml
 *.edn-*
+.classpath
+.project
+.settings/
