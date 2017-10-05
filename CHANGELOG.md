@@ -1,4 +1,15 @@
-#Changes for Datasplash
+# Changes for Datasplash
+
+## v0.5.1 (2017-10-05)
+
+### Changes
+
+- Added `wait-pipeline-result`
+
+### Fixes
+
+- Fix a bug with incorrect call to `seq` in combine
+- Add a missing safe-exec in `write-bq-table-raw`
 
 ## v0.5.0 (2017-09-18)
 
