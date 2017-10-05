@@ -1037,7 +1037,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    (wait-pipeline-result pip-res nil)))
 
 (defn get-pipeline-configuration
-  {:doc "Returns a map corresponding to the bean of options. With arity one, can be called on a Pipeline. With arity zero, returns the same thing inside a ParDo."
+  {:doc "Returns a map corresponding to the bean of options. Must be called inside a function wrapping a ParDo, e.g. ds/map or ds/mapcat"
    :added "0.1.0"}
   ([]
    (when-let [^DoFn$ProcessContext c *context*]
