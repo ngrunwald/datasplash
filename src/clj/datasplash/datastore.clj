@@ -27,7 +27,7 @@
                    (.withProjectId project-id)
                    (cond-> query (.withQuery query))
                    (cond-> namespace (.withNamespace namespace))
-                   (cond-> num-query-split (.withNumQuerySplit num-query-split)))]
+                   (cond-> num-query-split (.withNumQuerySplits num-query-split)))]
     (apply-transform pcoll ptrans named-schema opts)))
 
 (declare value->clj)
