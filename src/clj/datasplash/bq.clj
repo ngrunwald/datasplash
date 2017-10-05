@@ -201,13 +201,17 @@
       (let [^String out (cust-fn elt)]
         (TableDestination. out nil)))))
 
+(defn format-fn
+  []
+  (proxy [SerializableFunction] []
+    (apply [elt] (safe-exec (clj-nested->table-row elt)))))
+
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
      (apply-transform pcoll (-> (BigQueryIO/write)
                                 (.to to)
-                                (.withFormatFunction (proxy [SerializableFunction] []
-                                                       (apply [elt] (clj-nested->table-row elt)))))
+                                (.withFormatFunction (format-fn)))
                       write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
