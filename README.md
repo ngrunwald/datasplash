@@ -20,46 +20,31 @@ Here is the classic word count:
   [l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
-(ds/defoptions WordCountOptions
-  {:input {:type String
-           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
-           :description "Path of the file to read from"}
-   :output {:type String
-            :default "kinglear-freqs.txt"
-            :description "Path of the file to write to"}
-   :numShards {:type Long
-               :description "Number of output shards (0 if the system should choose automatically)"
-               :default 0}})
 
 (defn -main
-  [str-args]
-  (let [p (ds/make-pipeline 'WordCountOptions str-args)
-        {:keys [input output numShards]} (ds/get-pipeline-configuration p)]
+  [input output & str-args]
+  (let [p (ds/make-pipeline  str-args)]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (ds/mapcat tokenize {:name :tokenize})
          (ds/frequencies)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
-         (ds/write-text-file output {:num-shards numShards}))))
+         (ds/write-text-file output))))
 ```
 
 Run it locally with:
 
 ```bash
-lein run --input=in.txt --output=out.txt
+lein run in.txt out.txt
 ```
 
 Run in on Google Cloud (if you have done a `gcloud init` on this machine):
 
 ```bash
-lein run --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=BlockingDataflowPipelineRunner --project=my-project --stagingLocation=gs://my-project-staging
+lein run gs://dataflow-samples/shakespeare/kinglear.txt gs://my-project-tmp/results.txt  --runner=BlockingDataflowRunner --project=my-project --stagingLocation=gs://my-project-staging
 ```
 
-Check all options with:
 
-```bash
-lein run --help=BlockingDataflowPipelineOptions
-```
 
 ## Caveats
 
@@ -69,7 +54,7 @@ lein run --help=BlockingDataflowPipelineOptions
 
 ## License
 
-Copyright © 2015, 2016 Oscaro.com
+Copyright © 2015, 2016, 2017 Oscaro.com
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
