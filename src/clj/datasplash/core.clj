@@ -7,13 +7,15 @@
             [clojure.tools.logging :as log]
             [superstring.core :as str]
             [taoensso.nippy :as nippy]
+            [clj-time.format :as timf]
             [clj-time.coerce :as timc]
             [clj-time.core :as time])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
-            TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType]
+            TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType
+            FileBasedSink FileBasedSink$FilenamePolicy FileBasedSink$FilenamePolicy$WindowedContext]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
@@ -1088,7 +1090,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (def text-writer-schema
   {:windowed {:docstr "Make windowed writes"
               :action (fn [transform b] (when b (.withWindowedWrites transform )))}
-   :filename-policy {:docstr "Use withFilenamePolicy"
+   :filename-policy {:docstr "Use withFilenamePolicy (see filename-policy fn)"
                      :action (fn [transform policy] (when policy (.withFilenamePolicy transform policy)))}
    :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
@@ -1868,3 +1870,55 @@ Example:
                        (Window/into))]
      (apply-transform pcoll transform window-schema options)))
   ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
+
+
+(defn- mk-default-windowed-fn
+  [{:keys [file-name suffix] :as options
+    :or {file-name "file"}}]
+  (fn [^FileBasedSink$FilenamePolicy$WindowedContext context _]
+    (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
+                                (.start (.getWindow context)))]
+      (str file-name "-" timestamp "." suffix))))
+
+(defn- mk-default-unwindowed-fn
+  [{:keys [file-name suffix] :as options
+    :or {file-name "file"}}]
+  (fn [_ _]
+    (str file-name "." suffix)))
+
+(def filename-schema
+  {:file-name {:docstr "set the default filename prefix (only used when no custom function is set)"}
+   :suffix {:docstr "set the default filename suffix (only used when no custom function is set)"}
+   :windowed-fn {:docstr "override the filename function for windowed PCollection"}
+   :unwindowed-fn {:docstr "override the filename function for unwindowed PCollection"}})
+
+(defn filename-policy
+  {:doc (with-opts-docstr
+          "Create a filename-policy object
+
+Examples:
+```
+(ds/filename-policy {:file-name \"file\"
+                     :suffix \"json\"})
+
+;; with custom functions
+(require '[clj-time.format :as tf])
+
+(defn windowed-fn
+  [^FileBasedSink$FilenamePolicy$WindowedContext context _]
+  (let [timestamp (tf/unparse (:date-hour-minute tf/formatters)
+                              (.start (.getWindow context)))]
+    (str \"file-\" timestamp \".txt\")))
+
+(ds/filename-policy {:windowed-fn windowed-fn
+                     :unwindowed-fn (fn [_ _] \"file.txt\")})
+```"
+          filename-schema)
+   :added "0.5.2"}
+  ^datasplash.fns.FileNamePolicy
+  [options]
+  (datasplash.fns.FileNamePolicy. {"windowed-fn" (or (:windowed-fn options)
+                                                     (mk-default-windowed-fn options))
+                                   "unwindowed-fn" (or (:unwindowed-fn options)
+                                                       (mk-default-unwindowed-fn options))}))
+
