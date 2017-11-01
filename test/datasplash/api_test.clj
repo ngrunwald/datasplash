@@ -336,3 +336,14 @@
                      (ds/map (fn [[_ elts]] (reduce + (map (fn [[k v]] v) elts))) {:name :sum}))]
     (.. PAssert (that session) (containsInAnyOrder #{0 3 4}))
     (ds/run-pipeline p)))
+
+(deftest checkpoint
+  (with-files [checkpoint-test]
+    (let [p (->> (ds/make-pipeline [])
+                 (ds/generate-input [0 1 2 3])
+                 (ds/map inc {:name :inc :checkpoint checkpoint-test})
+                 (ds/map inc {:name :inc-again}))]
+      (ds/run-pipeline p)
+      (let [cp (flatten (map read-file (glob-file checkpoint-test)))]
+        (.. PAssert (that p) (containsInAnyOrder #{2 3 4 5}))
+        (is (= '(1 2 3 4) (sort cp)))))))

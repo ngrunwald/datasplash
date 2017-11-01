@@ -1,6 +1,7 @@
 (ns datasplash.checkpoint
   (:require [taoensso.nippy :as nippy]
-            [cheshire.core :as json])
+            [cheshire.core :as json]
+            [clojure.edn :as edn])
   (:import [java.nio.file Paths Files StandardOpenOption LinkOption]
            [java.net URI]
            [java.util Iterator]
@@ -8,16 +9,26 @@
 
 (def open-options {:create (StandardOpenOption/valueOf "CREATE")})
 
+(defn coerce-path-to-lines-iterator
+  [path]
+  (.iterator (Files/lines path)))
+
+(defn read-text-fn
+  [parse-fn]
+  (fn [^Iterator it]
+    (when (.hasNext it) (parse-fn (.next it)))))
+
+(def read-json-line (read-text-fn #(json/decode % true)))
+(def read-edn-line (read-text-fn edn/read-string))
+
 (def formats {:nippy {:read-fn nippy/thaw-from-in!
                       :coerce-path-fn
                       (fn [path] (DataInputStream.
                                   (Files/newInputStream path (make-array StandardOpenOption 0))))}
-              :json  {:read-fn
-                      (fn [^Iterator it]
-                        (when (.hasNext it) (json/decode (.next it) true)))
-                      :coerce-path-fn
-                      (fn [path]
-                        (.iterator (Files/lines path)))}})
+              :json  {:read-fn read-json-line
+                      :coerce-path-fn coerce-path-to-lines-iterator}
+              :edn   {:read-fn read-edn-line
+                      :coerce-path-fn coerce-path-to-lines-iterator}})
 
 (defn regular-file?
   [path]
