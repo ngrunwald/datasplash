@@ -799,20 +799,22 @@ Example:
   (let [cfs (map ->combine-fn fns)]
     (combine-fn
      (fn [accs elt]
-       (map-indexed
-        (fn [idx acc] (let [f (.getReduceFn (nth cfs idx))]
-                        (f acc elt))) accs))
+       (into []
+             (map-indexed
+              (fn [idx acc] (let [f (.getReduceFn (nth cfs idx))]
+                              (f acc elt))) accs)))
      (fn [accs]
-       (map-indexed
-        (fn [idx acc] (let [f (.getExtractFn (nth cfs idx))]
-                        (f acc))) accs))
+       (into [] (map-indexed
+                 (fn [idx acc] (let [f (.getExtractFn (nth cfs idx))]
+                                 (f acc))) accs)))
      (fn [& accs]
-       (map-indexed
-        (fn [idx cf] (let [f (.getMergeFn cf)]
-                       (apply f (map (fn [acc] (nth acc idx)) accs))))
-        cfs))
+       (into []
+             (map-indexed
+              (fn [idx cf] (let [f (.getMergeFn cf)]
+                             (apply f (mapv (fn [acc] (nth acc idx)) accs))))
+              cfs)))
      (fn []
-       (map (fn [cf] (let [f (.getInitFn cf)]
+       (mapv (fn [cf] (let [f (.getInitFn cf)]
                        (f))) cfs))
      (.getDefaultOutputCoder (first cfs) nil nil)
      (.getAccumulatorCoder (first cfs) nil nil))))
