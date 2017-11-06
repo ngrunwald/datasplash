@@ -198,8 +198,9 @@
 (defn custom-output-fn [cust-fn]
   (proxy [SerializableFunction] []
     (apply [elt]
-      (let [^String out (cust-fn elt)]
-        (TableDestination. out nil)))))
+      (safe-exec
+       (let [^String out (cust-fn elt)]
+         (TableDestination. out nil))))))
 
 (defn format-fn
   []
