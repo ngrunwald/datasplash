@@ -1,0 +1,6 @@
+* Install gs nio
+
+- install gcloud sdk
+- gcloud auth login
+- gcloud config set project [YOUR PROJECT ID]
+- gcloud auth application-default login

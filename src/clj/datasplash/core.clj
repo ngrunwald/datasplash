@@ -217,25 +217,7 @@
      (ClojureDoFn. {"dofn" process-ctx-fn
                     "window-fn" window-fn
                     "start-bundle" start-bundle
-                    "finish-bundle" finish-bundle}))
-
-   ;; (proxy [DoFn] []
-   ;;   (processElement [^DoFn$ProcessContext context]
-   ;;     (safe-exec-cfg
-   ;;      opts
-   ;;      (let [side-ins (persistent!
-   ;;                      (reduce
-   ;;                       (fn [acc [k pview]]
-   ;;                         (assoc! acc k (.sideInput context pview)))
-   ;;                       (transient {}) side-inputs))]
-   ;;        (binding [*context* context
-   ;;                  *coerce-to-clj* (not without-coercion-to-clj)
-   ;;                  *side-inputs* side-ins
-   ;;                  *main-output* (when side-outputs (first (sort side-outputs)))]
-   ;;          (f context)))))
-   ;;   (startBundle [^DoFn$Context context] (safe-exec-cfg opts (start-bundle context)))
-   ;;   (finishBundle [^DoFn$Context context] (safe-exec-cfg opts (finish-bundle context))))
-   )
+                    "finish-bundle" finish-bundle})))
   ([f] (dofn f {})))
 
 (defn context
@@ -457,25 +439,30 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         (assoc! acc (keyword (.getId tag)) pcoll))
       (transient {}) all))))
 
+(declare write-edn-file)
+
 (defn apply-transform
   "apply the PTransform to the given Pcoll applying options according to schema."
   [pcoll ^PTransform transform schema
-   {:keys [coder coll-name side-outputs] :as options}]
+   {:keys [coder coll-name side-outputs checkpoint] :as options}]
   (let [nam (some-> options (:name) (name))
         clean-opts (dissoc options :name :coder :coll-name)
         configured-transform (with-opts schema clean-opts transform)
-        bound (tapply pcoll nam configured-transform)]
-    (if-not side-outputs
-      (-> bound
-          (cond-> coder (.setCoder coder))
-          (cond-> coll-name (.setName coll-name)))
-      (let [pct (pcolltuple->map bound)]
-        (if coder
-          (do
-            (doseq [^PCollection pcoll (vals pct)]
-              (.setCoder pcoll coder))
-            pct)
-          pct)))))
+        bound (tapply pcoll nam configured-transform)
+        rcoll (if-not side-outputs
+                (-> bound
+                    (cond-> coder (.setCoder coder))
+                    (cond-> coll-name (.setName coll-name)))
+                (let [pct (pcolltuple->map bound)]
+                  (if coder
+                    (do
+                      (doseq [^PCollection pcoll (vals pct)]
+                        (.setCoder pcoll coder))
+                      pct)
+                    pct)))]
+    (when checkpoint
+      (write-edn-file checkpoint rcoll))
+    rcoll))
 
 (defn with-opts-docstr
   [doc-string & schemas]
@@ -502,7 +489,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                    :given kw}))))))
 
 (def base-schema
-  {:coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}})
+  {:coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}
+   :checkpoint {:docstr "Given a path, will store the resulting pcoll at this path in edn to facilitate dev/debug."}})
 
 (def named-schema
   (merge
