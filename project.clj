@@ -12,6 +12,7 @@
                  [org.clojure/tools.logging "0.3.1"]
                  [clj-time "0.13.0"]
                  [superstring "2.1.0"]
+                 [ubergraph "0.4.0"]
                  [com.google.cloud/google-cloud-nio "0.20.0-alpha"]]
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
