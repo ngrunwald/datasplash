@@ -1292,15 +1292,15 @@ Example:
           ""
           base-schema text-writer-schema)
    :added "0.1.0"
-   :obsolete "0.2.0"}
+   :deprecated "0.2.0"}
   ([encoder f mapping to options ^PCollection pcoll]
    (let [opts (assoc options :label "write-edn-file-by" :coder nil)
          ptrans (write-text-file-by-transform encoder f mapping to opts)]
      (apply-transform pcoll ptrans named-schema opts)))
   ([encoder f mapping to pcoll] (write-file-by encoder f  mapping to {} pcoll)))
 
-(def ^{:obsolete "0.2.0"} write-edn-file-by (partial write-file-by write-edn-file))
-(def ^{:obsolete "0.2.0"} write-text-file-by (partial write-file-by write-text-file))
+(def ^{:deprecated "0.2.0"} write-edn-file-by (partial write-file-by write-edn-file))
+(def ^{:deprecated "0.2.0"} write-text-file-by (partial write-file-by write-text-file))
 
 ;;;;;;;;;;;
 ;; Joins ;;
