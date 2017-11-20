@@ -94,16 +94,14 @@
                                      x))
                            m)))
 
-(defn clj->table-row
-  ^TableRow
+(defn ^TableRow clj->table-row
   [hmap]
   (let [^TableRow row (TableRow.)]
     (doseq [[k v] hmap]
       (.set row (clean-name k) (coerce-by-bq-val v)))
     row))
 
-(defn clj-nested->table-row
-  ^TableRow
+(defn ^TableRow clj-nested->table-row
   [hmap]
   (let [clean-map (->> hmap
                        (clojure.walk/prewalk coerce-by-bq-val)
@@ -138,20 +136,19 @@
            (cond-> mode (.setMode mode))
            (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
-(defn ->schema
-  ^TableSchema
+(defn ^TableSchema ->schema
   ([defs transform-keys]
    (if (instance? TableSchema defs)
      defs
      (let [fields (clj->TableFieldSchema defs transform-keys)]
        (-> (TableSchema.) (.setFields fields)))))
-  ([defs] (->schema defs (fn [k] (name k)))))
+  ([defs] (->schema defs name)))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
   [table-spec]
   (let [{:keys [exit out] :as return} (sh "bq" "--format=json" "show" (name table-spec))]
-    (if (= 0 exit)
+    (if (zero? exit)
       (-> (json/decode out true) (:schema) (:fields))
       (throw (ex-info (str "Could not get bq table schema for table " table-spec)
                       {:table table-spec
@@ -196,23 +193,18 @@
                             (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}}))
 
 (defn custom-output-fn [cust-fn]
-  (proxy [SerializableFunction] []
-    (apply [elt]
-      (safe-exec
-       (let [^String out (cust-fn elt)]
-         (TableDestination. out nil))))))
+  (sfn (fn [elt]
+         (let [^String out (cust-fn elt)]
+           (TableDestination. out nil)))))
 
-(defn format-fn
-  []
-  (proxy [SerializableFunction] []
-    (apply [elt] (safe-exec (clj-nested->table-row elt)))))
+(def format-fn (sfn clj-nested->table-row))
 
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
      (apply-transform pcoll (-> (BigQueryIO/write)
                                 (.to to)
-                                (.withFormatFunction (format-fn)))
+                                (.withFormatFunction format-fn))
                       write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
@@ -224,8 +216,7 @@
      [^PCollection pcoll]
      (let [schema (:schema options)
            base-coll pcoll]
-       (->> base-coll
-            (write-bq-table-raw to safe-opts))))))
+       (write-bq-table-raw to safe-opts base-coll)))))
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
