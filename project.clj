@@ -22,8 +22,8 @@
                                   [org.slf4j/slf4j-jdk14 "1.7.21"]]
                    :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core]
                    :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
-                           :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.4.1/{filepath}#L{line}"
+                           :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.5.1/{filepath}#L{line}"
                            :metadata {:doc/format :markdown}}
-                   :plugins [[lein-codox "0.9.1"]]}
+                   :plugins [[lein-codox "0.10.3"]]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
