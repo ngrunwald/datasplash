@@ -76,7 +76,7 @@
         (cond-> test (str))
         (name)
         (str/replace #"-" "_")
-        (str/replace #"\?" ""))))
+        (str/replace #"\?" "_"))))
 
 
 (defn bqize-keys
