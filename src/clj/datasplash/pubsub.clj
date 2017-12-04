@@ -7,38 +7,42 @@
            (java.nio.charset StandardCharsets)))
 
 
-(def message-types
+(def ^:no-doc message-types
   {:read {:raw (PubsubIO/readMessagesWithAttributes)
           :string (PubsubIO/readStrings)}
    :write {:raw (PubsubIO/writeMessages)
            :string (PubsubIO/writeStrings)}})
 
-(defn pubsub-message->clj
+(defn ^:no-doc pubsub-message->clj
   "Converts a pubsub message to a clojure usable object. Assumes the payload is UTF-8 encoded"
   [^PubsubMessage m]
   {:payload (String. (.getPayload m) "UTF-8")
    :attributes (into {} (.getAttributeMap m))})
 
-(defn clj->pubsub-message
+(defn ^:no-doc clj->pubsub-message
   "Converts a clojure map containing a payload and an attributes keys. payload must be a string and attributes a map"
   [{:keys [payload attributes]}]
   (let [attributes-map (into {} (map (fn [k v] [(if (keyword? k) (name k) (str k)) (str v)]) attributes))]
     (PubsubMessage. (.getBytes payload StandardCharsets/UTF_8) attributes-map)))
 
 (defn encode-messages
-  "Converts the input to PubsubMessages. To use before `write-to-pubsub` with type `:raw`"
+  "Converts the input to PubsubMessages. To use before `write-to-pubsub` with type `:raw`.
+
+  Takes as input a map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
   [options p]
   (dmap clj->pubsub-message (assoc options :coder (PubsubMessageWithAttributesCoder/of)) p))
 
 (defn decode-messages
-  "Converts the input PubsubMessages to clojure objects. To use after `read-from-pubsub` with type `:raw`"
+  "Converts the input PubsubMessages to clojure objects. To use after `read-from-pubsub` with type `:raw`.
+
+  Returns an map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
   [options p]
   (dmap pubsub-message->clj options p))
 
-(def read-from-pubsub-schema
+(def ^:no-doc read-from-pubsub-schema
   (merge
    named-schema
-   {:kind {:docstr "Specifies if the input is a `:subscription` or a `:topic` (default to :topic)."}
+   {:kind {:docstr "Specifies if the input is a `:subscription` or a `:topic` (default to `:topic`)."}
     :type {:docstr "Specify the type of message reader, default to `:string.` Possible values are `:string`: UTF-8 encoded strings, `:raw`: pubsub message with attributes."}
     :timestamp-label {:docstr "Set the timestamp of the message using a message's attribute. The attribute should contain an Unix epoch in milliseconds."}}))
 
@@ -71,7 +75,7 @@ Examples:
      (apply-transform pipe pubsub-read read-from-pubsub-schema options)))
   ([subscription-or-topic p] (read-from-pubsub subscription-or-topic {} p)))
 
-(def write-from-pubsub-schema
+(def ^:no-doc write-from-pubsub-schema
   (merge
    named-schema
    {:type {:docstr "Specify the type of message writer, default to `:string.` Possible values are `:string`: UTF-8 encoded strings, `:raw`: raw pubsub message."}}))
