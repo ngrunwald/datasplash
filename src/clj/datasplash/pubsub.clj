@@ -8,7 +8,7 @@
 
 
 (def message-types
-  {:read {:raw (PubsubIO/readMessages)
+  {:read {:raw (PubsubIO/readMessagesWithAttributes)
           :string (PubsubIO/readStrings)}
    :write {:raw (PubsubIO/writeMessages)
            :string (PubsubIO/writeStrings)}})
