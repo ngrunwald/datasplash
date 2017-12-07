@@ -96,7 +96,7 @@ Examples:
 ```"
           write-from-pubsub-schema)
    :added "0.4.0"}
-  ([topic options pcoll]
+  ([topic {:keys [type] :or {type :string} :as options} pcoll]
    (-> pcoll
        (apply-transform (.to (get-in message-types [:write type]) topic) {} options)))
   ([topic pcoll] (write-to-pubsub topic {} pcoll)))
