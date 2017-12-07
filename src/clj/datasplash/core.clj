@@ -1616,6 +1616,8 @@ Example:
    base-combine-schema
    {:as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
                         :action (fn [transform b] (when b (.asSingletonView transform)))}
+    :without-default {:docstr "Empty windows will return an empty collection"
+                      :action (fn [transform b] (when b (.withoutDefault transform)))}
     :scope {:docstr "Specifies the combiner scope of application"
             :enum [:global :per-key]
             :default :global}}))
