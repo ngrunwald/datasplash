@@ -1616,6 +1616,8 @@ Example:
    base-combine-schema
    {:as-singleton-view {:docstr "The transform returns a PCollectionView whose elements are the result of combining elements per-window in the input PCollection."
                         :action (fn [transform b] (when b (.asSingletonView transform)))}
+    :without-default {:docstr "Empty windows will return an empty collection"
+                      :action (fn [transform b] (when b (.withoutDefault transform)))}
     :scope {:docstr "Specifies the combiner scope of application"
             :enum [:global :per-key]
             :default :global}}))
@@ -1912,3 +1914,20 @@ Examples:
                                    "unwindowed-fn" (or (:unwindowed-fn options)
                                                        (mk-default-unwindowed-fn options))}))
 
+(defn- parse-try
+  "Separates body from catch/finally clauses"
+  [body]
+  (loop [expressions []
+         clauses body]
+    (let [[head & tail] clauses]
+      (if (or (not head) (and (list? head) (#{'catch 'finally} (first head))))
+        [expressions clauses]
+        (recur (cons head expressions) tail)))))
+
+(defmacro dtry
+  {:doc "Just like try except it wraps the body in a safe-exec"
+   :added "0.5.2"}
+  [& body]
+  (let [[expressions clauses] (parse-try body)]
+    `(try (safe-exec ~@expressions)
+          ~@clauses)))
