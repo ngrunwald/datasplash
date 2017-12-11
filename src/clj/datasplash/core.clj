@@ -1911,3 +1911,21 @@ Examples:
                                                      (mk-default-windowed-fn options))
                                    "unwindowed-fn" (or (:unwindowed-fn options)
                                                        (mk-default-unwindowed-fn options))}))
+
+(defn- parse-try
+  "Separates body from catch/finally clauses"
+  [body]
+  (loop [expressions []
+         clauses body]
+    (let [[head & tail] clauses]
+      (if (or (not head) (and (list? head) (#{'catch 'finally} (first head))))
+        [expressions clauses]
+        (recur (cons head expressions) tail)))))
+
+(defmacro dtry
+  {:doc "Just like try except it wraps the body in a safe-exec"
+   :added "0.5.2"}
+  [& body]
+  (let [[expressions clauses] (parse-try body)]
+    `(try (safe-exec ~@expressions)
+          ~@clauses)))
