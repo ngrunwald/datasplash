@@ -1,5 +1,20 @@
 # Changes for Datasplash
 
+## v0.5.2 (2017-12-14)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.1...v0.5.2)**
+
+### Changes
+
+- Fixed `defoptions` again and made it useful for interop with Beam
+- Added `:checkpoint` option, will be made more useful later
+- Switched to new PubSub API
+- Add support for custom filename-policy
+
+### Fixes
+
+- Fixed a possible bug causing StackOverflows on `combine`
+
 ## v0.5.1 (2017-10-05)
 
 ### Changes

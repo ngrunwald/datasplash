@@ -1030,13 +1030,16 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    (wait-pipeline-result pip-res nil)))
 
 (defn get-pipeline-options
-  [^PipelineWithOptions p]
-  (-> p
-      (.getPipelineOptions)
-      (bean)))
+  {:doc "Returns a map corresponding to the bean of options the given pipeline was built with. Must be called on a `PipelineWithOptions` object produced by `make-pipeline`."
+   :added "0.5.2"}
+  [^PipelineWithOptions pipeline]
+  (some-> pipeline
+          (.getPipelineOptions)
+          (bean)
+          (dissoc :class)))
 
 (defn get-pipeline-configuration
-  {:doc "Returns a map corresponding to the bean of options. Must be called inside a function wrapping a ParDo, e.g. ds/map or ds/mapcat"
+  {:doc "Returns a map corresponding to the bean of configuration the current pipeline was run with. Must be called inside a function wrapping a ParDo, e.g. ds/map or ds/mapcat."
    :added "0.1.0"}
   ([]
    (when-let [^DoFn$ProcessContext c *context*]
