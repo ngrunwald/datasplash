@@ -24,7 +24,6 @@
                  [{:name "first-name" :type "STRING" :mode "NULLABLE"}
                   {:name "last-name" :type "STRING" :mode "NULLABLE"}]}]
         converted-schema (->schema schema)]
-    (println (filter #(= (.getType %) "RECORD") (.getFields converted-schema)))
     (is (instance? TableSchema converted-schema))
     (is (= (map :name schema) (get-names-from-converted-schema converted-schema)))
     (is (= 2 (count (get-record-fields-from-converted-schema converted-schema))))))
