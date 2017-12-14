@@ -1,4 +1,4 @@
-(defproject datasplash "0.5.2"
+(defproject datasplash "0.5.3-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
@@ -23,7 +23,8 @@
                    :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]
                    :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
                            :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.5.2/{filepath}#L{line}"
-                           :metadata {:doc/format :markdown}}
+                           :metadata {:doc/format :markdown}
+                           :output-path "gh-pages"}
                    :plugins [[lein-codox "0.10.3"]]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
