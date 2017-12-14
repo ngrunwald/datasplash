@@ -37,7 +37,8 @@
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn]))
+           [datasplash.fns ClojureDoFn]
+           [datasplash.pipelines PipelineWithOptions]))
 
 (def required-ns (atom #{}))
 
@@ -977,7 +978,7 @@ map. Each value will be a list of the values that match key.
          options (if itf
                    (.as builder (interface->class itf))
                    (.create builder))
-         pipeline (Pipeline/create options)
+         pipeline (PipelineWithOptions/create options)
          coder-registry (.getCoderRegistry pipeline)]
      (doto coder-registry
        (.registerCoderForClass clojure.lang.IPersistentCollection (make-nippy-coder))
@@ -1027,6 +1028,12 @@ It means the template %A-%U-%T is equivalent to the default jobName"
        (keyword)))
   ([pip-res]
    (wait-pipeline-result pip-res nil)))
+
+(defn get-pipeline-options
+  [^PipelineWithOptions p]
+  (-> p
+      (.getPipelineOptions)
+      (bean)))
 
 (defn get-pipeline-configuration
   {:doc "Returns a map corresponding to the bean of options. Must be called inside a function wrapping a ParDo, e.g. ds/map or ds/mapcat"

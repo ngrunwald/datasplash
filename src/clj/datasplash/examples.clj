@@ -5,11 +5,13 @@
              [api :as ds]
              [bq :as bq]
              [datastore :as dts]
-             [pubsub :as ps]]
+             [pubsub :as ps]
+             [options :as options :refer [defoptions]]]
             [clojure.edn :as edn])
   (:import [java.util UUID]
            [com.google.datastore.v1 Query PropertyFilter$Operator]
-           [com.google.datastore.v1.client DatastoreHelper])
+           [com.google.datastore.v1.client DatastoreHelper]
+           [org.apache.beam.sdk.options PipelineOptionsFactory])
   (:gen-class))
 
 ;;;;;;;;;;;;;;;
@@ -32,15 +34,18 @@
   [[k v]]
   (format "%s: %d" k v))
 
-(def WordCountOptions
-  {:input "gs://dataflow-samples/shakespeare/kinglear.txt" 
-   :output "kinglear-freqs.txt"
-   :numShards 0})
+(defoptions WordCountOptions
+  {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :type String} 
+   :output {:default "kinglear-freqs.txt"
+            :type String}
+   :numShards {:default 0
+               :type Long}})
 
 (defn run-word-count
   [str-args]
-  (let [p (ds/make-pipeline str-args)
-        {:keys [input output numShards]} WordCountOptions]
+  (let [p (ds/make-pipeline WordCountOptions str-args)
+        {:keys [input output numShards]} (ds/get-pipeline-options p)]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (count-words)
@@ -54,15 +59,16 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DeDupExample.java
 
-(def DeDupOptions
-  {:input "gs://dataflow-samples/shakespeare/*" 
-   :output "shakespeare-dedup.txt"
-   })
+(defoptions DeDupOptions
+  {:input {:default "gs://dataflow-samples/shakespeare/*"
+           :type String} 
+   :output {:default "shakespeare-dedup.txt"
+            :type String}})
 
 (defn run-dedup
   [str-args]
-  (let [p (ds/make-pipeline str-args)
-        {:keys [input output]} DeDupOptions]
+  (let [p (ds/make-pipeline DeDupOptions str-args)
+        {:keys [input output]} (ds/get-pipeline-options p)]
     (->> p
          (ds/read-text-file input {:name "ReadLines"})
          (ds/distinct {:name "dedup"})
@@ -74,15 +80,18 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/FilterExamples.java
 
-(def FilterOptions
-  {:input "clouddataflow-readonly:samples.weather_stations"
-   :output "youproject:yourdataset.weather_stations_new"
-   :monthFilter 7})
+(defoptions FilterOptions
+  {:input {:default "clouddataflow-readonly:samples.weather_stations"
+           :type String}
+   :output {:default "youproject:yourdataset.weather_stations_new"
+            :type String}
+   :monthFilter {:default 7
+                 :type String}})
 
 (defn run-filter
   [str-args]
-  (let [p (ds/make-pipeline str-args) 
-        {:keys [input output monthFilter]} FilterOptions
+  (let [p (ds/make-pipeline FilterOptions str-args) 
+        {:keys [input output monthFilter]} (ds/get-pipeline-options p)
         all-rows (->> p
                       (bq/read-bq {:table input})
                       (ds/map (fn [row]
@@ -102,7 +111,6 @@
                                          {:name "ParseAndFilter" :side-inputs {:global-mean global-mean-temp}}))]
     (if (re-find #":[^/]" output)
       (bq/write-bq-table (bq/custom-output-fn (fn [x]
-                                                (println (.getValue x))
                                                 (str output "_" (:year (.getValue x)))))
                          {:schema [{:name "year" :type "INTEGER"}
                                    {:name "month":type "INTEGER"}
@@ -119,15 +127,18 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/CombinePerKeyExamples.java
 
-(def CombinePerKeyOptions
-  {:input "publicdata:samples.shakespeare"
-   :output "combinePerKeyRes.edn"
-   :minWordLength 8})
+(defoptions CombinePerKeyOptions
+  {:input {:default "publicdata:samples.shakespeare"
+           :type String}
+   :output {:default "combinePerKeyRes.edn"
+            :type String}
+   :minWordLength {:default 8
+                   :type Long}})
 
 (defn run-combine-per-key
   [str-args]
-  (let [p (ds/make-pipeline str-args)
-        {:keys [input output minWordLength]} CombinePerKeyOptions
+  (let [p (ds/make-pipeline CombinePerKeyOptions str-args)
+        {:keys [input output minWordLength]} (ds/get-pipeline-options p)
         results (->> p
                      (bq/read-bq {:table input})
                      (ds/filter (fn [{:keys [word]}] (> (count word) minWordLength)))
@@ -150,14 +161,16 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/MaxPerKeyExamples.java
 
-(def MaxPerKeyOptions
-  {:input "clouddataflow-readonly:samples.weather_stations"
-   :output "maxperKeyRes.edn"})
+(defoptions MaxPerKeyOptions
+  {:input {:default "clouddataflow-readonly:samples.weather_stations"
+           :type String}
+   :output {:default "maxperKeyRes.edn"
+            :type String}})
 
 (defn run-max-per-key
   [str-args]
-  (let [p (ds/make-pipeline str-args)
-        {:keys [input output]} MaxPerKeyOptions
+  (let [p (ds/make-pipeline MaxPerKeyOptions str-args)
+        {:keys [input output]} (ds/get-pipeline-options p)
         results (->> p
                      (bq/read-bq {:table input})
                      (ds/map-kv (fn [{:keys [month mean_temp]}]
@@ -182,16 +195,18 @@
 ;; Test calling lein run standard-sql --stagingLocation=gs://[your-bucket]/jars --output gs://[your-bucket]/
 
 (def StandardSQLOptions
-  {:input "bigquery-public-data.samples.shakespeare" 
-   :output "project:dataset.table"
-   :tempLocation "gs://yourbucket"})
+  {:input {:default "bigquery-public-data.samples.shakespeare"
+           :type String} 
+   :output {:default "project:dataset.table"
+            :type String}
+   :tempLocation {:default "gs://yourbucket"
+                  :type String}})
 
 (defn run-standard-sql-query
   [str-args]
-  (let [p (ds/make-pipeline 
-           str-args
-           {:runner "DataflowPipelineRunner"})  ;; the DirectPipelineRunner doesn't support standardSql yet 
-        {:keys [input output]} StandardSQLOptions
+  ;; the DirectPipelineRunner doesn't support standardSql yet
+  (let [p (ds/make-pipeline StandardSQLOptions str-args {:runner "DataflowPipelineRunner"})
+        {:keys [input output]} (ds/get-pipeline-options p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
                      (bq/read-bq {:query query
@@ -204,14 +219,21 @@
 
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
 
-(def DatastoreWordCountOptions
-  {:input "gs://dataflow-samples/shakespeare/kinglear.txt" 
-   :output "kinglear-freqs.txt" 
-   :dataset "yourdataset"
-   :kind "yourkind"
-   :namespace "yournamespace"
-   :isReadOnly false
-   :numShards 0})
+(defoptions DatastoreWordCountOptions
+  {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :type String} 
+   :output {:default "kinglear-freqs.txt"
+            :type String} 
+   :dataset {:default "yourdataset"
+             :type String}
+   :kind {:default "yourkind"
+          :type String}
+   :namespace {:default "yournamespace"
+               :type String}
+   :isReadOnly {:default false
+                :type Boolean}
+   :numShards {:default 0
+               :type Long}})
 
 (defn make-ancestor-key
   [{:keys [kind namespace]}]
@@ -231,9 +253,9 @@
 
 (defn run-datastore-word-count
   [str-args]
-  (let [p (ds/make-pipeline str-args)
+  (let [p (ds/make-pipeline DatastoreWordCountOptions str-args)
         {:keys [input output dataset kind
-                namespace isReadOnly numShards] :as opts} DatastoreWordCountOptions
+                namespace isReadOnly numShards] :as opts} (ds/get-pipeline-options p)
         root (make-ancestor-key opts)]
     (when-not isReadOnly
       (->> p
@@ -268,9 +290,11 @@
 ;; You must create the my-subscription and my-transformed-subscription subscriptions, and the my-transformed-topic topics
 ;; before you run this
 
-(def PubSubOptions
-  {:project "yourproject"
-   :stagingLocation "gs://yourbucket"})
+(defoptions PubSubOptions
+  {:project {:default "yourproject"
+             :type String}
+   :stagingLocation {:default "gs://yourbucket"
+                     :type String}})
 
 (defn stream-interactions-from-pubsub
  [pipeline read-topic write-transformed-topic]
@@ -294,11 +318,11 @@
 
 (defn run-pub-sub
   [str-args]
-  (let [pipeline (ds/make-pipeline 
+  (let [pipeline (ds/make-pipeline
                   str-args
                   {:runner "DataflowPipelineRunner"
                    :streaming true})
-        {:keys [project]} PubSubOptions
+        {:keys [project]} (ds/get-pipeline-options pipeline)
         read-topic (format "projects/%s/topics/my-topic" project)
         write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
         read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]
@@ -312,13 +336,21 @@
 (defn -main
   [job & args]
   (compile 'datasplash.examples)
-  (-> (case job
-        "word-count" (run-word-count args)
-        "dedup" (run-dedup args)
-        "filter" (run-filter args)
-        "combine-per-key" (run-combine-per-key args)
-        "max-per-key" (run-max-per-key args)
-        "standard-sql" (run-standard-sql-query args)
-        "datastore-word-count" (run-datastore-word-count args)
-        "pub-sub" (run-pub-sub args))
-      (ds/run-pipeline)))
+  (some-> (cond
+            (= job "word-count") (run-word-count args)
+            (= job "dedup") (run-dedup args)
+            (= job "filter") (run-filter args)
+            (= job "combine-per-key") (run-combine-per-key args)
+            (= job "max-per-key") (run-max-per-key args)
+            (= job "standard-sql") (run-standard-sql-query args)
+            (= job "datastore-word-count") (run-datastore-word-count args)
+            (= job "pub-sub") (run-pub-sub args)
+            (re-find #"help" job)
+            (do
+              (doseq [klass [WordCountOptions]]
+                (PipelineOptionsFactory/register (Class/forName (name klass))))
+              (-> (PipelineOptionsFactory/fromArgs
+                   (into-array String (concat [job] args)))
+                  (.create)
+                  (.run))))
+          (ds/run-pipeline)))

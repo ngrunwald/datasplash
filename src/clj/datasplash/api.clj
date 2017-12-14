@@ -22,6 +22,7 @@
 ;;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'defoptions (meta #'opt/defoptions)) @#'opt/defoptions)
+(intern *ns* (with-meta 'get-pipeline-options (meta #'dt/get-pipeline-options)) @#'dt/get-pipeline-options)
 (intern *ns* (with-meta 'get-pipeline-configuration (meta #'dt/get-pipeline-configuration)) @#'dt/get-pipeline-configuration)
 
 ;;;;;;;;;;;;;;;

@@ -22,21 +22,23 @@
 
 (defmacro defoptions
   [interface-name specs]
-  `(gen-interface
-    :name ~interface-name
-    :extends [org.apache.beam.sdk.options.PipelineOptions]
-    :methods
-    [~@(apply concat
-              (for [[kw {:keys [type] :as spec}] specs
-                    :let [nam (capitalize-first (name kw))
-                          annotations (select-keys spec [:default :description :hidden])]]
-                `([~(with-meta
-                      (symbol (str "get" nam))
-                      (reduce (fn [acc [k v]]
-                                (assoc acc
-                                       (let [m (get annotations-mapping k)]
-                                         (if (fn? m) (m spec) m))
-                                       (if (nil? v) true v)))
-                              {} annotations))
-                   [] ~type]
-                  [~(with-meta (symbol (str "set" nam)) `{}) [~type] ~the-void])))]))
+  `(do
+     (gen-interface
+      :name ~interface-name
+      :extends [org.apache.beam.sdk.options.PipelineOptions]
+      :methods
+      [~@(apply concat
+                (for [[kw {:keys [type] :as spec}] specs
+                      :let [nam (capitalize-first (name kw))
+                            annotations (select-keys spec [:default :description :hidden])]]
+                  `([~(with-meta
+                        (symbol (str "get" nam))
+                        (reduce (fn [acc [k v]]
+                                  (assoc acc
+                                         (let [m (get annotations-mapping k)]
+                                           (if (fn? m) (m spec) m))
+                                         (if (nil? v) true v)))
+                                {} annotations))
+                     [] ~type]
+                    [~(with-meta (symbol (str "set" nam)) `{}) [~type] ~the-void])))])
+     (def ~interface-name '~interface-name)))

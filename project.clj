@@ -13,6 +13,7 @@
                  [clj-time "0.14.2"]
                  [superstring "2.1.0"]]
   :source-paths ["src/clj"]
+  :pedantic? false
   :java-source-paths ["src/java"]
   :profiles {:dev {:dependencies [[junit/junit "4.12"]
                                   [me.raynes/fs "1.4.6"]
