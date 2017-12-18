@@ -1,5 +1,13 @@
 # Changes for Datasplash
 
+## v0.5.3 (2017-12-18)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.2...v0.5.3)**
+
+### Fixes
+
+- Fix options on PipelineWithOptions to have it work again on Dataflow (oops, sorry!)
+
 ## v0.5.2 (2017-12-14)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.1...v0.5.2)**

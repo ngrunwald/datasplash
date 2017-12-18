@@ -18,8 +18,8 @@ public class PipelineWithOptions extends Pipeline {
     }
 
     public static PipelineWithOptions create (PipelineOptions options) {
-        // TODO: fix runners that mutate PipelineOptions in this method, then remove this line
-         PipelineRunner.fromOptions(options);
+        // Dirty hack to remain in sync with Beam
+        PipelineRunner.fromOptions(options);
         return new PipelineWithOptions(options);
     }
 }
