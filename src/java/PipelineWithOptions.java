@@ -2,6 +2,7 @@ package datasplash.pipelines;
 
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.PipelineRunner;
 
 public class PipelineWithOptions extends Pipeline {
 
@@ -17,6 +18,8 @@ public class PipelineWithOptions extends Pipeline {
     }
 
     public static PipelineWithOptions create (PipelineOptions options) {
+        // TODO: fix runners that mutate PipelineOptions in this method, then remove this line
+         PipelineRunner.fromOptions(options);
         return new PipelineWithOptions(options);
     }
 }
