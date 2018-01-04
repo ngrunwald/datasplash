@@ -40,7 +40,8 @@ Here is the classic word count:
          (ds/mapcat tokenize {:name :tokenize})
          (ds/frequencies)
          (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
-         (ds/write-text-file output {:num-shards numShards}))))
+         (ds/write-text-file output {:num-shards numShards})
+         (ds/run-pipeline)))
 ```
 
 Run it locally with:
