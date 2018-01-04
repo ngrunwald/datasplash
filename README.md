@@ -32,7 +32,7 @@ Here is the classic word count:
                :default 0}})
 
 (defn -main
-  [str-args]
+  [& str-args]
   (let [p (ds/make-pipeline WordCountOptions str-args)
         {:keys [input output numShards]} (ds/get-pipeline-options p)]
     (->> p
