@@ -15,7 +15,7 @@
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
             TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType
-            FileBasedSink FileBasedSink$FilenamePolicy FileBasedSink$FilenamePolicy$WindowedContext]
+            FileBasedSink FileBasedSink$FilenamePolicy]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
@@ -35,7 +35,7 @@
            [java.util UUID]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
-           [org.apache.beam.sdk.transforms.windowing Window FixedWindows SlidingWindows Sessions Trigger]
+           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
            [datasplash.fns ClojureDoFn]
            [datasplash.pipelines PipelineWithOptions]))
@@ -1875,16 +1875,16 @@ Example:
 (defn- mk-default-windowed-fn
   [{:keys [file-name suffix] :as options
     :or {file-name "file"}}]
-  (fn [^FileBasedSink$FilenamePolicy$WindowedContext context _]
+  (fn [shard-number shard-count ^BoundedWindow window _ ]
     (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
-                                (.start (.getWindow context)))]
-      (str file-name "-" timestamp "." suffix))))
+                                (.start window))]
+      (str file-name "-" shard-number "of" shard-count "-" timestamp "." suffix))))
 
 (defn- mk-default-unwindowed-fn
   [{:keys [file-name suffix] :as options
     :or {file-name "file"}}]
-  (fn [_ _]
-    (str file-name "." suffix)))
+  (fn [shard-number shard-count  _]
+    (str file-name "-" shard-number "of" shard-count  "." suffix)))
 
 (def filename-schema
   {:file-name {:docstr "set the default filename prefix (only used when no custom function is set)"}
@@ -1899,25 +1899,27 @@ Example:
 Examples:
 ```
 (ds/filename-policy {:file-name \"file\"
+                     :prefix \"gs://toto/\"
                      :suffix \"json\"})
 
 ;; with custom functions
 (require '[clj-time.format :as tf])
 
 (defn windowed-fn
-  [^FileBasedSink$FilenamePolicy$WindowedContext context _]
+  [shard-number shard-count ^BoundedWindow window _]
   (let [timestamp (tf/unparse (:date-hour-minute tf/formatters)
-                              (.start (.getWindow context)))]
-    (str \"file-\" timestamp \".txt\")))
+                              (.start window))]
+    (str file-name \"-\" shard-number \"of\" shard-count \"-\" timestamp \".\" \"txt\")))
 
 (ds/filename-policy {:windowed-fn windowed-fn
-                     :unwindowed-fn (fn [_ _] \"file.txt\")})
+                     :unwindowed-fn (fn [_ _ _] \"file.txt\")})
 ```"
           filename-schema)
    :added "0.5.2"}
   ^datasplash.fns.FileNamePolicy
   [options]
-  (datasplash.fns.FileNamePolicy. {"windowed-fn" (or (:windowed-fn options)
+  (datasplash.fns.FileNamePolicy. {"prefix"      (:prefix options)
+                                   "windowed-fn" (or (:windowed-fn options)
                                                      (mk-default-windowed-fn options))
                                    "unwindowed-fn" (or (:unwindowed-fn options)
                                                        (mk-default-unwindowed-fn options))}))
