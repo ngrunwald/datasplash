@@ -122,11 +122,9 @@
                  (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
                              (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
                  (if (empty? nss#)
-                   (do
-                     (log/errorf e# "ClojureRuntimeException in [%s]" pt-name#)
-                     (throw (ex-info "Runtime exception intercepted"
-                                     (-> {:hostname (get-hostname)}
-                                         (cond-> pt-name# (assoc :name pt-name#))) e#)))
+                   (throw (ex-info "Runtime exception intercepted"
+                                   (-> {:hostname (get-hostname)}
+                                       (cond-> pt-name# (assoc :name pt-name#))) e#))
                    (let [missings# nss# ;; (remove already-required# nss#)
                          missing-at-start?# (not (empty? (remove required-at-start# nss#)))]
                      (if-not (empty? missings#)
