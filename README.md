@@ -80,7 +80,7 @@ lein run -- --help=WordCountOptions
   - If you have to write your own low-level `ParDo` objects (you shouldn't), wrap all your code in the `safe-exec` macro to avoid issues with unbound vars. Any good idea about finding a better way to do this would be greatly appreciated!
   - If some of the `UserCodeException` as seen in the cloud UI are mangled and missing the relevant part of the Clojure source code, this is due to a bug with the way the sdk mangles stacktraces in Clojure. In this case look for _ClojureRuntimeException_ in the logs to find the original unaltered stacktrace.
   - Beware of using Clojure 1.9 : `proxy` results are not `Serializable` anymore, so you cannot use anywhere in your pipeline Clojure code that uses proxy. Use Java shim for these objects instead.
-  - If you see something like `java.lang.ClassNotFoundException: Options` you probably forgot to complie your namespace.
+  - If you see something like `java.lang.ClassNotFoundException: Options` you probably forgot to compile your namespace.
 ## License
 
 Copyright © 2015, 2016, 2017 Oscaro.com
