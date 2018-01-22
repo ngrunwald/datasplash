@@ -48,7 +48,7 @@ Run it from the repl with:
 (compile 'datasplash.examples)
 (-main "--input=in.txt" "--output=out.txt")
 ```
-Note that you will need to run `(complie 'datasplash.examples)` every time you make a change.
+Note that you will need to run `(compile 'datasplash.examples)` every time you make a change.
 
 Run it locally with:
 
