@@ -37,7 +37,7 @@
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn ClojureCombineFn]
+           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder]
            [datasplash.pipelines PipelineWithOptions]))
 
 (def required-ns (atom #{}))
@@ -371,27 +371,15 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}
   []
-  (proxy [CustomCoder] []
-    (encode
-      ([obj ^OutputStream out ctx]
-       (safe-exec
-        (let [dos (DataOutputStream. out)]
-          (nippy/freeze-to-out! dos obj))))
-      ([obj ^OutputStream out]
-       (safe-exec
-        (let [dos (DataOutputStream. out)]
-          (nippy/freeze-to-out! dos obj)))))
-    (decode
-      ([^InputStream in ctx]
-       (safe-exec
-        (let [dis (DataInputStream. in)]
-          (nippy/thaw-from-in! dis))))
-      ([^InputStream in ]
-       (safe-exec
-        (let [dis (DataInputStream. in)]
-          (nippy/thaw-from-in! dis)))))
-    (verifyDeterministic [] nil)
-    (consistentWithEquals [] true)))
+  (let [encode-fn (fn [obj ^OutputStream out]
+                    (safe-exec
+                     (let [dos (DataOutputStream. out)]
+                       (nippy/freeze-to-out! dos obj))))
+        decode-fn (fn [^InputStream in]
+                    (safe-exec
+                     (let [dis (DataInputStream. in)]
+                       (nippy/thaw-from-in! dis))))]
+    (ClojureCustomCoder. {"decode-fn" decode-fn "encode-fn" encode-fn})))
 
 (defn make-kv-coder
   {:doc "Returns an instance of a KvCoder using by default nippy for serialization."
