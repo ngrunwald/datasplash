@@ -37,7 +37,7 @@
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn]
+           [datasplash.fns ClojureDoFn ClojureCombineFn]
            [datasplash.pipelines PipelineWithOptions]))
 
 (def required-ns (atom #{}))
@@ -659,27 +659,13 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
    :added "0.1.0"}
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
-   (proxy [Combine$CombineFn ICombineFn clojure.lang.IFn] []
-     (createAccumulator [] (safe-exec (initf)))
-     (addInput [acc elt] (safe-exec (reducef acc elt)))
-     (mergeAccumulators [accs] (safe-exec (apply combinef accs)))
-     (extractOutput [acc] (safe-exec (extractf acc)))
-     (getDefaultOutputCoder [_ _] output-coder)
-     (getAccumulatorCoder [_ _] acc-coder)
-     (getReduceFn [] reducef)
-     (getExtractFn [] extractf)
-     (getMergeFn [] combinef)
-     (getInitFn [] initf)
-     (invoke [& args] (let [args-nb (count args)]
-                        (cond
-                          (= args-nb 0) (safe-exec (initf))
-                          (= args-nb 2) (safe-exec (reducef (first args) (second args)))
-                          (> args-nb 2) (throw (ex-info "Cannot call a combineFn with more than 2 arguments"
-                                                        {:args-number args-nb
-                                                         :args args}))
-                          :else (if (sequential? (first args))
-                                  (safe-exec (apply combinef (first args)))
-                                  (safe-exec (extractf (first args)))))))))
+   (let [init-fn (fn [] (safe-exec (initf )))
+         reduce-fn (fn [acc elt] (safe-exec (reducef acc elt)))
+         combine-fn (fn [accs] (safe-exec (apply combinef accs)))
+         extract-fn (fn [acc] (safe-exec (extractf acc)))]
+     (ClojureCombineFn. {"init-fn" init-fn "reduce-fn" reduce-fn "combine-fn" combine-fn
+                         "combine-fn-raw" combinef "extract-fn" extract-fn }
+                        output-coder acc-coder)))
   ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-nippy-coder)))
   ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-nippy-coder)))
   ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
@@ -1089,7 +1075,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (def text-writer-schema
   {:windowed {:docstr "Make windowed writes"
               :action (fn [transform b] (when b (.withWindowedWrites transform )))}
-   :temp-directory {:docstr "Use withFilenamePolicy (see filename-policy fn)"
+   :temp-directory {:docstr "Use temp directory when using Filename Policy as output (see filename-policy fn)"
                     :action (fn [transform prefix] (when prefix
                                                      (.withTempDirectory
                                                       transform
@@ -1883,7 +1869,7 @@ Example:
   (fn [shard-number shard-count ^BoundedWindow window _ ]
     (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
                                 (.start window))]
-      (str file-name "-" shard-number "of" shard-count "-" timestamp "." suffix))))
+      (str timestamp "-" file-name "-" shard-number "-of-" shard-count "." suffix))))
 
 (defn- mk-default-unwindowed-fn
   [{:keys [file-name suffix] :as options
