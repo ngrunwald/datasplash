@@ -1120,7 +1120,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 ```"
           base-schema text-writer-schema)
    :added "0.1.0"}
-  ([^String to options ^PCollection pcoll]
+  ([to options ^PCollection pcoll]
    (let [opts (-> options
                   (assoc :label (str "write-text-file-to-"
                                      (clean-filename to))
@@ -1743,7 +1743,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                         acc))
                     acc))
     identity
-    (fn [& accs] (apply max accs))
+    (fn [& accs]
+      (apply max (remove nil? accs)))
     (constantly nil))))
 
 (defn min-fn
@@ -1759,7 +1760,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                         acc))
                     acc))
     identity
-    (fn [& accs] (apply min accs))
+    (fn [& accs] (apply min (remove nil? accs)))
     (constantly nil))))
 
 (defn frequencies-fn
