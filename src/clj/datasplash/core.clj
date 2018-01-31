@@ -66,7 +66,7 @@
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
                                    (re-find #"Unbound: #'([^/]+)/" message)
                                    (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message)
-                                   (re-find #"Unable to resolve spec: :([^/]+)/"))
+                                   (re-find #"Unable to resolve spec: :([^/]+)/" message))
                 ns-to-add (->> trace-elems
                                (filter #(:clojure %))
                                (map :ns)
@@ -1089,8 +1089,11 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (def text-writer-schema
   {:windowed {:docstr "Make windowed writes"
               :action (fn [transform b] (when b (.withWindowedWrites transform )))}
-   :filename-policy {:docstr "Use withFilenamePolicy (see filename-policy fn)"
-                     :action (fn [transform policy] (when policy (.withFilenamePolicy transform policy)))}
+   :temp-directory {:docstr "Use withFilenamePolicy (see filename-policy fn)"
+                    :action (fn [transform prefix] (when prefix
+                                                     (.withTempDirectory
+                                                      transform
+                                                      (.getCurrentDirectory (FileBasedSink/convertToFileResourceIfPossible prefix)))))}
    :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
    :without-sharding {:docstr "Forces a single file output."
