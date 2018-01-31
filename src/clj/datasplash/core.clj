@@ -62,10 +62,11 @@
          nss (list)]
     (let [{:keys [message trace-elems cause] :as current-ex} todo]
       (if message
-        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:" message)
+        (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:|Unable to resolve spec:" message)
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
                                    (re-find #"Unbound: #'([^/]+)/" message)
-                                   (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message))
+                                   (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message)
+                                   (re-find #"Unable to resolve spec: :([^/]+)/"))
                 ns-to-add (->> trace-elems
                                (filter #(:clojure %))
                                (map :ns)
