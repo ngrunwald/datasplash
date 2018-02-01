@@ -37,7 +37,7 @@
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder]
+           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
            [datasplash.pipelines PipelineWithOptions]))
 
 (def required-ns (atom #{}))
@@ -819,6 +819,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (apply-transform pcoll (GroupByKey/create) base-schema opts)))
   ([pcoll] (group-by-key {} pcoll)))
 
+
 (defmacro ptransform
   {:doc "Generates a PTransform with the given name, apply signature and body. Should rarely by used in user code, see [[pt->>]] for the more general use case in application code.
 
@@ -833,10 +834,8 @@ Example (actual implementation of the group-by transform):
 ```"
    :added "0.1.0"}
   [nam input & body]
-  `(proxy [PTransform] [(when (and ~nam (not (empty? (name ~nam))))
-                          (name ~nam))]
-     (~(symbol "expand") ~input
-      ~@body)))
+  `(let [body-fn# (fn [~(last input)] ~@body)] 
+     (ClojurePTransform. body-fn#)))
 
 (defmacro pt->>
   {:doc "Creates and applies a single named PTransform from a sequence of transforms on a single PCollection. You can use it as you would use ->> in Clojure.
