@@ -1854,15 +1854,17 @@ Example:
   [{:keys [file-name suffix] :as options
     :or {file-name "file"}}]
   (fn [shard-number shard-count ^BoundedWindow window _ ]
-    (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
-                                (.start window))]
-      (str timestamp "-" file-name "-" shard-number "-of-" shard-count "." suffix))))
+    (safe-exec
+     (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
+                                   (.start window))]
+       (str timestamp "-" file-name "-" shard-number "-of-" shard-count "." suffix)))))
 
 (defn- mk-default-unwindowed-fn
   [{:keys [file-name suffix] :as options
     :or {file-name "file"}}]
   (fn [shard-number shard-count  _]
-    (str file-name "-" shard-number "of" shard-count  "." suffix)))
+    (safe-exec
+     (str file-name "-" shard-number "of" shard-count  "." suffix))))
 
 (def filename-schema
   {:file-name {:docstr "set the default filename prefix (only used when no custom function is set)"}
