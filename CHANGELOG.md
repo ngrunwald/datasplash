@@ -1,5 +1,18 @@
 # Changes for Datasplash
 
+## v0.6.0 (2018-02-13)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.3...v0.6.0)**
+
+### Changes
+
+- Compatibility with Dataflow 2.2.0
+- Compatibility with Clojure 1.9 and specs (some code had to be ported to Java shims because `proxy` is not `Serializable` anymore in Clojure 1.9)
+
+### Fixes
+
+- Removed superfluous logging, `safe-exec` call and type hints
+
 ## v0.5.3 (2017-12-18)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.2...v0.5.3)**
