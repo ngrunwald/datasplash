@@ -13,7 +13,7 @@
    [org.apache.beam.sdk.transforms SerializableFunction]
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO
+    BigQueryIO BigQueryIO$Read
     BigQueryIO$Write$WriteDisposition
     BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
    [org.apache.beam.sdk.values PBegin PCollection]))
@@ -22,8 +22,8 @@
   [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (.fromQuery (BigQueryIO/read)  query)
-                 table (.from (BigQueryIO/read) table)
+                 query (.fromQuery  (BigQueryIO/readTableRows)  query)
+                 table (.from  (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))]
