@@ -1,5 +1,21 @@
 # Changes for Datasplash
 
+## v0.6.1 (2018-03-20)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.0...v0.6.1)**
+
+### Changes
+
+- Upgrade to Dataflow 2.3.0
+- Support time partitioned Big Query tables (thanks to @neuromantik33)
+
+### Fixes
+
+- Fix broken input from BigQuery
+- Fix missing safe-exec from filename policy
+- Fix broken serializing after group-by in some cases
+- Fix rare (hopefully) bug introduced by being lazy. with the vals after a group-by. Now we are greedy.
+
 ## v0.6.0 (2018-02-13)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.5.3...v0.6.0)**
