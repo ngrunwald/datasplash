@@ -9,11 +9,11 @@
   (:import
    [org.codehaus.jackson.map.ObjectMapper]
    [com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema]
+    TableRow TableFieldSchema TableSchema TimePartitioning]
    [org.apache.beam.sdk.transforms SerializableFunction]
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO BigQueryIO$Read
+    BigQueryIO BigQueryIO$Read BigQueryIO$Write
     BigQueryIO$Write$WriteDisposition
     BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
    [org.apache.beam.sdk.values PBegin PCollection]))
@@ -144,6 +144,13 @@
        (-> (TableSchema.) (.setFields fields)))))
   ([defs] (->schema defs name)))
 
+(defn ^TimePartitioning ->time-partitioning
+  [{:keys [type expiration-ms]
+    :or   {type :day}}]
+  (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
+    (when (int? expiration-ms) (.setExpirationMs tp expiration-ms))
+    tp))
+
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
   [table-spec]
@@ -190,7 +197,10 @@
                    :action (select-enum-option-fn
                             :retry-policy
                             retry-policy-enum
-                            (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}}))
+                            (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
+    :time-partitioning {:docstr "Toggles write partitioning for the destination table"
+                        :action (fn [transform opts]
+                                  (.withTimePartitioning transform (->time-partitioning opts)))}}))
 
 (defn custom-output-fn [cust-fn]
   (sfn (fn [elt]
