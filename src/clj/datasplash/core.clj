@@ -42,16 +42,20 @@
 
 (def required-ns (atom #{}))
 
-(defn kv->clj
-  "Coerce from KV to Clojure MapEntry"
+(defn val->clj
   [^KV kv]
   (let [v (.getValue kv)]
     (if (and
          (instance? Iterable v)
          (not (instance? java.util.Set v))
          (not (instance? java.util.Map v)))
-      (MapEntry. (.getKey kv) (seq v))
-      (MapEntry. (.getKey kv) v))))
+      (seq v)
+      v)))
+
+(defn kv->clj
+  "Coerce from KV to Clojure MapEntry"
+  [^KV kv]
+  (MapEntry. (.getKey kv) (val->clj kv)))
 
 (defmethod print-method KV [kv ^java.io.Writer w]
   (.write w (pr-str (kv->clj kv))))
@@ -182,8 +186,7 @@
    :added "0.1.0"}
   [elt]
   (if (instance? KV elt)
-    (let [^KV kv elt]
-      (.getValue elt))
+    (val->clj ^KV elt)
     (val elt)))
 
 (def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
