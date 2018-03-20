@@ -49,7 +49,7 @@
          (instance? Iterable v)
          (not (instance? java.util.Set v))
          (not (instance? java.util.Map v)))
-      (seq v)
+      (vec v)
       v)))
 
 (defn kv->clj
