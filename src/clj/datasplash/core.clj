@@ -14,7 +14,7 @@
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
-            TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType
+            TextIO Compression FileSystems FileBasedSink$CompressionType
             FileBasedSink FileBasedSink$FilenamePolicy]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
@@ -1040,21 +1040,23 @@ It means the template %A-%U-%T is equivalent to the default jobName"
     (.getOptions o)
     o))
 
-(def compression-type-enum
-  {:auto TextIO$CompressionType/AUTO
-   :bzip2 TextIO$CompressionType/BZIP2
-   :gzip TextIO$CompressionType/GZIP
-   :uncompressed TextIO$CompressionType/UNCOMPRESSED})
+(def compression-enum
+  {:auto Compression/AUTO
+   :bzip2 Compression/BZIP2
+   :gzip Compression/GZIP
+   :uncompressed Compression/UNCOMPRESSED
+   :zip Compression/ZIP
+   :deflate Compression/DEFLATE})
 
 (def text-reader-schema
   {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
                         :action (fn [transform b] (when b (.withoutValidation transform)))}
    :compression-type {:docstr "Choose compression type. :auto by default."
-                      :enum compression-type-enum
+                      :enum compression-enum
                       :action (select-enum-option-fn
                                :compression-type
-                               compression-type-enum
-                               (fn [transform enum] (.withCompressionType transform enum)))}})
+                               compression-enum
+                               (fn [transform enum] (.withCompression transform enum)))}})
 
 (def sink-compression-type-enum
   {:bzip2 FileBasedSink$CompressionType/BZIP2
