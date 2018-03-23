@@ -9,7 +9,8 @@
             [clj-time.core :as time]
             [me.raynes.fs :as fs])
   (:import [org.apache.beam.sdk.testing TestPipeline PAssert]
-           [java.io PushbackReader]))
+           [java.io PushbackReader]
+           [java.util.zip GZIPOutputStream GZIPInputStream]))
 
 (defn glob-file
   [path]
@@ -59,13 +60,23 @@
 
 (def test-data [1 2 3 4 5])
 (def json-file-path "json-test-input.json")
+(def gzipped-json-file-path "json-test-input.ndjson.gz")
+
+(defn write-data
+  [path-or-stream data & {:keys [compression]}]
+  (let [compression-fn (case compression
+                         :gzip #(GZIPOutputStream. %)
+                         identity)]
+    (with-open [wrtr (io/writer (compression-fn (io/output-stream path-or-stream)))]
+      (.write wrtr (str/join "\n" (for [l data] (json/encode l)))))))
 
 (defn create-json-input-fixture
   [f]
-  (spit json-file-path (str/join "\n" (for [l test-data]
-                                        (json/encode l))))
+  (do (write-data json-file-path test-data)
+      (write-data gzipped-json-file-path test-data :compression :gzip))
   (f)
-  (fs/delete json-file-path))
+  (do (fs/delete json-file-path)
+      (fs/delete gzipped-json-file-path)))
 
 (use-fixtures :once create-json-input-fixture)
 
@@ -347,3 +358,19 @@
       (let [cp (flatten (map read-file (glob-file checkpoint-test)))]
         (.. PAssert (that p) (containsInAnyOrder #{2 3 4 5}))
         (is (= '(1 2 3 4) (sort cp)))))))
+
+(deftest compression-out-test
+  (with-files [compression-out-test]
+    (let [p (ds/make-pipeline [])
+          input (ds/generate-input [1 2 3] p)
+          output (ds/write-edn-file compression-out-test {:without-sharding true :compression-type :gzip} input)]
+      (ds/run-pipeline p)
+      (let [res (->> (read-file (java.util.zip.GZIPInputStream. (io/input-stream (first (glob-file compression-out-test)))))
+                     (into #{}))]
+        (is (= res #{1 2 3}))))))
+
+(deftest compression-in-test
+  (let [p (ds/make-pipeline [])
+        input (ds/read-json-file gzipped-json-file-path {:name :read-json :compression-type :gzip} p)]
+    (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
+    (ds/run-pipeline p)))
