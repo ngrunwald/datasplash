@@ -1047,8 +1047,8 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :uncompressed TextIO$CompressionType/UNCOMPRESSED})
 
 (def text-reader-schema
-  {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform b] (when b (.withoutValidation transform)))}
+  {:many-files? {:docstr "Hints that the filepattern matches a very large number of files."
+                 :action (fn [transform b] (when b (.withHintMatchesManyFiles transform)))}
    :compression-type {:docstr "Choose compression type. :auto by default."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
@@ -1074,8 +1074,6 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                 :action (fn [transform shards] (.withNumShards transform shards))}
    :without-sharding {:docstr "Forces a single file output."
                       :action (fn [transform b] (when b (.withoutSharding transform)))}
-   :without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform b] (when b (.withoutValidation transform)))}
    :shard-name-template {:docstr "Uses the given shard name template."
                          :action (fn [transform tpl] (.withShardNameTemplate transform tpl))}
    :suffix {:docstr "Uses the given filename suffix."
