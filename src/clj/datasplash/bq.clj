@@ -145,11 +145,12 @@
   ([defs] (->schema defs name)))
 
 (defn ^TimePartitioning ->time-partitioning
-  [{:keys [type expiration-ms]
+  [{:keys [type expiration-ms field]
     :or   {type :day}}]
   (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
-    (when (int? expiration-ms) (.setExpirationMs tp expiration-ms))
-    tp))
+    (cond-> tp
+            (int? expiration-ms) (.setExpirationMs expiration-ms)
+            (string? field)      (.setField field))))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
