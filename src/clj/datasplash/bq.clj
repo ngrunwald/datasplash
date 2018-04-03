@@ -145,12 +145,13 @@
   ([defs] (->schema defs name)))
 
 (defn ^TimePartitioning ->time-partitioning
-  [{:keys [type expiration-ms field]
+  [{:keys [type expiration-ms field require-partition-filter]
     :or   {type :day}}]
   (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
     (cond-> tp
-            (int? expiration-ms) (.setExpirationMs expiration-ms)
-            (string? field)      (.setField field))))
+            (int? expiration-ms)                   (.setExpirationMs expiration-ms)
+            (string? field)                        (.setField field)
+            (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
