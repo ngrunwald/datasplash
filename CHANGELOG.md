@@ -7,7 +7,7 @@
 ### Changes
 
 - Upgrade to Dataflow 2.3.0
-- Support time partitioned Big Query tables (thanks to @neuromantik33)
+- Support time-partitioned Big Query tables (thanks to @neuromantik33)
 
 ### Fixes
 
