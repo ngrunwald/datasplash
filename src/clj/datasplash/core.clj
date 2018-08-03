@@ -560,7 +560,7 @@ Function f should be a function of one argument and return seq of keys/values.
 
 Example:
 ```
-(ds/map (fn [{:keys [month revenue]}] [month revenue]) foo)
+(ds/map-kv (fn [{:keys [month revenue]}] [month revenue]) foo)
 ```
 
 Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
