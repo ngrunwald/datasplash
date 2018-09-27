@@ -15,7 +15,8 @@
            [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
            [org.apache.beam.sdk.io
             TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType
-            FileBasedSink FileBasedSink$FilenamePolicy]
+            FileBasedSink FileBasedSink$FilenamePolicy
+            FileIO FileIO$Write TextIO Compression]
            [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
            [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
            [org.apache.beam.sdk.transforms
@@ -38,7 +39,9 @@
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
            [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
-           [datasplash.pipelines PipelineWithOptions]))
+           [datasplash.pipelines PipelineWithOptions]
+           
+           [org.apache.beam.sdk.transforms Contextful]))
 
 (def required-ns (atom #{}))
 
@@ -560,7 +563,7 @@ Function f should be a function of one argument and return seq of keys/values.
 
 Example:
 ```
-(ds/map (fn [{:keys [month revenue]}] [month revenue]) foo)
+(ds/map-kv (fn [{:keys [month revenue]}] [month revenue]) foo)
 ```
 
 Note: Unlike clojure.core/map, datasplash.api/map-kv takes only one PCollection."
@@ -1046,6 +1049,15 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :gzip TextIO$CompressionType/GZIP
    :uncompressed TextIO$CompressionType/UNCOMPRESSED})
 
+
+(def compression-type-enum-new
+  {:auto Compression/AUTO
+   :bzip2 Compression/BZIP2
+   :gzip Compression/GZIP
+   :zip Compression/ZIP
+   :deflate Compression/DEFLATE
+   :uncompressed Compression/UNCOMPRESSED})
+
 (def text-reader-schema
   {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
                         :action (fn [transform b] (when b (.withoutValidation transform)))}
@@ -1108,6 +1120,74 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                       (merge named-schema text-writer-schema) opts))
    )
   ([to pcoll] (write-text-file to {} pcoll)))
+
+
+
+
+
+(def text-writer-schema-new
+  {:file-format {:docstr "Choose file format."
+                 :action
+                 (fn [transform format] (.via transform
+                                              (Contextful/fn
+                                                (sfn
+                                                 (fn [x]
+                                                   (case format
+                                                     :json (json/encode x {})
+                                                     :edn (pr-str x)))))
+                                              (TextIO/sink)))}
+   :compression-type {:docstr "Choose compression type."
+                      :enum sink-compression-type-enum
+                      :action (select-enum-option-fn
+                               :compression-type
+                               compression-type-enum-new
+                               (fn [transform enum] (.withCompression transform enum)))}
+   :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
+                :action (fn [transform shards] (.withNumShards transform shards))}
+   
+   :temp-directory {:docstr "Use temp directory when using Filename Policy as output (see filename-policy fn)"
+                    :action (fn [transform prefix] (when prefix
+                                                     (.withTempDirectory transform prefix)))}
+   
+   :suffix {:docstr "Uses the given filename suffix."
+            :action (fn [transform suffix] (.withSuffix transform suffix))}
+   :prefix {:docstr "Uses the given filename prefix."
+            :action (fn [transform suffix] (.withPrefix transform suffix))}
+   :naming-fn {:docstr "Uses the naming fn"
+               :action (fn [transform naming-fn] (.withNaming transform (sfn naming-fn) ))}
+   :dynamic-fn {:docstr "Uses the dynamic write to change destination file according to the content of the item"
+                :action (fn [transform dynamic-fn] (sfn dynamic-fn))}})
+
+
+
+(defn write-text-file-new
+  {:doc (with-opts-docstr
+          "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
+
+  Example:
+```
+    (write-text-file \"gs://target/path\" pcoll)
+```"
+          base-schema text-writer-schema-new)
+   :added "0.6.2"}
+  [to {:keys [dynamic? dynamic-fn] :as options} ^PCollection pcoll]
+  (let [opts (-> options
+                  (assoc :label (str "write-text-file-to-"
+                                     (clean-filename to))
+                         :coder nil))]
+    (apply-transform pcoll
+                     (-> (if dynamic?
+                           (-> (FileIO/writeDynamic)
+                               (.withDestinationCoder (make-nippy-coder)))
+                           (FileIO/write))
+                         (.to to))
+                     (merge named-schema text-writer-schema-new) opts)))
+
+
+
+
 
 (defn read-text-file
   {:doc (with-opts-docstr "Reads a PCollection of Strings from disk or Google Storage, with records separated by newlines.
@@ -1924,3 +2004,7 @@ Examples:
   (let [[expressions clauses] (parse-try body)]
     `(try (safe-exec ~@expressions)
           ~@clauses)))
+
+
+
+
