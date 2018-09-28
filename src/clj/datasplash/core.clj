@@ -23,7 +23,8 @@
             DoFn DoFn$ProcessContext ParDo DoFnTester Create PTransform
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey Distinct Count
-            Flatten Combine$CombineFn Combine View View$AsSingleton Sample]
+            Flatten Combine$CombineFn Combine View View$AsSingleton Sample
+            Watch$Growth]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
            [org.apache.beam.sdk.util GcsUtil UserCodeException]
@@ -31,6 +32,8 @@
            [org.apache.beam.sdk.util.gcsfs GcsPath]
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
+           [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
+           [org.apache.beam.sdk.transforms Contextful]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]
            [java.util UUID]
@@ -40,10 +43,14 @@
            [org.joda.time Duration Instant]
            [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
            [datasplash.pipelines PipelineWithOptions]
-           
-           [org.apache.beam.sdk.transforms Contextful]))
+           ))
 
 (def required-ns (atom #{}))
+
+(defn- ->duration
+  [time]
+  (or (and (instance? Duration time) time)
+      (.toStandardDuration time)))
 
 (defn val->clj
   [^KV kv]
@@ -1043,14 +1050,10 @@ It means the template %A-%U-%T is equivalent to the default jobName"
     (.getOptions o)
     o))
 
+
+
+
 (def compression-type-enum
-  {:auto TextIO$CompressionType/AUTO
-   :bzip2 TextIO$CompressionType/BZIP2
-   :gzip TextIO$CompressionType/GZIP
-   :uncompressed TextIO$CompressionType/UNCOMPRESSED})
-
-
-(def compression-type-enum-new
   {:auto Compression/AUTO
    :bzip2 Compression/BZIP2
    :gzip Compression/GZIP
@@ -1058,89 +1061,58 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :deflate Compression/DEFLATE
    :uncompressed Compression/UNCOMPRESSED})
 
+(def empty-match-treatment-enum
+  {:allow EmptyMatchTreatment/ALLOW
+   :allow-if-wildcard EmptyMatchTreatment/ALLOW_IF_WILDCARD
+   :disallow EmptyMatchTreatment/DISALLOW})
+
 (def text-reader-schema
-  {:without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform b] (when b (.withoutValidation transform)))}
+  {:many-files {:docstr "Hints that the filepattern specified matches a very large number of files."
+                :action (fn [transform] (.withHintMatchesManyFiles transform))}
+   :empty-match-treatment {:docstr "Options for allowing or disallowing filepatterns that match no resources"
+                           :enum empty-match-treatment-enum
+                           :action (select-enum-option-fn
+                                    :empty-match-treatment
+                                    empty-match-treatment-enum
+                                    (fn [transform enum] (.withEmptyMatchTreatment transform enum)))}
+   :delimiter {:docstr "Specify delimiter"
+                :action (fn [transform delimiter] (.withDelimiter transform delimiter))}
    :compression-type {:docstr "Choose compression type. :auto by default."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
                                :compression-type
                                compression-type-enum
-                               (fn [transform enum] (.withCompressionType transform enum)))}})
+                               (fn [transform enum] (.withCompression transform enum)))}
+   :watch-new-files {:docstr "watch if new files arrives and handle them in streaming"
+                     :action (fn [transform {:keys [poll-interval termination-strategy termination-duration]}]
+                               (.watchForNewFiles transform
+                                                  (->duration poll-interval)
+                                                  (case termination-strategy
+                                                    :never (Watch$Growth/never)
+                                                    :after (Watch$Growth/afterTotalOf
+                                                            (->duration termination-duration))
+                                                    :inactivity (Watch$Growth/afterTimeSinceNewOutput
+                                                                 (->duration termination-duration))
+                                                    termination-strategy)))}})
 
-(def sink-compression-type-enum
-  {:bzip2 FileBasedSink$CompressionType/BZIP2
-   :deflate FileBasedSink$CompressionType/DEFLATE
-   :gzip FileBasedSink$CompressionType/GZIP
-   :uncompressed FileBasedSink$CompressionType/UNCOMPRESSED})
 
 (def text-writer-schema
-  {:windowed {:docstr "Make windowed writes"
-              :action (fn [transform b] (when b (.withWindowedWrites transform )))}
-   :temp-directory {:docstr "Use temp directory when using Filename Policy as output (see filename-policy fn)"
-                    :action (fn [transform prefix] (when prefix
-                                                     (.withTempDirectory
-                                                      transform
-                                                      (.getCurrentDirectory (FileBasedSink/convertToFileResourceIfPossible prefix)))))}
-   :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
-                :action (fn [transform shards] (.withNumShards transform shards))}
-   :without-sharding {:docstr "Forces a single file output."
-                      :action (fn [transform b] (when b (.withoutSharding transform)))}
-   :without-validation {:docstr "Disables validation of path existence in Google Cloud Storage until runtime."
-                        :action (fn [transform b] (when b (.withoutValidation transform)))}
-   :shard-name-template {:docstr "Uses the given shard name template."
-                         :action (fn [transform tpl] (.withShardNameTemplate transform tpl))}
-   :suffix {:docstr "Uses the given filename suffix."
-            :action (fn [transform suffix] (.withSuffix transform suffix))}
-   :compression-type {:docstr "Choose compression type."
-                      :enum sink-compression-type-enum
-                      :action (select-enum-option-fn
-                               :compression-type
-                               sink-compression-type-enum
-                               (fn [transform enum] (.withWritableByteChannelFactory transform enum)))}})
-
-(defn write-text-file
-  {:doc (with-opts-docstr
-          "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
-
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
-
-  Example:
-```
-    (write-text-file \"gs://target/path\" pcoll)
-```"
-          base-schema text-writer-schema)
-   :added "0.1.0"}
-  ([to options ^PCollection pcoll]
-   (let [opts (-> options
-                  (assoc :label (str "write-text-file-to-"
-                                     (clean-filename to))
-                         :coder nil))]
-     (apply-transform pcoll (.to (TextIO/write) to)
-                      (merge named-schema text-writer-schema) opts))
-   )
-  ([to pcoll] (write-text-file to {} pcoll)))
-
-
-
-
-
-(def text-writer-schema-new
   {:file-format {:docstr "Choose file format."
                  :action
-                 (fn [transform format] (.via transform
+                 (fn [transform file-format] (.via transform
                                               (Contextful/fn
                                                 (sfn
                                                  (fn [x]
-                                                   (case format
+                                                   (case file-format
                                                      :json (json/encode x {})
-                                                     :edn (pr-str x)))))
+                                                     :edn (pr-str x)
+                                                     (file-format x)))))
                                               (TextIO/sink)))}
    :compression-type {:docstr "Choose compression type."
-                      :enum sink-compression-type-enum
+                      :enum compression-type-enum
                       :action (select-enum-option-fn
                                :compression-type
-                               compression-type-enum-new
+                               compression-type-enum
                                (fn [transform enum] (.withCompression transform enum)))}
    :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
@@ -1160,7 +1132,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 
 
-(defn write-text-file-new
+(defn write-text-file
   {:doc (with-opts-docstr
           "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
 
@@ -1170,7 +1142,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 ```
     (write-text-file \"gs://target/path\" pcoll)
 ```"
-          base-schema text-writer-schema-new)
+          base-schema text-writer-schema)
    :added "0.6.2"}
   [to {:keys [dynamic? dynamic-fn] :as options} ^PCollection pcoll]
   (let [opts (-> options
@@ -1183,7 +1155,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                (.withDestinationCoder (make-nippy-coder)))
                            (FileIO/write))
                          (.to to))
-                     (merge named-schema text-writer-schema-new) opts)))
+                     (merge named-schema text-writer-schema) opts)))
 
 
 
@@ -1249,12 +1221,7 @@ Example:
           base-schema text-writer-schema)
    :added "0.1.0"}
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :coder nil)]
-     (pt->>
-      (or (:name options) (str "write-edn-file-to-" (clean-filename to)))
-      pcoll
-      (to-edn (assoc options :name "encode-edn"))
-      (write-text-file to (assoc options :name "write-file")))))
+   (write-text-file to (assoc options :file-format :edn) pcoll))
   ([to pcoll] (write-edn-file to {} pcoll)))
 
 (def json-reader-schema
@@ -1297,16 +1264,6 @@ Example:
    :escape-non-ascii {:docstr "Generate JSON escaping UTF-8."}
    :key-fn {:docstr "Generate JSON and munge keys with a custom function."}})
 
-(defn- write-json-file-transform
-  [to options]
-  (let [safe-opts (dissoc options :name :coder)]
-    (ptransform
-     :write-json-file
-     [^PCollection pcoll]
-     (let [json-opts (select-keys safe-opts (keys json-writer-schema))]
-       (->> pcoll
-            (dmap (fn [l] (json/encode l json-opts)) (assoc safe-opts :coder (StringUtf8Coder/of)))
-            (write-text-file to safe-opts))))))
 
 (defn write-json-file
   {:doc (with-opts-docstr
@@ -1321,14 +1278,7 @@ Example:
           base-schema text-writer-schema json-writer-schema)
    :added "0.2.0"}
   ([to options ^PCollection pcoll]
-   (let [json-opts (select-keys options (keys json-writer-schema))]
-     (pt->>
-      (or (:name options) "write-json-file")
-      pcoll
-      (dmap (fn [l] (json/encode l json-opts)) (assoc options
-                                                      :name "encode-json"
-                                                      :coder (StringUtf8Coder/of)))
-      (write-text-file to (assoc options :name "write-text-file")))))
+   (write-text-file to (assoc options :file-format :json)))
   ([to pcoll] (write-json-file to {} pcoll)))
 
 (defn make-partition-mapping
@@ -1852,10 +1802,7 @@ Example:
      (apply-transform pcoll (Count/perElement) named-schema opts)))
   ([pcoll] (dfrequencies {} pcoll)))
 
-(defn- ->duration
-  [time]
-  (or (and (instance? Duration time) time)
-      (.toStandardDuration time)))
+
 
 (def accumulation-mode-enum
   {:accumulate #(.accumulatingFiredPanes %)
