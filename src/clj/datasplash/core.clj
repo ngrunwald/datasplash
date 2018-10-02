@@ -1044,14 +1044,18 @@ It means the template %A-%U-%T is equivalent to the default jobName"
       ;; (str/replace #"/" "\\")
       ))
 
+(defn split-path
+  [p]
+  (let[[_ base-path filename :as all] (->> (re-find #"^(.*/)([^/]*)$" p )
+                                           (remove #(= "" %)))
+       filename (or filename (when (empty? all) p))]
+    [base-path filename]))
+
 (defn ->options
   [o]
   (if (instance? Pipeline o)
     (.getOptions o)
     o))
-
-
-
 
 (def compression-type-enum
   {:auto Compression/AUTO
@@ -1145,16 +1149,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
           base-schema text-writer-schema)
    :added "0.6.2"}
   [to {:keys [dynamic? dynamic-fn] :as options} ^PCollection pcoll]
-  (let [opts (-> options
+  (let [[base-path filename ] (split-path to)
+        opts (-> options
                   (assoc :label (str "write-text-file-to-"
                                      (clean-filename to))
-                         :coder nil))]
+                         :coder nil)
+                  (cond-> filename (assoc :prefix filename)))]
     (apply-transform pcoll
                      (-> (if dynamic?
                            (-> (FileIO/writeDynamic)
                                (.withDestinationCoder (make-nippy-coder)))
                            (FileIO/write))
-                         (.to to))
+                         (.to (or base-path "./")))
                      (merge named-schema text-writer-schema) opts)))
 
 
@@ -1278,7 +1284,10 @@ Example:
           base-schema text-writer-schema json-writer-schema)
    :added "0.2.0"}
   ([to options ^PCollection pcoll]
-   (write-text-file to (assoc options :file-format :json)))
+   (let [[base-path filename] (split-path to)]
+     (write-text-file (or base-path "./")
+                      (cond-> (assoc options :file-format :json)
+                        filename (assoc :prefix filename)) pcoll)))
   ([to pcoll] (write-json-file to {} pcoll)))
 
 (defn make-partition-mapping
