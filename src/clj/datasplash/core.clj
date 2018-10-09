@@ -650,18 +650,28 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
    :added "0.1.0"}
   ^Combine$CombineFn
   ([reducef extractf combinef initf output-coder acc-coder]
-   (let [init-fn (fn [] (safe-exec (initf )))
+   (let [extractf (or extractf identity)
+         combinef (or combinef reducef)
+         initf (or initf reducef)
+         output-coder (or output-coder (make-nippy-coder))
+         acc-coder (or acc-coder (make-nippy-coder))
+
+         init-fn (fn [] (safe-exec (initf )))
          reduce-fn (fn [acc elt] (safe-exec (reducef acc elt)))
          combine-fn (fn [accs] (safe-exec (apply combinef accs)))
          extract-fn (fn [acc] (safe-exec (extractf acc)))]
      (ClojureCombineFn. {"init-fn" init-fn "reduce-fn" reduce-fn "combine-fn" combine-fn
                          "combine-fn-raw" combinef "extract-fn" extract-fn }
                         output-coder acc-coder)))
-  ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder (make-nippy-coder)))
-  ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf (make-nippy-coder)))
-  ([reducef extractf combinef] (combine-fn reducef extractf combinef reducef))
-  ([reducef extractf] (combine-fn reducef extractf reducef))
-  ([reducef] (combine-fn reducef identity)))
+
+  ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder nil))
+  ([reducef extractf combinef initf] (combine-fn reducef extractf combinef initf nil))
+  ([reducef extractf combinef] (combine-fn reducef extractf combinef nil))
+  ([reducef extractf] (combine-fn reducef extractf nil))
+  ([reducef]
+   (if (map? reducef)
+     (apply combine-fn ((juxt :reduce :extract :combine :init :output-coder :acc-coder) reducef))
+     (combine-fn reducef nil))))
 
 (def view-schema
   (merge
