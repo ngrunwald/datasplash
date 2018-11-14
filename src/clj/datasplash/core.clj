@@ -1132,7 +1132,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :naming-fn {:docstr "Uses the naming fn"
                :action (fn [transform naming-fn] (.withNaming transform (sfn naming-fn) ))}
    :dynamic-fn {:docstr "Uses the dynamic write to change destination file according to the content of the item"
-                :action (fn [transform dynamic-fn] (sfn dynamic-fn))}})
+                }})
 
 
 
@@ -1158,7 +1158,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     (apply-transform pcoll
                      (-> (if dynamic?
                            (-> (FileIO/writeDynamic)
-                               (.withDestinationCoder (make-nippy-coder)))
+                               (.withDestinationCoder (make-nippy-coder))
+                               (.by (sfn dynamic-fn)))
                            (FileIO/write))
                          (.to (or base-path "./")))
                      (merge named-schema text-writer-schema) opts)))

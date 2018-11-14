@@ -363,7 +363,7 @@
   (with-files [compression-out-test]
     (let [p (ds/make-pipeline [])
           input (ds/generate-input [1 2 3] p)
-          output (ds/write-edn-file compression-out-test {:without-sharding true :compression-type :gzip} input)]
+          output (ds/write-edn-file compression-out-test {:num-shards 1 :compression-type :gzip} input)]
       (ds/run-pipeline p)
       (let [res (->> (read-file (java.util.zip.GZIPInputStream. (io/input-stream (first (glob-file compression-out-test)))))
                      (into #{}))]
