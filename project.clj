@@ -1,4 +1,4 @@
-(defproject datasplash "0.6.2"
+(defproject datasplash "0.6.3-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
