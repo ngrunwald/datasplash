@@ -1,5 +1,15 @@
 # Changes for Datasplash
 
+## v0.6.2 (2018-11-15)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.1...v0.6.2)**
+
+- Upgrade to Apache Beam 2.8.0
+- Support dynamic file writes
+- Support `:deflate` and `:zip` compressions
+- `bq/->time-partitioning` now accepts `:field` and `:require-partition-filter`
+- Improve docs
+
 ## v0.6.1 (2018-03-20)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.0...v0.6.1)**
