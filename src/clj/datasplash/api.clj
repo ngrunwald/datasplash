@@ -56,8 +56,6 @@
 
 (intern *ns* (with-meta 'partition-fn (meta #'dt/partition-fn)) @#'dt/partition-fn)
 (intern *ns* (with-meta 'partition-by (meta #'dt/dpartition-by)) @#'dt/dpartition-by)
-(intern *ns* (with-meta 'write-edn-file-by (meta #'dt/write-edn-file-by)) @#'dt/write-edn-file-by)
-(intern *ns* (with-meta 'write-text-file-by (meta #'dt/write-text-file-by)) @#'dt/write-text-file-by)
 (intern *ns* (with-meta 'make-partition-mapping (meta #'dt/make-partition-mapping)) @#'dt/make-partition-mapping)
 
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
