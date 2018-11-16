@@ -8,7 +8,7 @@ battle tested) any other [Apache Beam][beam] backend.
 
 ## Usage
 
-For now, you can consult the [API docs](https://oscaro.github.io/datasplash/).
+[API docs](https://oscaro.github.io/datasplash/)
 
 You can also see ports of the official Dataflow examples in the
 `datasplash.examples` namespace.
