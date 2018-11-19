@@ -181,6 +181,8 @@
    base-schema
    {:schema {:docstr "Specifies bq schema."
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
+    :json-schema {:docstr "Specifies bq schema in json"
+                  :action (fn [transform schema] (.withJsonSchema transform schema))}
     :write-disposition {:docstr "Choose write disposition."
                         :enum write-disposition-enum
                         :action (select-enum-option-fn
