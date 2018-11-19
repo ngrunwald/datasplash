@@ -228,9 +228,7 @@
     (ptransform
      :write-bq-table-from-clj
      [^PCollection pcoll]
-     (let [schema (:schema options)
-           base-coll pcoll]
-       (write-bq-table-raw to safe-opts base-coll)))))
+     (write-bq-table-raw to safe-opts pcoll))))
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
