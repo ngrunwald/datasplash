@@ -1,5 +1,14 @@
 # Changes for Datasplash
 
+## v0.6.3 (2018-11-19)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.2...v0.6.3)**
+
+- Add json-schema in bq write
+- Combine-fn accepts now map as arguments
+- Remove deprecated write-by
+
+
 ## v0.6.2 (2018-11-15)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.1...v0.6.2)**
