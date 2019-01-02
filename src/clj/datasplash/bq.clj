@@ -7,7 +7,7 @@
             [clojure.tools.logging :as log]
             [datasplash.core :refer :all])
   (:import
-   [org.codehaus.jackson.map.ObjectMapper]
+   [org.codehaus.jackson.map ObjectMapper]
    [com.google.api.services.bigquery.model
     TableRow TableFieldSchema TableSchema TimePartitioning]
    [org.apache.beam.sdk.transforms SerializableFunction]
