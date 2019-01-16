@@ -23,11 +23,6 @@
                                   [org.hamcrest/hamcrest-all "1.3"]
                                   [org.slf4j/slf4j-api "1.7.25"]
                                   [org.slf4j/slf4j-jdk14 "1.7.25"]]
-                   :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]
-                   :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
-                           :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.6.0/{filepath}#L{line}"
-                           :metadata {:doc/format :markdown}
-                           :output-path "gh-pages"}
-                   :plugins [[lein-codox "0.10.3"]]}
+                   :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
