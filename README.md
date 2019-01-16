@@ -8,7 +8,7 @@ battle tested) any other [Apache Beam][beam] backend.
 
 ## Usage
 
-[API docs](https://oscaro.github.io/datasplash/)
+[API docs](https://cljdoc.org/d/datasplash/datasplash/0.6.4/api/datasplash)
 
 You can also see ports of the official Dataflow examples in the
 `datasplash.examples` namespace.
@@ -103,7 +103,7 @@ lein run -- --help=WordCountOptions
 
 ## License
 
-Copyright © 2015-2018 Oscaro.com
+Copyright © 2015-2019 Oscaro.com
 
 Distributed under the Eclipse Public License either version 1.0 or (at your
 option) any later version.
