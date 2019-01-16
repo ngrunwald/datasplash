@@ -1,10 +1,10 @@
-(defproject datasplash "0.6.4-SNAPSHOT"
+(defproject datasplash "0.6.4"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.10.0"]
-                 [cheshire "5.8.0"]
+                 [cheshire "5.8.1"]
                  [clj-stacktrace "0.2.8"]
                  [org.apache.beam/beam-sdks-java-core "2.9.0"]
                  [org.apache.beam/beam-runners-direct-java "2.9.0"]
@@ -12,8 +12,8 @@
                  [org.apache.beam/beam-runners-core-java "2.9.0"]
                  [com.taoensso/nippy "2.14.0"]
                  [org.clojure/math.combinatorics "0.1.4"]
-                 [org.clojure/tools.logging "0.4.0"]
-                 [clj-time "0.14.2"]
+                 [org.clojure/tools.logging "0.4.1"]
+                 [clj-time "0.15.1"]
                  [superstring "2.1.0"]]
   :source-paths ["src/clj"]
   :pedantic? false

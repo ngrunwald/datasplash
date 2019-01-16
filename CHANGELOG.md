@@ -1,5 +1,12 @@
 # Changes for Datasplash
 
+## v0.6.4 (2019-01-16)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.3...v0.6.4)**
+
+- Upgrade to Apache Beam 2.9.0
+- Upgrade dependencies
+
 ## v0.6.3 (2018-11-19)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.2...v0.6.3)**
