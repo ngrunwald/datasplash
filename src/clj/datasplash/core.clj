@@ -1,4 +1,4 @@
-(ns datasplash.core
+(ns ^:no-doc datasplash.core
   (:require [clj-stacktrace.core :as st]
             [cheshire.core :as json]
             [clojure.edn :as edn]
