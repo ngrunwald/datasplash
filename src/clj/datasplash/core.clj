@@ -1113,15 +1113,18 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (def text-writer-schema
   {:file-format {:docstr "Choose file format."
                  :action
-                 (fn [transform file-format] (.via transform
-                                              (Contextful/fn
-                                                (sfn
-                                                 (fn [x]
-                                                   (case file-format
-                                                     :json (json/encode x {})
-                                                     :edn (pr-str x)
-                                                     (file-format x)))))
-                                              (TextIO/sink)))}
+                 (fn [transform file-format]
+                   (if (= :default file-format)
+                     (.via transform (TextIO/sink))
+                     (.via transform
+                           (Contextful/fn
+                             (sfn
+                              (fn [x]
+                                (case file-format
+                                  :json (json/encode x {})
+                                  :edn (pr-str x)
+                                  (file-format x)))))
+                           (TextIO/sink))))}
    :compression-type {:docstr "Choose compression type."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
@@ -1158,13 +1161,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 ```"
           base-schema text-writer-schema)
    :added "0.6.2"}
-  [to {:keys [dynamic? dynamic-fn] :as options} ^PCollection pcoll]
-  (let [[base-path filename ] (split-path to)
+  [to {:keys [dynamic? dynamic-fn file-format] :as options} ^PCollection pcoll]
+  (let [[base-path filename] (split-path to)
         opts (-> options
-                  (assoc :label (str "write-text-file-to-"
-                                     (clean-filename to))
-                         :coder nil)
-                  (cond-> filename (assoc :prefix filename)))]
+                 (assoc :label (str "write-text-file-to-"
+                                    (clean-filename to))
+                        :coder nil
+                        :file-format (or file-format :default))
+                 (cond-> filename (assoc :prefix filename)))]
     (apply-transform pcoll
                      (-> (if dynamic?
                            (-> (FileIO/writeDynamic)
