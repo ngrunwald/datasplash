@@ -609,6 +609,7 @@ returns true.
 (defn generate-input
   {:doc (with-opts-docstr
           "Generates a pcollection from the given collection.
+Also accepts empty collections.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
 
 Example:
@@ -620,7 +621,9 @@ Example:
   ([coll options ^Pipeline p]
    (let [opts (merge {:coder (make-nippy-coder)}
                      (assoc options :label :generate-input))
-         ptrans (Create/of coll)]
+         ptrans (if (empty? coll)
+                  (Create/empty (make-nippy-coder))
+                  (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
 
@@ -857,7 +860,7 @@ Example (actual implementation of the group-by transform):
 ```"
    :added "0.1.0"}
   [nam input & body]
-  `(let [body-fn# (fn [~(last input)] ~@body)] 
+  `(let [body-fn# (fn [~(last input)] ~@body)]
      (ClojurePTransform. body-fn#)))
 
 (defmacro pt->>
@@ -1130,11 +1133,11 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                (fn [transform enum] (.withCompression transform enum)))}
    :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
-   
+
    :temp-directory {:docstr "Use temp directory when using Filename Policy as output (see filename-policy fn)"
                     :action (fn [transform prefix] (when prefix
                                                      (.withTempDirectory transform prefix)))}
-   
+
    :suffix {:docstr "Uses the given filename suffix."
             :action (fn [transform suffix] (.withSuffix transform suffix))}
    :prefix {:docstr "Uses the given filename prefix."
