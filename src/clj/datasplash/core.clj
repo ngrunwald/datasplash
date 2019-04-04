@@ -619,11 +619,11 @@ Example:
           base-schema)
    :added "0.1.0"}
   ([coll options ^Pipeline p]
-   (let [opts (merge {:coder (make-nippy-coder)}
-                     (assoc options :label :generate-input))
+   (let [{:keys [coder] :as opts} (merge {:coder (make-nippy-coder)}
+                                (assoc options :label :generate-input))
          ptrans (if (empty? coll)
-                  (Create/empty (make-nippy-coder))
-                  (Create/of coll))]
+                 (Create/empty coder)
+                 (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
 
