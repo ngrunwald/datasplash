@@ -6,10 +6,10 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [cheshire "5.8.1"]
                  [clj-stacktrace "0.2.8"]
-                 [org.apache.beam/beam-sdks-java-core "2.9.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.9.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.9.0"]
-                 [org.apache.beam/beam-runners-core-java "2.9.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.10.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.10.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.10.0"]
+                 [org.apache.beam/beam-runners-core-java "2.10.0"]
                  [com.taoensso/nippy "2.14.0"]
                  [org.clojure/math.combinatorics "0.1.4"]
                  [org.clojure/tools.logging "0.4.1"]
@@ -23,11 +23,6 @@
                                   [org.hamcrest/hamcrest-all "1.3"]
                                   [org.slf4j/slf4j-api "1.7.25"]
                                   [org.slf4j/slf4j-jdk14 "1.7.25"]]
-                   :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]
-                   :codox {:namespaces [datasplash.api datasplash.bq datasplash.datastore datasplash.pubsub]
-                           :source-uri "https://github.com/ngrunwald/datasplash/blob/v0.6.0/{filepath}#L{line}"
-                           :metadata {:doc/format :markdown}
-                           :output-path "gh-pages"}
-                   :plugins [[lein-codox "0.10.3"]]}
+                   :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
              :uberjar {:aot :all}}
   :main datasplash.examples)

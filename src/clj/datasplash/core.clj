@@ -1,4 +1,4 @@
-(ns datasplash.core
+(ns ^:no-doc datasplash.core
   (:require [clj-stacktrace.core :as st]
             [cheshire.core :as json]
             [clojure.edn :as edn]
@@ -609,6 +609,7 @@ returns true.
 (defn generate-input
   {:doc (with-opts-docstr
           "Generates a pcollection from the given collection.
+Also accepts empty collections.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
 
 Example:
@@ -618,9 +619,11 @@ Example:
           base-schema)
    :added "0.1.0"}
   ([coll options ^Pipeline p]
-   (let [opts (merge {:coder (make-nippy-coder)}
-                     (assoc options :label :generate-input))
-         ptrans (Create/of coll)]
+   (let [{:keys [coder] :as opts} (merge {:coder (make-nippy-coder)}
+                                (assoc options :label :generate-input))
+         ptrans (if (empty? coll)
+                 (Create/empty coder)
+                 (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p)))
 
@@ -857,7 +860,7 @@ Example (actual implementation of the group-by transform):
 ```"
    :added "0.1.0"}
   [nam input & body]
-  `(let [body-fn# (fn [~(last input)] ~@body)] 
+  `(let [body-fn# (fn [~(last input)] ~@body)]
      (ClojurePTransform. body-fn#)))
 
 (defmacro pt->>
@@ -1113,15 +1116,18 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 (def text-writer-schema
   {:file-format {:docstr "Choose file format."
                  :action
-                 (fn [transform file-format] (.via transform
-                                              (Contextful/fn
-                                                (sfn
-                                                 (fn [x]
-                                                   (case file-format
-                                                     :json (json/encode x {})
-                                                     :edn (pr-str x)
-                                                     (file-format x)))))
-                                              (TextIO/sink)))}
+                 (fn [transform file-format]
+                   (if (= :default file-format)
+                     (.via transform (TextIO/sink))
+                     (.via transform
+                           (Contextful/fn
+                             (sfn
+                              (fn [x]
+                                (case file-format
+                                  :json (json/encode x {})
+                                  :edn (pr-str x)
+                                  (file-format x)))))
+                           (TextIO/sink))))}
    :compression-type {:docstr "Choose compression type."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
@@ -1130,11 +1136,11 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                (fn [transform enum] (.withCompression transform enum)))}
    :num-shards {:docstr "Selects the desired number of output shards (file fragments). 0 to let the system decide (recommended)."
                 :action (fn [transform shards] (.withNumShards transform shards))}
-   
+
    :temp-directory {:docstr "Use temp directory when using Filename Policy as output (see filename-policy fn)"
                     :action (fn [transform prefix] (when prefix
                                                      (.withTempDirectory transform prefix)))}
-   
+
    :suffix {:docstr "Uses the given filename suffix."
             :action (fn [transform suffix] (.withSuffix transform suffix))}
    :prefix {:docstr "Uses the given filename prefix."
@@ -1158,13 +1164,14 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 ```"
           base-schema text-writer-schema)
    :added "0.6.2"}
-  [to {:keys [dynamic? dynamic-fn] :as options} ^PCollection pcoll]
-  (let [[base-path filename ] (split-path to)
+  [to {:keys [dynamic? dynamic-fn file-format] :as options} ^PCollection pcoll]
+  (let [[base-path filename] (split-path to)
         opts (-> options
-                  (assoc :label (str "write-text-file-to-"
-                                     (clean-filename to))
-                         :coder nil)
-                  (cond-> filename (assoc :prefix filename)))]
+                 (assoc :label (str "write-text-file-to-"
+                                    (clean-filename to))
+                        :coder nil
+                        :file-format (or file-format :default))
+                 (cond-> filename (assoc :prefix filename)))]
     (apply-transform pcoll
                      (-> (if dynamic?
                            (-> (FileIO/writeDynamic)

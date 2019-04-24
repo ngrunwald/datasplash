@@ -1,5 +1,10 @@
 # Datasplash
 
+[![Clojars Project](https://img.shields.io/clojars/v/datasplash.svg)](https://clojars.org/datasplash)
+
+[![cljdoc badge](https://cljdoc.org/badge/datasplash/datasplash)](https://cljdoc.org/d/datasplash/datasplash/CURRENT)
+
+
 Clojure API for a more dynamic [Google Cloud Dataflow][gcloud] and (not really
 battle tested) any other [Apache Beam][beam] backend.
 
@@ -8,7 +13,7 @@ battle tested) any other [Apache Beam][beam] backend.
 
 ## Usage
 
-[API docs](https://cljdoc.org/d/datasplash/datasplash/0.6.4/api/datasplash)
+[API docs](https://cljdoc.org/d/datasplash/datasplash/CURRENT/api/datasplash)
 
 You can also see ports of the official Dataflow examples in the
 `datasplash.examples` namespace.
