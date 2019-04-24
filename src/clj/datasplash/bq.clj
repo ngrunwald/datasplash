@@ -193,6 +193,8 @@
                                                                        (cheshire.core/encode sch)
                                                                        (cheshire.core/encode {"fields" sch}))]
                                                         (.withJsonSchema transform full-sch)))}
+    :table-description {:docstr "Specifies table description"
+                        :action (fn [transform description] (.withTableDescription transform description))}
     :write-disposition {:docstr "Choose write disposition."
                         :enum write-disposition-enum
                         :action (select-enum-option-fn
