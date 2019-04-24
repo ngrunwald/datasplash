@@ -15,7 +15,8 @@
    [org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO BigQueryIO$Read BigQueryIO$Write
     BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
+    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy
+    BigQueryIO$Write$Method]
    [org.apache.beam.sdk.values PBegin PCollection]))
 
 (defn read-bq-raw
@@ -176,6 +177,11 @@
    :always (InsertRetryPolicy/alwaysRetry)
    :retry-transient (InsertRetryPolicy/retryTransientErrors)})
 
+(def write-method-enum
+  {:default BigQueryIO$Write$Method/DEFAULT
+   :load BigQueryIO$Write$Method/FILE_LOADS
+   :streaming BigQueryIO$Write$Method/STREAMING_INSERTS})
+
 (def write-bq-table-schema
   (merge
    base-schema
@@ -199,6 +205,12 @@
                                   :create-disposition
                                   create-disposition-enum
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
+    :write-method {:docstr "Choose write method."
+                   :enum write-method-enum
+                   :action (select-enum-option-fn
+                            :write-method
+                            write-method-enum
+                            (fn [transform enum] (.withMethod transform enum)))}
     :without-validation {:docstr "Disables validation until runtime."
                          :action (fn [transform] (.withoutValidation transform))}
     :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
