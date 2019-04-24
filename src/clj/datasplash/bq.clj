@@ -130,11 +130,12 @@
 
 (defn- clj->TableFieldSchema
   [defs transform-keys]
-  (for [{:keys [type mode] field-name :name nested-fields :fields} defs]
+  (for [{:keys [type mode description] field-name :name nested-fields :fields} defs]
        (-> (TableFieldSchema.)
            (.setName (transform-keys (clean-name field-name)))
            (.setType  (str/upper-case (name type)))
            (cond-> mode (.setMode mode))
+           (cond-> description (.setDescription description))
            (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
 (defn ^TableSchema ->schema
