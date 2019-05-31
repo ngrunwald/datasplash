@@ -200,7 +200,20 @@
                                   create-disposition-enum
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
     :without-validation {:docstr "Disables validation until runtime."
-                         :action (fn [transform] (.withoutValidation transform))}
+                         :action (fn [transform without-validation]
+                                   (if without-validation
+                                     (.withoutValidation transform)
+                                     transform))}
+    :ignore-unknown-values {:docstr "Ignores fields which does not match the schema."
+                            :action (fn [transform ignore-unknown-values]
+                                      (if ignore-unknown-values
+                                        (.ignoreUnknownValues transform)
+                                        transform))}
+    :skip-invalid-rows {:docstr "Skips invalid rows. Only works with :streaming write method."
+                        :action (fn [transform skip-invalid-rows]
+                                  (if skip-invalid-rows
+                                    (.skipInvalidRows transform)
+                                    transform))}
     :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
                    :action (select-enum-option-fn
                             :retry-policy
