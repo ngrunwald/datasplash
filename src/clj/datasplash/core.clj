@@ -625,7 +625,11 @@ Example:
                  (Create/empty coder)
                  (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
-  ([coll p] (generate-input coll {} p)))
+  ([coll p] (generate-input coll {} p))
+  ([p] (let [opts (merge {:coder (make-nippy-coder)}
+                     (assoc options :label :generate-input))
+         ptrans (Create/empty (:coder opts))]
+     (apply-transform p ptrans base-schema opts))))
 
 (definterface ICombineFn
   (getReduceFn [])
