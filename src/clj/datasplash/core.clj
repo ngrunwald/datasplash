@@ -27,9 +27,8 @@
             Watch$Growth]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
             CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
-           [org.apache.beam.sdk.util GcsUtil UserCodeException]
+           [org.apache.beam.sdk.util UserCodeException]
            [org.apache.beam.sdk.util.common Reiterable]
-           [org.apache.beam.sdk.util.gcsfs GcsPath]
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
@@ -626,10 +625,7 @@ Example:
                  (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p))
-  ([p] (let [opts (merge {:coder (make-nippy-coder)}
-                     (assoc options :label :generate-input))
-         ptrans (Create/empty (:coder opts))]
-     (apply-transform p ptrans base-schema opts))))
+  ([p] (generate-input [] {} p)))
 
 (definterface ICombineFn
   (getReduceFn [])
