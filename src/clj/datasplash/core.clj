@@ -1208,11 +1208,39 @@ Example:
    )
   ([from p] (read-text-file from {} p)))
 
+
+(defn read-text-files
+  {:doc (with-opts-docstr "Reads multiple text files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.ReadFiles.html
+
+Example:
+```
+(->> (ds/generate-input [\"gs://target/path\" \"gs://target/another-path\"] pipeline)
+     (read-text-files))
+```")}
+  ([options ^PCollection from]
+   (let [opts (assoc options
+                :coder (or
+                         (:coder options)
+                         (StringUtf8Coder/of)))
+         transform (ptransform
+                     (or (:name options) "read-text-files")
+                     [^PCollection pcoll]
+                     (-> pcoll
+                         (apply-transform (FileIO/matchAll)
+                                          {} {})
+                         (apply-transform (FileIO/readMatches)
+                                          {} {})
+                         (apply-transform (TextIO/readFiles)
+                                          (merge named-schema text-reader-schema) (dissoc opts :name))))]
+     (apply-transform from transform (merge {:name "read-text-files"} options) opts)
+     ))
+  ([from] (read-text-files {} from)))
+
 (defn read-edn-file
   {:doc (with-opts-docstr "Reads a PCollection of edn strings from disk or Google Storage, with records separated by newlines.
-
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
-
 Example:
 ```
 (read-edn-file \"gs://target/path\" pcoll)
@@ -1231,6 +1259,32 @@ Example:
                                (assoc :name "read-text-file")))
       (from-edn (assoc options :name "parse-edn")))))
   ([from p] (read-edn-file from {} p)))
+
+
+(defn read-edn-files
+  {:doc (with-opts-docstr "Reads multiple EDN files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.ReadFiles.html
+
+Example:
+```
+(->> (ds/generate-input [\"gs://target/path\" \"gs://target/another-path\"] pipeline)
+     (read-edn-files))
+```"
+          base-schema text-reader-schema)
+   :added "0.6.5"}
+  ([options ^PCollection from]
+   (let [opts (assoc options
+                     :coder (or (:coder options) (make-nippy-coder)))]
+     (pt->>
+      (or (:name options) "read-edn-files")
+      from
+      (read-text-files (-> options
+                           (dissoc :coder)
+                           (assoc :name "read-edn-files")))
+      (from-edn (assoc options :name "parse-edn")))))
+  ([from] (read-edn-files {} from)))
+
 
 (defn write-edn-file
   {:doc (with-opts-docstr
@@ -1282,6 +1336,40 @@ Example:
       (dmap decode-fn
             (assoc options :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
+
+
+(defn read-json-files
+  {:doc (with-opts-docstr "Reads multiple JSON files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
+
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.ReadFiles.html
+
+Example:
+```
+(->> (ds/generate-input [\"gs://target/path\" \"gs://target/another-path\"] pipeline)
+     (read-json-files))
+```"
+          base-schema json-reader-schema)
+   :added "0.6.5"}
+  ([{:keys [key-fn return-type] :as options} ^PCollection from]
+   (let [opts (assoc options
+                     :label (str "read-json-file-from-"
+                                 (clean-filename from))
+                     :coder (or (:coder options) (make-nippy-coder)))
+         decode-fn (cond
+                     (and key-fn return-type) #(json/decode % key-fn return-type)
+                     key-fn #(json/decode % key-fn)
+                     return-type #(json/decode % nil return-type)
+                     :else json/decode)]
+     (pt->>
+      (or (:name options) "read-json-files")
+      from
+      (read-text-files (-> options
+                           (dissoc :coder)
+                           (assoc :name "read-json-files")))
+      (dmap decode-fn
+            (assoc options :name "json-decode")))))
+  ([from] (read-json-files {} from)))
+
 
 (def json-writer-schema
   {:date-format {:docstr "Pattern for encoding java.util.Date objects. Defaults to yyyy-MM-dd'T'HH:mm:ss'Z'"}
