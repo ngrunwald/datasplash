@@ -7,6 +7,7 @@
                  [cheshire "5.8.1"]
                  [clj-stacktrace "0.2.8"]
                  [org.apache.beam/beam-sdks-java-core "2.13.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.13.0"]
                  [org.apache.beam/beam-runners-direct-java "2.13.0"]
                  [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.13.0"]
                  [org.apache.beam/beam-runners-core-java "2.13.0"]
