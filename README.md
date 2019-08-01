@@ -23,23 +23,41 @@ Here is the classic word count:
 ```clojure
 (ns datasplash.examples
   (:require [clojure.string :as str]
-            [datasplash.api :as ds])
+            [clojure.tools.logging :as log]
+            [datasplash
+             [api :as ds]
+             [bq :as bq]
+             [datastore :as dts]
+             [pubsub :as ps]
+             [options :as options :refer [defoptions]]]
+            [clojure.edn :as edn])
+  (:import [java.util UUID]
+           [com.google.datastore.v1 Query PropertyFilter$Operator]
+           [com.google.datastore.v1.client DatastoreHelper]
+           [org.apache.beam.sdk.options PipelineOptionsFactory])
   (:gen-class))
 
 (defn tokenize
   [l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
-(ds/defoptions WordCountOptions
-  {:input {:type String
-           :default "gs://dataflow-samples/shakespeare/kinglear.txt"
-           :description "Path of the file to read from"}
-   :output {:type String
-            :default "kinglear-freqs.txt"
-            :description "Path of the file to write to"}
-   :numShards {:type Long
-               :description "Number of output shards (0 if the system should choose automatically)"
-               :default 0}})
+(defn count-words
+  [p]
+  (ds/->> :count-words p
+          (ds/mapcat tokenize {:name :tokenize})
+          (ds/frequencies)))
+
+(defn format-count
+  [[k v]]
+  (format "%s: %d" k v))
+
+(defoptions WordCountOptions
+  {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
+           :type String} 
+   :output {:default "kinglear-freqs.txt"
+            :type String}
+   :numShards {:default 0
+               :type Long}})
 
 (defn -main
   [& str-args]
@@ -47,11 +65,10 @@ Here is the classic word count:
         {:keys [input output numShards]} (ds/get-pipeline-options p)]
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
-         (ds/mapcat tokenize {:name :tokenize})
-         (ds/frequencies)
-         (ds/map (fn [[k v]] (format "%s: %d" k v)) {:name :format-count})
+         (count-words)
+         (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards})
-         (ds/run-pipeline)))
+		 (ds/run-pipeline))))
 ```
 Run it from the repl with:
 ```clojure
@@ -62,26 +79,16 @@ Run it from the repl with:
 Note that you will need to run `(compile 'datasplash.examples)` every time you
 make a change.
 
-Run it locally with:
+Run an example from the examples namespace locally with:
 
 ```bash
-lein run -- --input=in.txt --output=out.txt
+lein run example-name --input=in.txt --output=out.txt
 ```
 
 Run in on Google Cloud (if you have done a `gcloud init` on this machine):
 
 ```bash
-lein run -- --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=BlockingDataflowPipelineRunner --project=my-project --stagingLocation=gs://my-project-staging
-```
-
-To get help on the available options (directly from Beam):
-```bash
-lein run -- --help
-```
-
-And help on specific tasks:
-```bash
-lein run -- --help=WordCountOptions
+lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=DataflowPipeline --project=my-project --stagingLocation=gs://my-project-staging
 ```
 
 ## Caveats
