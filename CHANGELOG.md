@@ -6,7 +6,7 @@
 
 - Add FileIO Read to read a PCollection of files
 - Add ElasticSearchIO
-- Upgrade to Apache Beam 2.13.0
+- Upgrade to Apache Beam 2.14.0
 - Upgrade dependencies
 
 
