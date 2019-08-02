@@ -2,7 +2,7 @@
 
 ## v0.6.5 (2019-08-01)
 
-**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.3...v0.6.4)**
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.4...v0.6.5)**
 
 - Add FileIO Read to read a PCollection of files
 - Add ElasticSearchIO
