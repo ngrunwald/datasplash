@@ -1085,7 +1085,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 
 (def text-reader-schema
   {:many-files {:docstr "Hints that the filepattern specified matches a very large number of files."
-                :action (fn [transform] (.withHintMatchesManyFiles transform))}
+                :action (fn [transform _] (.withHintMatchesManyFiles transform))}
    :empty-match-treatment {:docstr "Options for allowing or disallowing filepatterns that match no resources"
                            :enum empty-match-treatment-enum
                            :action (select-enum-option-fn
