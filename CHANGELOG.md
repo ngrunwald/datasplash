@@ -1,12 +1,12 @@
 # Changes for Datasplash
 
-## v0.6.5 (2019-08-01)
+## v0.6.5 (2019-08-23)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.4...v0.6.5)**
 
 - Add FileIO Read to read a PCollection of files
 - Add ElasticSearchIO
-- Upgrade to Apache Beam 2.14.0
+- Upgrade to Apache Beam 2.15.0
 - Upgrade dependencies
 
 
