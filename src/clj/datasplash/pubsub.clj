@@ -54,11 +54,16 @@ See https://cloud.google.com/dataflow/model/pubsub-io#reading-with-pubsubio.
 
 Examples:
 ```
+;; Assuming input message are UTF-8 encoded Strings:
 (ps/read-from-pubsub \"projects/my-project/subscriptions/my-subscription\" pcoll)
+```
 
+If you need to access some attributes:
+
+```
 ;; payload will be a string and attributes a map
 (->> (ps/read-from-pubsub \"projects/my-project/subscriptions/my-subscription\" {:type :raw} pcoll)
-     (ps/decode-messages)
+     (ps/decode-messages {})
      (ds/map (fn [{:keys [payload attributes]}] (json/decode payload))))
 ```"
           read-from-pubsub-schema)
@@ -88,11 +93,17 @@ See https://cloud.google.com/dataflow/model/pubsub-io#writing-with-pubsubio.
 
 Examples:
 ```
+;; Assuming the input's pcoll are UTF-8 encoded Strings
 (ps/write-to-pubsub \"projects/my-project/topics/my-topic\" pcoll)
+```
 
+If you need to specify some attributes:
+
+```
 ;; Assuming the input pcoll's elements are {:payload \"my message\" :attributes {:key value}}
-(->> (ps/encode-messages)
-     (ps/write-from-to-pubsub \"projects/my-project/topics/my-topic\" {:type :raw} pcoll))
+(->> pcoll
+     (ps/encode-messages {})
+     (ps/write-from-to-pubsub \"projects/my-project/topics/my-topic\" {:type :raw}))
 ```"
           write-from-pubsub-schema)
    :added "0.4.0"}

@@ -30,6 +30,15 @@
                    (cond-> num-query-split (.withNumQuerySplits num-query-split)))]
     (apply-transform pcoll ptrans named-schema opts)))
 
+(defn delete-datastore-raw
+  "delete a pcoll of already generated datastore entity from datastore"
+  [{:keys [project-id] :as options} pcoll]
+  (let [opts (assoc options :label :delete-datastore-raw)
+        ptrans (-> (DatastoreIO/v1)
+                   (.deleteEntity)
+                   (.withProjectId project-id))]
+    (apply-transform pcoll ptrans named-schema opts)))
+
 (declare value->clj)
 (declare entity->clj)
 

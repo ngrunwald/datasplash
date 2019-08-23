@@ -15,7 +15,8 @@
    [org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO BigQueryIO$Read BigQueryIO$Write
     BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
+    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy
+    BigQueryIO$Write$Method]
    [org.apache.beam.sdk.values PBegin PCollection]))
 
 (defn read-bq-raw
@@ -129,11 +130,12 @@
 
 (defn- clj->TableFieldSchema
   [defs transform-keys]
-  (for [{:keys [type mode] field-name :name nested-fields :fields} defs]
+  (for [{:keys [type mode description] field-name :name nested-fields :fields} defs]
        (-> (TableFieldSchema.)
            (.setName (transform-keys (clean-name field-name)))
            (.setType  (str/upper-case (name type)))
            (cond-> mode (.setMode mode))
+           (cond-> description (.setDescription description))
            (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
 (defn ^TableSchema ->schema
@@ -176,6 +178,11 @@
    :always (InsertRetryPolicy/alwaysRetry)
    :retry-transient (InsertRetryPolicy/retryTransientErrors)})
 
+(def write-method-enum
+  {:default BigQueryIO$Write$Method/DEFAULT
+   :load BigQueryIO$Write$Method/FILE_LOADS
+   :streaming BigQueryIO$Write$Method/STREAMING_INSERTS})
+
 (def write-bq-table-schema
   (merge
    base-schema
@@ -187,6 +194,8 @@
                                                                        (cheshire.core/encode sch)
                                                                        (cheshire.core/encode {"fields" sch}))]
                                                         (.withJsonSchema transform full-sch)))}
+    :table-description {:docstr "Specifies table description"
+                        :action (fn [transform description] (.withTableDescription transform description))}
     :write-disposition {:docstr "Choose write disposition."
                         :enum write-disposition-enum
                         :action (select-enum-option-fn
@@ -199,8 +208,27 @@
                                   :create-disposition
                                   create-disposition-enum
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
+    :write-method {:docstr "Choose write method."
+                   :enum write-method-enum
+                   :action (select-enum-option-fn
+                            :write-method
+                            write-method-enum
+                            (fn [transform enum] (.withMethod transform enum)))}
     :without-validation {:docstr "Disables validation until runtime."
-                         :action (fn [transform] (.withoutValidation transform))}
+                         :action (fn [transform without-validation]
+                                   (if without-validation
+                                     (.withoutValidation transform)
+                                     transform))}
+    :ignore-unknown-values {:docstr "Ignores fields which does not match the schema."
+                            :action (fn [transform ignore-unknown-values]
+                                      (if ignore-unknown-values
+                                        (.ignoreUnknownValues transform)
+                                        transform))}
+    :skip-invalid-rows {:docstr "Skips invalid rows. Only works with :streaming write method."
+                        :action (fn [transform skip-invalid-rows]
+                                  (if skip-invalid-rows
+                                    (.skipInvalidRows transform)
+                                    transform))}
     :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
                    :action (select-enum-option-fn
                             :retry-policy
