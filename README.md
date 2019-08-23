@@ -100,6 +100,10 @@ lein run -- --help=WordCountOptions
   Java shim for these objects instead.
 - If you see something like `java.lang.ClassNotFoundException: Options` you
   probably forgot to compile your namespace.
+- If you see a `java.io.IOException: No such file or directory` when invoking
+  `compile`, make sure there is a directory in your project root that matches
+  the value of `*compile-path*` (default `classes`).
+
 
 ## License
 
