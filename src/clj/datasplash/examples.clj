@@ -35,7 +35,7 @@
   (format "%s: %d" k v))
 
 (defoptions WordCountOptions
-  {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
+  {:input {:default "gs://apache-beam-samples/shakespeare/kinglear.txt"
            :type String} 
    :output {:default "kinglear-freqs.txt"
             :type String}
@@ -60,7 +60,7 @@
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DeDupExample.java
 
 (defoptions DeDupOptions
-  {:input {:default "gs://dataflow-samples/shakespeare/*"
+  {:input {:default "gs://apache-beam-samples/shakespeare/*"
            :type String} 
    :output {:default "shakespeare-dedup.txt"
             :type String}})
@@ -205,7 +205,7 @@
 (defn run-standard-sql-query
   [str-args]
   ;; the DirectPipelineRunner doesn't support standardSql yet
-  (let [p (ds/make-pipeline StandardSQLOptions str-args {:runner "DataflowPipelineRunner"})
+  (let [p (ds/make-pipeline StandardSQLOptions str-args {:runner "DataflowRunner"})
         {:keys [input output]} (ds/get-pipeline-options p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
@@ -220,7 +220,7 @@
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
 
 (defoptions DatastoreWordCountOptions
-  {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
+  {:input {:default "gs://apache-beam-samples/shakespeare/kinglear.txt"
            :type String} 
    :output {:default "kinglear-freqs.txt"
             :type String} 
@@ -286,15 +286,13 @@
 ;; Pub/Sub ;;
 ;;;;;;;;;;;;;
 
-;; Run using: lein run pub-sub --project=[your google cloud project] --stagingLocation=gs://[your-bucket]/jars
+;; Run using: lein run pub-sub --pubsubProject=[your google cloud project] --tempLocation=gs:/[your-bucket]/tmp/ --stagingLocation=gs://[your-bucket]/jars
 ;; You must create the my-subscription and my-transformed-subscription subscriptions, and the my-transformed-topic topics
 ;; before you run this
 
 (defoptions PubSubOptions
-  {:project {:default "yourproject"
-             :type String}
-   :stagingLocation {:default "gs://yourbucket"
-                     :type String}})
+  {:pubsubProject {:default "yourproject"
+                   :type String}})
 
 (defn stream-interactions-from-pubsub
  [pipeline read-topic write-transformed-topic]
@@ -319,13 +317,14 @@
 (defn run-pub-sub
   [str-args]
   (let [pipeline (ds/make-pipeline
+                  PubSubOptions
                   str-args
-                  {:runner "DataflowPipelineRunner"
+                  {:runner "DataflowRunner"
                    :streaming true})
-        {:keys [project]} (ds/get-pipeline-options pipeline)
-        read-topic (format "projects/%s/topics/my-topic" project)
-        write-transformed-topic (format "projects/%s/topics/my-transformed-topic" project)
-        read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" project)]
+        {:keys [pubsubProject]} (ds/get-pipeline-options pipeline)
+        read-topic (format "projects/%s/topics/my-topic" pubsubProject)
+        write-transformed-topic (format "projects/%s/topics/my-transformed-topic" pubsubProject)
+        read-transformed-subscription (format "projects/%s/subscriptions/my-transformed-subscription" pubsubProject)]
     (stream-interactions-from-pubsub pipeline read-topic write-transformed-topic)
     (stream-forwarded-interactions-from-pubsub pipeline read-transformed-subscription)))
 
