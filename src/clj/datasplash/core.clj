@@ -12,32 +12,25 @@
             [clj-time.core :as time])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
-           [org.apache.beam.sdk.coders StringUtf8Coder CustomCoder Coder$Context KvCoder IterableCoder]
-           [org.apache.beam.sdk.io
-            TextIO  TextIO$CompressionType FileSystems FileBasedSink$CompressionType
-            FileBasedSink FileBasedSink$FilenamePolicy
-            FileIO FileIO$Write TextIO Compression]
-           [org.apache.beam.sdk.options PipelineOptionsFactory PipelineOptions]
-           [org.apache.beam.runners.dataflow.options DataflowPipelineDebugOptions$DataflowClientFactory]
+           [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
+           [org.apache.beam.sdk.io TextIO FileIO TextIO Compression]
+           [org.apache.beam.sdk.options PipelineOptionsFactory]
            [org.apache.beam.sdk.transforms
-            DoFn DoFn$ProcessContext ParDo DoFnTester Create PTransform
+            DoFn DoFn$ProcessContext ParDo Create PTransform
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey Distinct Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample
             Watch$Growth]
-           [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey
-            CoGbkResult$CoGbkResultCoder UnionCoder CoGbkResult]
+           [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
            [org.apache.beam.sdk.util UserCodeException]
-           [org.apache.beam.sdk.util.common Reiterable]
+
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
            [org.apache.beam.sdk.transforms Contextful]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream File]
-           [java.net URI]
-           [java.util UUID]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [org.joda.time DateTimeUtils DateTimeZone]
-           [org.joda.time.format DateTimeFormat DateTimeFormatter]
+           [org.joda.time.format DateTimeFormat]
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
            [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
@@ -1424,16 +1417,20 @@ Example:
 ;; Joins ;;
 ;;;;;;;;;;;
 
+(defn- ->tuple-tag [x] (TupleTag. (str x)))
+
 (defn make-keyed-pcollection-tuple
-  ^KeyedPCollectionTuple
   [pcolls]
-  (let [empty-kpct (KeyedPCollectionTuple/empty (.getPipeline (first pcolls)))]
-    (reduce
-     (fn [coll-tuple [idx pcoll]]
-       (let [tag (TupleTag. (str idx))
-             new-coll-tuple (.and coll-tuple tag pcoll)]
-         new-coll-tuple))
-     empty-kpct (map-indexed (fn [idx v] [idx v]) pcolls))))
+  (let [pipeline (.getPipeline (first pcolls))
+        tag-pcoll (map (fn [i pcoll] [(TupleTag. (str i)) pcoll])
+                       (range)
+                       pcolls)
+        pcolltuple (reduce
+                    (fn [coll-tuple [tag pcoll]] (.and coll-tuple tag pcoll))
+                    (KeyedPCollectionTuple/empty pipeline)
+                    tag-pcoll)]
+    {:ordered-tags (mapv first tag-pcoll)
+     :pcolltuple pcolltuple}))
 
 (defn make-group-specs
   [specs]
@@ -1492,11 +1489,7 @@ Example:
                                     :without-coercion-to-clj true}
                                    op)
                           op)))
-             pcolltuple (make-keyed-pcollection-tuple pcolls)
-             ordered-tags (->> pcolltuple
-                               (.getKeyedCollections)
-                               (map #(.getTupleTag %))
-                               (sort-by #(.getId %)))
+             {:keys [pcolltuple ordered-tags]} (make-keyed-pcollection-tuple pcolls)
              rel (apply-transform pcolltuple (CoGroupByKey/create) base-schema opts)
              required-set (->> (:specs group-specs)
                                (map-indexed (fn [idx [_ _ {:keys [type]}]]
