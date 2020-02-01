@@ -99,6 +99,10 @@ lein run -- --help=WordCountOptions
   Java shim for these objects instead.
 - If you see something like `java.lang.ClassNotFoundException: Options` you
   probably forgot to compile your namespace.
+- Whenever you need to check some spec in user code, you will have to first require
+  those specs because they may not be loaded in your Clojure runtime. But don't
+  use `(require)` because it's not thread safe. See [[this issue]](https://clojure.atlassian.net/browse/CLJ-1876)
+  for a workaround.
 
 ## License
 
