@@ -36,11 +36,11 @@
 
 (defoptions WordCountOptions
   {:input {:default "gs://apache-beam-samples/shakespeare/kinglear.txt"
-           :type String} 
+           :type :string} 
    :output {:default "kinglear-freqs.txt"
-            :type String}
+            :type :string}
    :numShards {:default 0
-               :type Long}})
+               :type :long}})
 
 (defn run-word-count
   [str-args]
@@ -51,6 +51,20 @@
          (count-words)
          (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards}))))
+
+
+;;;;;;;;;;;;;;;;;;;
+;; ValueProvider ;;
+;;;;;;;;;;;;;;;;;;;
+
+(defn run-value-provider
+  [str-args]
+  (let [p (ds/make-pipeline ValueProviderOptions str-args)
+        {:keys [out limit]} (ds/get-pipeline-options p)]
+    (->> p
+         (ds/generate-input (range 10))
+         (ds/filter #(> % (.get limit)))
+         (ds/write-text-file out {}))))
 
 ;;;;;;;;;;;
 ;; DeDup ;;
@@ -337,6 +351,7 @@
   (compile 'datasplash.examples)
   (some-> (cond
             (= job "word-count") (run-word-count args)
+            (= job "value-provider") (run-value-provider args)
             (= job "dedup") (run-dedup args)
             (= job "filter") (run-filter args)
             (= job "combine-per-key") (run-combine-per-key args)

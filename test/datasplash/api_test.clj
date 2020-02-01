@@ -386,3 +386,10 @@
         input (ds/read-json-file gzipped-json-file-path {:name :read-json :compression-type :gzip} p)]
     (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
     (ds/run-pipeline p)))
+
+
+(deftest value-provider-test
+  (let [p (->> (make-test-pipeline)
+               (ds/generate-input [0 1 2 3 4 5 6 7 8 9])
+               (ds/filter ))]
+    ))
