@@ -167,21 +167,46 @@
         (is (res [:b #{{:key :b :val 56}}]))))))
 
 (deftest cogroup-test
-  (with-files [cogroup-test]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/cogroup-by {:name "cogroup-test"}
-                                 [[input1 :key] [input2 :key]])
-          output (ds/write-edn-file cogroup-test {:num-shards 1} grouped)]
-      (ds/run-pipeline p)
-      (is "cogroup-test" (.getName grouped))
-      (let [res (->> (read-file (first (glob-file cogroup-test)))
-                     (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
-                     (into #{}))]
-        (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]]
-                     [:c [#{} #{{:key :c, :foo 42}}]]
-                     [:b [#{{:key :b, :val 56}} #{}]]}))))))
+  (testing "nominal case"
+    (with-files [cogroup-test]
+      (let [p (ds/make-pipeline [])
+            input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (ds/cogroup-by {:name "cogroup-test"}
+                                   [[input1 :key] [input2 :key]])
+            output (ds/write-edn-file cogroup-test {:num-shards 1} grouped)]
+        (ds/run-pipeline p)
+        (is "cogroup-test" (.getName grouped))
+        (let [res (->> (read-file (first (glob-file cogroup-test)))
+                       (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
+                       (into #{}))]
+          (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]]
+                       [:c [#{} #{{:key :c, :foo 42}}]]
+                       [:b [#{{:key :b, :val 56}} #{}]]}))))))
+
+  (testing "large set of pcollection"
+    (with-files [cogroup-test]
+      (let [p (ds/make-pipeline [])
+            ;; pcolls is something like
+            ;; [ [{:i 0 :key 0}, {:i 1 :key 0} ...] 🠐 this is a pcoll
+            ;;   [{:i 0 :key 1}, {:i 1 :key 1} ...]
+            ;;   ... ]
+            nb-pcolls 101
+            pcolls (mapv (fn [k-pcoll]
+                           (ds/generate-input
+                            (map (fn [i] {:i i :key k-pcoll}) (range 5))
+                            p))
+                         (range nb-pcolls))
+            grouped (ds/cogroup-by {:name "join-fitments"
+                                    :collector (fn [[id_ same-i]] same-i)}
+                                   (mapv #(vector % :i) pcolls))
+            _output (ds/write-edn-file cogroup-test {:num-shards 1} grouped)]
+        (ds/run-pipeline p)
+        (doseq [line (read-file (first (glob-file cogroup-test)))
+                :let [same-i (mapcat identity line)]]
+          (is (= 1 (count (distinct (map :i same-i)))))
+          (is (= (range nb-pcolls) (map :key same-i)) ))
+        ))))
 
 (deftest cogroup-drop-nil-test
   (with-files [cogroup-drop-nil-test]

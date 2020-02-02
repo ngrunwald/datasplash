@@ -1,5 +1,14 @@
 # Changes for Datasplash
 
+## v0.6.6 (2019-09-11)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.5...v0.6.6)**
+
+### Fixes
+
+- Fix `cogroup-by` for numbers of pcoll > 10 => Issue #83
+- Fix `:many-files` option in `read-text-file` => Issue #75
+
 ## v0.6.5 (2019-08-23)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.4...v0.6.5)**
@@ -8,7 +17,6 @@
 - Add ElasticSearchIO
 - Upgrade to Apache Beam 2.15.0
 - Upgrade dependencies
-
 
 ## v0.6.4 (2019-01-16)
 
