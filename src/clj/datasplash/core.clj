@@ -210,7 +210,7 @@
             finish-bundle (fn [_] nil)
             window-fn (fn [_] nil)}
        :as opts}]
-   (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^Map extra]
+   (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^java.util.Map extra]
                           (safe-exec-cfg
                            opts
                            (let [side-ins (persistent!
