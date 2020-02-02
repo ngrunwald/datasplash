@@ -1,4 +1,4 @@
-(defproject datasplash "0.6.6-SNAPSHOT"
+(defproject datasplash "0.7.0-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
@@ -6,11 +6,11 @@
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [cheshire "5.9.0"]
                  [clj-stacktrace "0.2.8"]
-                 [org.apache.beam/beam-sdks-java-core "2.15.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.15.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.15.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.15.0"]
-                 [org.apache.beam/beam-runners-core-java "2.15.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.18.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.18.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.18.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.18.0"]
+                 [org.apache.beam/beam-runners-core-java "2.18.0"]
                  [com.taoensso/nippy "2.14.0"]
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "0.5.0"]

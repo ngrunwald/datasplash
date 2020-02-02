@@ -6,7 +6,6 @@
             [clojure.math.combinatorics :as combo]
             [clojure.tools.logging :as log]
             [superstring.core :as str]
-            [taoensso.nippy :as nippy]
             [clj-time.format :as timf]
             [clj-time.coerce :as timc]
             [clj-time.core :as time])
@@ -35,13 +34,16 @@
            [org.apache.beam.sdk.transforms Contextful]
            [java.io InputStream OutputStream DataInputStream DataOutputStream File]
            [java.net URI]
-           [java.util UUID]
+           [java.util UUID Map]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat DateTimeFormatter]
            [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
+           [datasplash.fns
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn
+            ClojureCustomCoder ClojurePTransform]
            [datasplash.pipelines PipelineWithOptions]
+           [datasplash.coder NippyCoder]
            ))
 
 (def required-ns (atom #{}))
@@ -202,18 +204,20 @@
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
 (def ^{:dynamic true :no-doc true} *main-output* nil)
+(def ^{:dynamic true :no-doc true} *extra* {})
 
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs name window-fn]
+              side-inputs side-outputs name window-fn
+              stateful?]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)
             window-fn (fn [_] nil)}
        :as opts}]
-   (let [process-ctx-fn (fn [^DoFn$ProcessContext context]
+   (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^Map extra]
                           (safe-exec-cfg
                            opts
                            (let [side-ins (persistent!
@@ -224,12 +228,19 @@
                              (binding [*context* context
                                        *coerce-to-clj* (not without-coercion-to-clj)
                                        *side-inputs* side-ins
-                                       *main-output* (when side-outputs (first (sort side-outputs)))]
-                               (f context)))))]
-     (ClojureDoFn. {"dofn" process-ctx-fn
-                    "window-fn" window-fn
-                    "start-bundle" start-bundle
-                    "finish-bundle" finish-bundle})))
+                                       *main-output* (when side-outputs (first (sort side-outputs)))
+                                       *extra* (reduce
+                                                (fn [acc [k v]]
+                                                  (assoc acc (keyword k) v))
+                                                {} extra)]
+                               (f context)))))
+         args {"dofn" process-ctx-fn
+               "window-fn" window-fn
+               "start-bundle" start-bundle
+               "finish-bundle" finish-bundle}]
+     (if stateful?
+       (ClojureStatefulDoFn. args)
+       (ClojureDoFn. args))))
   ([f] (dofn f {})))
 
 (defn context
@@ -237,6 +248,11 @@
    :doc "In the context of a ParDo, contains the corresponding Context object.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/DoFn.ProcessContext.html"}
   [] *context*)
+
+(defn state
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :state))
 
 (defn side-inputs
   {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.
@@ -256,9 +272,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
     (if *coerce-to-clj*
-      ( if (instance? KV element)
-       (kv->clj element)
-       element)
+      (if (instance? KV element)
+        (kv->clj element)
+        element)
       element)))
 
 (defrecord MultiResult [kvs])
@@ -383,15 +399,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}
   []
-  (let [encode-fn (fn [obj ^OutputStream out]
-                    (safe-exec
-                     (let [dos (DataOutputStream. out)]
-                       (nippy/freeze-to-out! dos obj))))
-        decode-fn (fn [^InputStream in]
-                    (safe-exec
-                     (let [dis (DataInputStream. in)]
-                       (nippy/thaw-from-in! dis))))]
-    (ClojureCustomCoder. {"decode-fn" decode-fn "encode-fn" encode-fn})))
+  (NippyCoder.))
 
 (defn make-kv-coder
   {:doc "Returns an instance of a KvCoder using by default nippy for serialization."
@@ -619,7 +627,7 @@ Example:
    :added "0.1.0"}
   ([coll options ^Pipeline p]
    (let [{:keys [coder] :as opts} (merge {:coder (make-nippy-coder)}
-                                (assoc options :label :generate-input))
+                                         (assoc options :label :generate-input))
          ptrans (if (empty? coll)
                  (Create/empty coder)
                  (Create/of coll))]

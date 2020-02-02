@@ -4,8 +4,10 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer :all]
+            [clojure.tools.logging :as log]
             [datasplash
-             [api :as ds]]
+             [api :as ds]
+             [core :refer [clj->kv]]]
             [clj-time.core :as time]
             [me.raynes.fs :as fs])
   (:import [org.apache.beam.sdk.testing TestPipeline PAssert]
@@ -337,6 +339,20 @@
   (let [p (ds/make-pipeline [])
         input (ds/generate-input [1 2 3 4 5] p)
         proc (ds/map (fn [e] (ds/with-timestamp (time/now) e)) input)]
+    (ds/run-pipeline p)))
+
+(deftest stateful-map
+  (let [p (->> (ds/make-pipeline [])
+               (ds/generate-input [(clj->kv [:a 1]) (clj->kv [:a 1])
+                                   (clj->kv [:b 2]) (clj->kv [:b 2])]
+                                  {:coder (ds/make-kv-coder)})
+               (ds/map (fn [[k v]]
+                         (let [state (ds/state)
+                               current (or (.read state) 0)]
+                           (.write state v)
+                           (clj->kv [k (+ v current)])))
+                       {:stateful? true}))]
+    (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
     (ds/run-pipeline p)))
 
 (deftest windows
