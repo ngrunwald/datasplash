@@ -112,6 +112,10 @@ lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --o
   Java shim for these objects instead.
 - If you see something like `java.lang.ClassNotFoundException: Options` you
   probably forgot to compile your namespace.
+- Whenever you need to check some spec in user code, you will have to first require
+  those specs because they may not be loaded in your Clojure runtime. But don't
+  use `(require)` because it's not thread safe. See [[this issue]](https://clojure.atlassian.net/browse/CLJ-1876)
+  for a workaround.
 - If you see a `java.io.IOException: No such file or directory` when invoking
   `compile`, make sure there is a directory in your project root that matches
   the value of `*compile-path*` (default `classes`).
