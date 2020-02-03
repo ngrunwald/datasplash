@@ -218,10 +218,11 @@
                                        *coerce-to-clj* (not without-coercion-to-clj)
                                        *side-inputs* side-ins
                                        *main-output* (when side-outputs (first (sort side-outputs)))
-                                       *extra* (reduce
-                                                (fn [acc [k v]]
-                                                  (assoc acc (keyword k) v))
-                                                {} extra)]
+                                       *extra* (persistent!
+                                                (reduce
+                                                 (fn [acc [k v]]
+                                                   (assoc! acc (keyword k) v))
+                                                 (transient {}) extra))]
                                (f context)))))
          args {"dofn" process-ctx-fn
                "window-fn" window-fn
