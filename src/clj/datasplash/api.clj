@@ -56,14 +56,13 @@
 
 (intern *ns* (with-meta 'partition-fn (meta #'dt/partition-fn)) @#'dt/partition-fn)
 (intern *ns* (with-meta 'partition-by (meta #'dt/dpartition-by)) @#'dt/dpartition-by)
-(intern *ns* (with-meta 'write-edn-file-by (meta #'dt/write-edn-file-by)) @#'dt/write-edn-file-by)
-(intern *ns* (with-meta 'write-text-file-by (meta #'dt/write-text-file-by)) @#'dt/write-text-file-by)
 (intern *ns* (with-meta 'make-partition-mapping (meta #'dt/make-partition-mapping)) @#'dt/make-partition-mapping)
 
 (intern *ns* (with-meta 'side-inputs (meta #'dt/side-inputs)) @#'dt/side-inputs)
 (intern *ns* (with-meta 'side-outputs (meta #'dt/side-outputs)) @#'dt/side-outputs)
 (intern *ns* (with-meta 'with-timestamp (meta #'dt/with-timestamp)) @#'dt/with-timestamp)
 (intern *ns* (with-meta 'context (meta #'dt/context)) @#'dt/context)
+(intern *ns* (with-meta 'state (meta #'dt/state)) @#'dt/state)
 
 (intern *ns* (with-meta 'frequencies (meta #'dt/dfrequencies)) @#'dt/dfrequencies)
 
@@ -103,8 +102,11 @@
 ;;;;;;;;;;;;;
 
 (intern *ns* (with-meta 'read-text-file (meta #'dt/read-text-file)) @#'dt/read-text-file)
+(intern *ns* (with-meta 'read-text-files (meta #'dt/read-text-files)) @#'dt/read-text-files)
 (intern *ns* (with-meta 'read-edn-file (meta #'dt/read-edn-file)) @#'dt/read-edn-file)
+(intern *ns* (with-meta 'read-edn-files (meta #'dt/read-edn-files)) @#'dt/read-edn-files)
 (intern *ns* (with-meta 'read-json-file (meta #'dt/read-json-file)) @#'dt/read-json-file)
+(intern *ns* (with-meta 'read-json-files (meta #'dt/read-json-files)) @#'dt/read-json-files)
 (intern *ns* (with-meta 'write-text-file (meta #'dt/write-text-file)) @#'dt/write-text-file)
 (intern *ns* (with-meta 'write-edn-file (meta #'dt/write-edn-file)) @#'dt/write-edn-file)
 (intern *ns* (with-meta 'write-json-file (meta #'dt/write-json-file)) @#'dt/write-json-file)
