@@ -1,10 +1,9 @@
 (ns datasplash.kafka
   (:require [datasplash.core :refer :all])
   (:import
-   [org.codehaus.jackson.map ObjectMapper]
    [org.apache.beam.sdk.io.kafka
-    KafkaIO
-    KafkaRecord]
+    KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord]
+   [org.apache.kafka.common.header Header]
    [org.joda.time Duration Instant]
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.values PBegin PCollection])
@@ -22,9 +21,10 @@
      :topic     (.getTopic r)
      :headers   (->> (.getHeaders r)
                      (.toArray)
-                     (reduce (fn [acc header]
-                               (conj acc {(.key header) (.value header)}))
-                             {}))}))
+                     (reduce (fn [acc ^Header header]
+                               (assoc! acc (.key header) (.value header)))
+                             (transient {}))
+                     (persistent!))}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;; Read ;;;;;;;;;;;;;;;;;
@@ -34,46 +34,46 @@
   (merge
    named-schema
    {:commit-offsets-in-finalize            {:docstr "Finalized offsets are committed to Kafka."
-                                            :action (fn [transform b]
+                                            :action (fn [^KafkaIO$Read transform b]
                                                       (if b
                                                         (.commitOffsetsInFinalize transform)
                                                         transform))}
     :with-consumer-config-updates          {:docstr "Update configuration for the backend main consumer."
-                                            :action (fn [transform config-map]
+                                            :action (fn [^KafkaIO$Read transform config-map]
                                                       (.withConsumerConfigUpdates transform config-map))}
     :with-create-time                      {:docstr "Sets the timestamps policy based on `KafkaTimestampType.CREATE_TIME` timestamp of the records."
-                                            :action (fn [transform max-delay] (.withCreateTime transform (Duration. max-delay)))}
+                                            :action (fn [^KafkaIO$Read transform max-delay] (.withCreateTime transform (Duration. max-delay)))}
     :with-log-append-time                  {:docstr "Sets TimestampPolicy to `TimestampPolicyFactory.LogAppendTimePolicy`."
-                                            :action (fn [transform b]
+                                            :action (fn [^KafkaIO$Read transform b]
                                                       (if b
                                                         (.withLogAppendTime transform)
                                                         transform))}
     :with-max-num-records                  {:docstr "Similar to `Read.Unbounded.withMaxNumRecords(long)`."
-                                            :action (fn [transform ^Long max-num-records] (.withMaxNumRecords transform max-num-records))}
+                                            :action (fn [^KafkaIO$Read transform ^Long max-num-records] (.withMaxNumRecords transform max-num-records))}
     :with-max-read-time                    {:docstr "Similar to `Read.Unbounded.withMaxReadTime(Duration)`."
-                                            :action (fn [transform max-read-time] (.withMaxReadtime transform (Duration. max-read-time)))}
+                                            :action (fn [^KafkaIO$Read transform max-read-time] (.withMaxReadTime transform (Duration. max-read-time)))}
     :with-offset-consumer-config-overrides {:doctstr "Set additional configuration for the backend offset consumer."
-                                            :action  (fn [transform offset-consumer-config]
+                                            :action  (fn [^KafkaIO$Read transform offset-consumer-config]
                                                        (.withOffsetConsumerConfigOverrides transform offset-consumer-config))}
     :with-processing-time                  {:docstr "Sets TimestampPolicy to `TimestampPolicyFactory.ProcessingTimePolicy`."
-                                            :action (fn [transform b]
+                                            :action (fn [^KafkaIO$Read transform b]
                                                       (if b
                                                         (.withProcessingTime transform)
                                                         transform))}
     :with-read-committed                   {:docstr "Sets \" isolation_level \" to \" read_committed \" in Kafka consumer configuration."
-                                            :action (fn [transform b]
+                                            :action (fn [^KafkaIO$Read transform b]
                                                       (if b
-                                                        (.withReadComitted transform)
+                                                        (.withReadCommitted transform)
                                                         transform))}
     :with-start-read-time                  {:docstr "Provide custom `TimestampPolicyFactory  to set event times and watermark for each partition."
-                                            :action (fn [transform start-read-time] (.withStartReadTime transform (Instant. start-read-time)))}
+                                            :action (fn [^KafkaIO$Read transform start-read-time] (.withStartReadTime transform (Instant. start-read-time)))}
     :without-metadata                      {:docstr "Returns a PTransform for PCollection of KV, dropping Kafka metatdata."
-                                            :action (fn [transform b]
+                                            :action (fn [^KafkaIO$Read transform b]
                                                       (if b
                                                         (.withoutMetadata transform)
                                                         transform))}
     :with-topic-partitions                 {:docstr "Sets a list of partitions to read from. The list of partitions should be a collection of ['str-topic-name', int-partition-number]"
-                                            :action (fn [transform topic-partitions]
+                                            :action (fn [^KafkaIO$Read transform topic-partitions]
                                                       (.withTopicPartitions transform topic-partitions))}}))
 
 (defn- read-kafka-raw
@@ -141,20 +141,20 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
   (merge
    named-schema
    {:values                       {:docstr "Writes just the values to Kafka."
-                                   :action (fn [transform b]
+                                   :action (fn [^KafkaIO$Write transform b]
                                              (if b
                                                (.values transform)
                                                transform))}
     :with-eos                     {:docstr "Wrapper method over `KafkaIO.WriteRecords.withEOS(int, String)`, used to keep the compatibility with old API based on KV type of element."
-                                   :action (fn [transform num-shards sink-group-id]
-                                             (.withEOS transform num-shards))}
+                                   :action (fn [^KafkaIO$Write transform num-shards sink-group-id]
+                                             (.withEOS transform num-shards sink-group-id))}
     :with-input-timestamp         {:docstr "Wrapper method over `KafkaIO.WriteRecords.withInputTimestamp()`, used to keep the compatibility with old API based on KV type of element."
-                                   :action (fn [transform b]
+                                   :action (fn [^KafkaIO$Write transform b]
                                              (if b
                                                (.withInputTimestamp transform)
                                                transform))}
     :with-producer-config-updates {:docstr "Update configuration for the producer."
-                                   :action (fn [transform config-map]
+                                   :action (fn [^KafkaIO$Write transform config-map]
                                              (.withProducerConfigUpdates transform config-map))}}))
 
 (defn- write-kafka-raw

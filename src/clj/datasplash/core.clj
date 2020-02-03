@@ -7,8 +7,7 @@
             [clojure.tools.logging :as log]
             [superstring.core :as str]
             [clj-time.format :as timf]
-            [clj-time.coerce :as timc]
-            [clj-time.core :as time])
+            [clj-time.coerce :as timc])
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
@@ -22,22 +21,19 @@
             Watch$Growth]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
            [org.apache.beam.sdk.util UserCodeException]
-
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
            [org.apache.beam.sdk.transforms Contextful]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat]
-           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
+           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
+            SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
            [datasplash.fns
-            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn
-            ClojureCustomCoder ClojurePTransform]
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform]
            [datasplash.pipelines PipelineWithOptions]
-           [datasplash.coder NippyCoder]
-           ))
+           [datasplash.coder NippyCoder]))
 
 (def required-ns (atom #{}))
 
@@ -68,7 +64,7 @@
   [e]
   (loop [todo (st/parse-exception e)
          nss (list)]
-    (let [{:keys [message trace-elems cause] :as current-ex} todo]
+    (let [{:keys [message trace-elems cause]} todo]
       (if message
         (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:|Unable to resolve spec:" message)
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
@@ -182,7 +178,7 @@
   [elt]
   (if (instance? KV elt)
     (let [^KV kv elt]
-      (.getKey elt))
+      (.getKey kv))
     (key elt)))
 
 (defn dval
@@ -204,7 +200,7 @@
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs name window-fn
+              side-inputs side-outputs window-fn
               stateful?]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)
@@ -427,7 +423,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn tapply
   [pcoll nam tr]
-  (if (and nam (not (empty? nam)))
+  (if (and nam (seq nam))
     (.apply pcoll nam tr)
     (.apply pcoll tr)))
 
@@ -860,7 +856,7 @@ Example (actual implementation of the group-by transform):
       (ds/group-by-key opts)))
 ```"
    :added "0.1.0"}
-  [nam input & body]
+  [_ input & body]
   `(let [body-fn# (fn [~(last input)] ~@body)]
      (ClojurePTransform. body-fn#)))
 
