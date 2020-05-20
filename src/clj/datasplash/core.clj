@@ -192,7 +192,7 @@
 (def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
-(def ^{:dynamic true :no-doc true} *main-output* nil)
+https://meet.google.com/nqw-wurc-pqnb(def ^{:dynamic true :no-doc true} *main-output* nil)
 (def ^{:dynamic true :no-doc true} *extra* {})
 
 (defn dofn
@@ -201,7 +201,7 @@
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
               side-inputs side-outputs window-fn
-              stateful?]
+              stateful? initialize-fn]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)
             window-fn (fn [_] nil)}
@@ -227,7 +227,8 @@
          args {"dofn" process-ctx-fn
                "window-fn" window-fn
                "start-bundle" start-bundle
-               "finish-bundle" finish-bundle}]
+               "finish-bundle" finish-bundle
+               "initialize-fn" initialize-fn}]
      (if stateful?
        (ClojureStatefulDoFn. args)
        (ClojureDoFn. args))))
