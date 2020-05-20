@@ -192,7 +192,7 @@
 (def ^{:dynamic true :no-doc true} *coerce-to-clj* true)
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
-https://meet.google.com/nqw-wurc-pqnb(def ^{:dynamic true :no-doc true} *main-output* nil)
+(def ^{:dynamic true :no-doc true} *main-output* nil)
 (def ^{:dynamic true :no-doc true} *extra* {})
 
 (defn dofn
@@ -245,10 +245,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    :doc "In the context of a ParDo, contains the mutable ValueState."}
   [] (*extra* :state))
 
-(defn init-result
+(defn system
   {:added "0.7.0"
    :doc "In the context of a ParDo, contains the mutable ValueState."}
-  [] (*extra* :init-result))
+  [] (*extra* :system))
 
 (defn side-inputs
   {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.

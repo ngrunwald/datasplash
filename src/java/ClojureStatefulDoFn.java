@@ -15,7 +15,7 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
 
     @StateId("state")
     private final StateSpec<ValueState<Object>> stateSpec = StateSpecs.value(new NippyCoder());
-    private transient Object initRes = null;
+    private transient Object system = null;
 
     public ClojureStatefulDoFn(Map<String, IFn> fns_map) {
         super(fns_map);
@@ -24,7 +24,7 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
      @Setup
     public void initialize() {
          if (initializeFn != null) {
-             initRes = initializeFn.invoke();
+             system = initializeFn.invoke();
          }
      }
 
@@ -33,7 +33,7 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
         HashMap extra = new HashMap();
         extra.put("state", state);
         extra.put("window", w);
-        extra.put("init-result",initRes);
+        extra.put("system",system);
         doFn.invoke(c, extra);
         windowFn.invoke(w);
     }
