@@ -245,6 +245,11 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    :doc "In the context of a ParDo, contains the mutable ValueState."}
   [] (*extra* :state))
 
+(defn init-result
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :init-result))
+
 (defn side-inputs
   {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.
 
