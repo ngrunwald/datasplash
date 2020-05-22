@@ -15,6 +15,7 @@ public abstract class AbstractClojureDoFn extends DoFn<Object, Object> {
     protected final IFn windowFn;
     protected final IFn startBundleFn;
     protected final IFn finishBundleFn;
+    protected final IFn initializeFn;
 
     public AbstractClojureDoFn(Map<String, IFn>  fns_map) {
         super();
@@ -22,5 +23,6 @@ public abstract class AbstractClojureDoFn extends DoFn<Object, Object> {
         windowFn = fns_map.get("window-fn");
         startBundleFn = fns_map.get("start-bundle");
         finishBundleFn = fns_map.get("finish-bundle");
+        initializeFn = fns_map.get("initialize-fn");
     }
 }

@@ -380,6 +380,22 @@
     (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
     (ds/run-pipeline p)))
 
+
+
+(deftest system-map
+  (let [p (->> (ds/make-pipeline [])
+               (ds/generate-input [{:a 1}
+                                   {:b 2}
+                                   {:c 3}])
+               (ds/map (fn [x]
+                         (merge x (ds/system)))
+                       {:initialize-fn (fn [] {:init 10})}))]
+    (.. PAssert (that p) (containsInAnyOrder #{{:a 1 :init 10}
+                                               {:b 2 :init 10}
+                                               {:c 3 :init 10}}))
+    (ds/run-pipeline p)))
+
+
 (deftest windows
   (let [now (time/now)
         p (->> (ds/make-pipeline [])
