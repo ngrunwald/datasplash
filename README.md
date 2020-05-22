@@ -88,7 +88,7 @@ lein run example-name --input=in.txt --output=out.txt
 Run in on Google Cloud (if you have done a `gcloud init` on this machine):
 
 ```bash
-lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=DataflowPipeline --project=my-project --stagingLocation=gs://my-project-staging
+lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=DataflowRunner --project=my-project --stagingLocation=gs://my-project-staging
 ```
 
 ## Caveats
