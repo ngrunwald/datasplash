@@ -386,15 +386,13 @@
   (let [p (->> (ds/make-pipeline [])
                (ds/generate-input [{:a 1}
                                    {:b 2}
-                                   {:c 3}
-                                   ]
-                                 )
+                                   {:c 3}])
                (ds/map (fn [x]
-                         (merge x(ds/system)))
-                       {:initialize-fn (fn [] {:init 10 })}))]
-    (.. PAssert (that p) (containsInAnyOrder  #{{:a 1 :init 10}
-                                                {:b 2 :init 10}
-                                                {:c 3 :init 10}}))
+                         (merge x (ds/system)))
+                       {:initialize-fn (fn [] {:init 10})}))]
+    (.. PAssert (that p) (containsInAnyOrder #{{:a 1 :init 10}
+                                               {:b 2 :init 10}
+                                               {:c 3 :init 10}}))
     (ds/run-pipeline p)))
 
 
