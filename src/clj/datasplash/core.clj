@@ -1257,13 +1257,13 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) (str "read-text-file-from"
-                               (clean-filename from)))
+      (or (:name opts) (str "read-text-file-from"
+                            (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from p] (read-edn-file from {} p)))
 
 
@@ -1283,12 +1283,12 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) "read-edn-files")
+      (or (:name opts) "read-edn-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-edn-files")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from] (read-edn-files {} from)))
 
 
@@ -1334,13 +1334,13 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) (str "read-json-file-from-" (clean-filename from)))
+      (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
       (dmap decode-fn
-            (assoc options :name "json-decode")))))
+            (assoc opts :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
 
 
@@ -1367,9 +1367,9 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) "read-json-files")
+      (or (:name opts) "read-json-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-json-files")))
       (dmap decode-fn
