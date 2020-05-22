@@ -515,7 +515,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 (TupleTag. (name (first ordered)))
                                                 (TupleTagList/of (map (comp #(TupleTag. %) name)
                                                                       (rest ordered))))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}
+    :initialize-fn {:doc-str "Function of 0 arguments called at worker init. It shoud return an initialized state that can be retrieved at runtime with [[system]] function."
+                    :added "0.7.0"}}))
 
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
@@ -540,7 +542,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     :added "0.2.0"
     :doc
     (with-opts-docstr
-      "Uses a raw pardo-fn as a ppardo transform
+      "Uses a raw pardo-fn as a pardo transform
 Function f should be a function of one argument, the Pardo$Context object."
       pardo-schema)}
   pardo (map-op pardo-fn {:label :pardo}))

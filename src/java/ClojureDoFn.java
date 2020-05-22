@@ -20,12 +20,11 @@ public class ClojureDoFn extends AbstractClojureDoFn {
     public void initialize() {
         if (initializeFn != null) {
             system = initializeFn.invoke();
-
-
-        }}
+        }
+    }
 
     @ProcessElement
-    public void processElement(ProcessContext c , BoundedWindow w){
+    public void processElement(ProcessContext c , BoundedWindow w) {
         HashMap extra = new HashMap();
         extra.put("window", w);
         extra.put("system", system);
