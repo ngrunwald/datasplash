@@ -33,7 +33,9 @@
            [datasplash.fns
             ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform]
            [datasplash.pipelines PipelineWithOptions]
-           [datasplash.coder NippyCoder]))
+           [datasplash.coder NippyCoder]
+           
+))
 
 (def required-ns (atom #{}))
 
@@ -976,7 +978,9 @@ map. Each value will be a list of the values that match key.
                                  (assoc "jobName" (job-name-template tpl args-with-name))
                                  (dissoc "jobNameTemplate"))
                              args-with-name)
-         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-jobname)
+         reformed-args (->> args-with-jobname 
+                            (map (fn [[k v]] (str "--" k "=" v)))
+                            (map (fn [x] (clojure.string/replace x #"=$" ""))))
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
