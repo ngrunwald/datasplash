@@ -1,4 +1,4 @@
-(defproject za.co.simply/datasplash "0.6.11"
+(defproject za.co.simply/datasplash "0.6.12"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/SimplyFinServices/datasplash"
   :license {:name "Eclipse Public License"
@@ -6,11 +6,11 @@
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [cheshire "5.10.0"]
                  [clj-stacktrace "0.2.8"]
-                 [org.apache.beam/beam-sdks-java-core "2.20.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.20.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.20.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.20.0"]
-                 [org.apache.beam/beam-runners-core-java "2.20.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.22.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.22.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.22.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.22.0"]
+                 [org.apache.beam/beam-runners-core-java "2.22.0"]
                  [com.taoensso/nippy "2.14.0"]
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "1.1.0"]
@@ -19,6 +19,7 @@
   :source-paths ["src/clj"]
   :pedantic? false
   :java-source-paths ["src/java"]
+  :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[junit/junit "4.13"]
                                   [me.raynes/fs "1.4.6"]
                                   [org.hamcrest/hamcrest-all "1.3"]
