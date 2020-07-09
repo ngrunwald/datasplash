@@ -14,7 +14,7 @@
    [org.apache.beam.sdk Pipeline]
    [org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO BigQueryIO$Read BigQueryIO$Write
-    BigQueryIO$Write$WriteDisposition
+    BigQueryIO$Write$WriteDisposition BigQueryIO$Write$SchemaUpdateOption
     BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy
     BigQueryIO$Write$Method]
    [org.apache.beam.sdk.values PBegin PCollection]))
@@ -79,7 +79,6 @@
         (str/replace #"-" "_")
         (str/replace #"\?" ""))))
 
-
 (defn bqize-keys
   "Recursively transforms all map keys from strings to keywords."
   {:added "1.1"}
@@ -131,12 +130,12 @@
 (defn- clj->TableFieldSchema
   [defs transform-keys]
   (for [{:keys [type mode description] field-name :name nested-fields :fields} defs]
-       (-> (TableFieldSchema.)
-           (.setName (transform-keys (clean-name field-name)))
-           (.setType  (str/upper-case (name type)))
-           (cond-> mode (.setMode mode))
-           (cond-> description (.setDescription description))
-           (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
+    (-> (TableFieldSchema.)
+        (.setName (transform-keys (clean-name field-name)))
+        (.setType  (str/upper-case (name type)))
+        (cond-> mode (.setMode mode))
+        (cond-> description (.setDescription description))
+        (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
 (defn ^TableSchema ->schema
   ([defs transform-keys]
@@ -151,9 +150,9 @@
     :or   {type :day}}]
   (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
     (cond-> tp
-            (int? expiration-ms)                   (.setExpirationMs expiration-ms)
-            (string? field)                        (.setField field)
-            (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
+      (int? expiration-ms)                   (.setExpirationMs expiration-ms)
+      (string? field)                        (.setField field)
+      (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
@@ -182,6 +181,10 @@
   {:default BigQueryIO$Write$Method/DEFAULT
    :load BigQueryIO$Write$Method/FILE_LOADS
    :streaming BigQueryIO$Write$Method/STREAMING_INSERTS})
+
+(def schema-update-options-enum
+  {:allow-field-addition BigQueryIO$Write$SchemaUpdateOption/ALLOW_FIELD_ADDITION
+   :allow-field-relaxation BigQueryIO$Write$SchemaUpdateOption/ALLOW_FIELD_RELAXATION})
 
 (def write-bq-table-schema
   (merge
@@ -224,6 +227,12 @@
                                       (if ignore-unknown-values
                                         (.ignoreUnknownValues transform)
                                         transform))}
+    :schema-update-options {:docstr "Include schema update options. (pass in a list of options)"
+                            :enum schema-update-options-enum
+                            :action (select-enum-option-fn-set
+                                     :schema-update-options
+                                     schema-update-options-enum
+                                     (fn [transform enum] (.withSchemaUpdateOptions transform enum)))}
     :skip-invalid-rows {:docstr "Skips invalid rows. Only works with :streaming write method."
                         :action (fn [transform skip-invalid-rows]
                                   (if skip-invalid-rows
