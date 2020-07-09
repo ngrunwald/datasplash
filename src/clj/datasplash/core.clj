@@ -7,7 +7,9 @@
             [clojure.tools.logging :as log]
             [superstring.core :as str]
             [clj-time.format :as timf]
-            [clj-time.coerce :as timc])
+            [clj-time.coerce :as timc]
+            [taoensso.nippy :as nippy] ;; to make aot work
+            )
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
@@ -31,9 +33,11 @@
             SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
            [datasplash.fns
-            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform]
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
+            ClojureCustomCoder]
            [datasplash.pipelines PipelineWithOptions]
            [datasplash.coder NippyCoder]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            
 ))
 
@@ -397,7 +401,15 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}
   []
-  (NippyCoder.))
+  (let [encode-fn (fn [obj ^OutputStream out]
+                    (safe-exec
+                     (let [dos (DataOutputStream. out)]
+                       (nippy/freeze-to-out! dos obj))))
+        decode-fn (fn [^InputStream in]
+                    (safe-exec
+                     (let [dis (DataInputStream. in)]
+                       (nippy/thaw-from-in! dis))))]
+    (ClojureCustomCoder. {"decode-fn" decode-fn "encode-fn" encode-fn})))
 
 (defn make-kv-coder
   {:doc "Returns an instance of a KvCoder using by default nippy for serialization."
