@@ -756,7 +756,7 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-        (f elem num)))))
+        (safe-exec (f elem num))))))
 
 (defn dpartition-by
   {:doc (with-opts-docstr
