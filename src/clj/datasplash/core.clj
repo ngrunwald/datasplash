@@ -6,10 +6,10 @@
             [clojure.math.combinatorics :as combo]
             [clojure.tools.logging :as log]
             [superstring.core :as str]
-            [taoensso.nippy :as nippy]
             [clj-time.format :as timf]
             [clj-time.coerce :as timc]
-            [clj-time.core :as time])
+            [taoensso.nippy :as nippy] ;; to make aot work
+            )
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
@@ -23,19 +23,23 @@
             Watch$Growth]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
            [org.apache.beam.sdk.util UserCodeException]
-
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
            [org.apache.beam.sdk.transforms Contextful]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat]
-           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
+           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
+            SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
+           [datasplash.fns
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
+            ClojureCustomCoder]
            [datasplash.pipelines PipelineWithOptions]
-           ))
+           [datasplash.coder NippyCoder]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]
+           
+))
 
 (def required-ns (atom #{}))
 
@@ -66,7 +70,7 @@
   [e]
   (loop [todo (st/parse-exception e)
          nss (list)]
-    (let [{:keys [message trace-elems cause] :as current-ex} todo]
+    (let [{:keys [message trace-elems cause]} todo]
       (if message
         (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:|Unable to resolve spec:" message)
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
@@ -180,7 +184,7 @@
   [elt]
   (if (instance? KV elt)
     (let [^KV kv elt]
-      (.getKey elt))
+      (.getKey kv))
     (key elt)))
 
 (defn dval
@@ -195,18 +199,20 @@
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
 (def ^{:dynamic true :no-doc true} *main-output* nil)
+(def ^{:dynamic true :no-doc true} *extra* {})
 
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs name window-fn]
+              side-inputs side-outputs window-fn
+              stateful? initialize-fn]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)
             window-fn (fn [_] nil)}
        :as opts}]
-   (let [process-ctx-fn (fn [^DoFn$ProcessContext context]
+   (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^java.util.Map extra]
                           (safe-exec-cfg
                            opts
                            (let [side-ins (persistent!
@@ -217,12 +223,21 @@
                              (binding [*context* context
                                        *coerce-to-clj* (not without-coercion-to-clj)
                                        *side-inputs* side-ins
-                                       *main-output* (when side-outputs (first (sort side-outputs)))]
-                               (f context)))))]
-     (ClojureDoFn. {"dofn" process-ctx-fn
-                    "window-fn" window-fn
-                    "start-bundle" start-bundle
-                    "finish-bundle" finish-bundle})))
+                                       *main-output* (when side-outputs (first (sort side-outputs)))
+                                       *extra* (persistent!
+                                                (reduce
+                                                 (fn [acc [k v]]
+                                                   (assoc! acc (keyword k) v))
+                                                 (transient {}) extra))]
+                               (f context)))))
+         args {"dofn" process-ctx-fn
+               "window-fn" window-fn
+               "start-bundle" start-bundle
+               "finish-bundle" finish-bundle
+               "initialize-fn" initialize-fn}]
+     (if stateful?
+       (ClojureStatefulDoFn. args)
+       (ClojureDoFn. args))))
   ([f] (dofn f {})))
 
 (defn context
@@ -230,6 +245,16 @@
    :doc "In the context of a ParDo, contains the corresponding Context object.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/DoFn.ProcessContext.html"}
   [] *context*)
+
+(defn state
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :state))
+
+(defn system
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :system))
 
 (defn side-inputs
   {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.
@@ -249,9 +274,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
     (if *coerce-to-clj*
-      ( if (instance? KV element)
-       (kv->clj element)
-       element)
+      (if (instance? KV element)
+        (kv->clj element)
+        element)
       element)))
 
 (defrecord MultiResult [kvs])
@@ -419,7 +444,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn tapply
   [pcoll nam tr]
-  (if (and nam (not (empty? nam)))
+  (if (and nam (seq nam))
     (.apply pcoll nam tr)
     (.apply pcoll tr)))
 
@@ -481,6 +506,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                   {:expected (keys enum-map)
                    :given kw}))))))
 
+(defn select-enum-option-fn-set
+  [options enum-map action]
+  (fn [transform options-list]
+    (let [enums (set (vals (select-keys enum-map options-list)))]
+      (if (seq enums)
+        (action transform enums)
+        (throw
+         (ex-info (format "%s must be list of at least one of %s, %s given"
+                          options (keys enum-map) options-list)
+                  {:expected [(keys enum-map)]
+                   :given options-list}))))))
+
 (def base-schema
   {:coder {:docstr "Uses a specific Coder for the results of this transform. Usually defaults to some form of nippy-coder."}
    :checkpoint {:docstr "Given a path, will store the resulting pcoll at this path in edn to facilitate dev/debug."}})
@@ -504,7 +541,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 (TupleTag. (name (first ordered)))
                                                 (TupleTagList/of (map (comp #(TupleTag. %) name)
                                                                       (rest ordered))))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}
+    :initialize-fn {:doc-str "Function of 0 arguments called at worker init. It shoud return an initialized state that can be retrieved at runtime with [[system]] function."
+                    :added "0.7.0"}}))
 
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
@@ -529,7 +568,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     :added "0.2.0"
     :doc
     (with-opts-docstr
-      "Uses a raw pardo-fn as a ppardo transform
+      "Uses a raw pardo-fn as a pardo transform
 Function f should be a function of one argument, the Pardo$Context object."
       pardo-schema)}
   pardo (map-op pardo-fn {:label :pardo}))
@@ -612,10 +651,10 @@ Example:
    :added "0.1.0"}
   ([coll options ^Pipeline p]
    (let [{:keys [coder] :as opts} (merge {:coder (make-nippy-coder)}
-                                (assoc options :label :generate-input))
+                                         (assoc options :label :generate-input))
          ptrans (if (empty? coll)
-                 (Create/empty coder)
-                 (Create/of coll))]
+                  (Create/empty coder)
+                  (Create/of coll))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p))
   ([p] (generate-input [] {} p)))
@@ -662,12 +701,12 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
          output-coder (or output-coder (make-nippy-coder))
          acc-coder (or acc-coder (make-nippy-coder))
 
-         init-fn (fn [] (safe-exec (initf )))
+         init-fn (fn [] (safe-exec (initf)))
          reduce-fn (fn [acc elt] (safe-exec (reducef acc elt)))
          combine-fn (fn [accs] (safe-exec (apply combinef accs)))
          extract-fn (fn [acc] (safe-exec (extractf acc)))]
      (ClojureCombineFn. {"init-fn" init-fn "reduce-fn" reduce-fn "combine-fn" combine-fn
-                         "combine-fn-raw" combinef "extract-fn" extract-fn }
+                         "combine-fn-raw" combinef "extract-fn" extract-fn}
                         output-coder acc-coder)))
 
   ([reducef extractf combinef initf output-coder] (combine-fn reducef extractf combinef initf output-coder nil))
@@ -741,7 +780,7 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-        (f elem num)))))
+        (safe-exec (f elem num))))))
 
 (defn dpartition-by
   {:doc (with-opts-docstr
@@ -796,7 +835,7 @@ Example:
               cfs)))
      (fn []
        (mapv (fn [cf] (let [f (.getInitFn cf)]
-                       (f))) cfs))
+                        (f))) cfs))
      (.getDefaultOutputCoder (first cfs) nil nil)
      (.getAccumulatorCoder (first cfs) nil nil))))
 
@@ -838,7 +877,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
      (apply-transform pcoll (GroupByKey/create) base-schema opts)))
   ([pcoll] (group-by-key {} pcoll)))
 
-
 (defmacro ptransform
   {:doc "Generates a PTransform with the given name, apply signature and body. Should rarely by used in user code, see [[pt->>]] for the more general use case in application code.
 
@@ -852,7 +890,7 @@ Example (actual implementation of the group-by transform):
       (ds/group-by-key opts)))
 ```"
    :added "0.1.0"}
-  [nam input & body]
+  [_ input & body]
   `(let [body-fn# (fn [~(last input)] ~@body)]
      (ClojurePTransform. body-fn#)))
 
@@ -963,7 +1001,9 @@ map. Each value will be a list of the values that match key.
                                  (assoc "jobName" (job-name-template tpl args-with-name))
                                  (dissoc "jobNameTemplate"))
                              args-with-name)
-         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-jobname)
+         reformed-args (->> args-with-jobname 
+                            (map (fn [[k v]] (str "--" k "=" v)))
+                            (map (fn [x] (clojure.string/replace x #"=$" ""))))
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -1052,9 +1092,9 @@ It means the template %A-%U-%T is equivalent to the default jobName"
 
 (defn split-path
   [p]
-  (let[[_ base-path filename :as all] (->> (re-find #"^(.*/)([^/]*)$" p )
-                                           (remove #(= "" %)))
-       filename (or filename (when (empty? all) p))]
+  (let [[_ base-path filename :as all] (->> (re-find #"^(.*/)([^/]*)$" p)
+                                            (remove #(= "" %)))
+        filename (or filename (when (empty? all) p))]
     [base-path filename]))
 
 (defn ->options
@@ -1086,7 +1126,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                     empty-match-treatment-enum
                                     (fn [transform enum] (.withEmptyMatchTreatment transform enum)))}
    :delimiter {:docstr "Specify delimiter"
-                :action (fn [transform delimiter] (.withDelimiter transform delimiter))}
+               :action (fn [transform delimiter] (.withDelimiter transform delimiter))}
    :compression-type {:docstr "Choose compression type. :auto by default."
                       :enum compression-type-enum
                       :action (select-enum-option-fn
@@ -1104,7 +1144,6 @@ It means the template %A-%U-%T is equivalent to the default jobName"
                                                     :inactivity (Watch$Growth/afterTimeSinceNewOutput
                                                                  (->duration termination-duration))
                                                     termination-strategy)))}})
-
 
 (def text-writer-schema
   {:file-format {:docstr "Choose file format."
@@ -1139,11 +1178,8 @@ It means the template %A-%U-%T is equivalent to the default jobName"
    :prefix {:docstr "Uses the given filename prefix."
             :action (fn [transform suffix] (.withPrefix transform suffix))}
    :naming-fn {:docstr "Uses the naming fn"
-               :action (fn [transform naming-fn] (.withNaming transform (sfn naming-fn) ))}
-   :dynamic-fn {:docstr "Uses the dynamic write to change destination file according to the content of the item"
-                }})
-
-
+               :action (fn [transform naming-fn] (.withNaming transform (sfn naming-fn)))}
+   :dynamic-fn {:docstr "Uses the dynamic write to change destination file according to the content of the item"}})
 
 (defn write-text-file
   {:doc (with-opts-docstr
@@ -1174,10 +1210,6 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                          (.to (or base-path "./")))
                      (merge named-schema text-writer-schema) opts)))
 
-
-
-
-
 (defn read-text-file
   {:doc (with-opts-docstr "Reads a PCollection of Strings from disk or Google Storage, with records separated by newlines.
 
@@ -1197,10 +1229,8 @@ Example:
      (-> p
          (cond-> (instance? Pipeline p) (PBegin/in))
          (apply-transform (.from (TextIO/read) from)
-                          (merge named-schema text-reader-schema) opts)))
-   )
+                          (merge named-schema text-reader-schema) opts))))
   ([from p] (read-text-file from {} p)))
-
 
 (defn read-text-files
   {:doc (with-opts-docstr "Reads multiple text files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
@@ -1214,21 +1244,20 @@ Example:
 ```")}
   ([options ^PCollection from]
    (let [opts (assoc options
-                :coder (or
-                         (:coder options)
-                         (StringUtf8Coder/of)))
+                     :coder (or
+                             (:coder options)
+                             (StringUtf8Coder/of)))
          transform (ptransform
-                     (or (:name options) "read-text-files")
-                     [^PCollection pcoll]
-                     (-> pcoll
-                         (apply-transform (FileIO/matchAll)
-                                          {} {})
-                         (apply-transform (FileIO/readMatches)
-                                          {} {})
-                         (apply-transform (TextIO/readFiles)
-                                          (merge named-schema text-reader-schema) (dissoc opts :name))))]
-     (apply-transform from transform (merge {:name "read-text-files"} options) opts)
-     ))
+                    (or (:name options) "read-text-files")
+                    [^PCollection pcoll]
+                    (-> pcoll
+                        (apply-transform (FileIO/matchAll)
+                                         {} {})
+                        (apply-transform (FileIO/readMatches)
+                                         {} {})
+                        (apply-transform (TextIO/readFiles)
+                                         (merge named-schema text-reader-schema) (dissoc opts :name))))]
+     (apply-transform from transform (merge {:name "read-text-files"} options) opts)))
   ([from] (read-text-files {} from)))
 
 (defn read-edn-file
@@ -1244,15 +1273,14 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) (str "read-text-file-from"
-                               (clean-filename from)))
+      (or (:name opts) (str "read-text-file-from"
+                            (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from p] (read-edn-file from {} p)))
-
 
 (defn read-edn-files
   {:doc (with-opts-docstr "Reads multiple EDN files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
@@ -1270,14 +1298,13 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) "read-edn-files")
+      (or (:name opts) "read-edn-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-edn-files")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from] (read-edn-files {} from)))
-
 
 (defn write-edn-file
   {:doc (with-opts-docstr
@@ -1321,15 +1348,14 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) (str "read-json-file-from-" (clean-filename from)))
+      (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
       (dmap decode-fn
-            (assoc options :name "json-decode")))))
+            (assoc opts :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
-
 
 (defn read-json-files
   {:doc (with-opts-docstr "Reads multiple JSON files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
@@ -1354,21 +1380,19 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) "read-json-files")
+      (or (:name opts) "read-json-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-json-files")))
       (dmap decode-fn
             (assoc options :name "json-decode")))))
   ([from] (read-json-files {} from)))
 
-
 (def json-writer-schema
   {:date-format {:docstr "Pattern for encoding java.util.Date objects. Defaults to yyyy-MM-dd'T'HH:mm:ss'Z'"}
    :escape-non-ascii {:docstr "Generate JSON escaping UTF-8."}
    :key-fn {:docstr "Generate JSON and munge keys with a custom function."}})
-
 
 (defn write-json-file
   {:doc (with-opts-docstr
@@ -1629,7 +1653,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                        res (map (fn [prod] (apply clean-join-fn prod)) raw-res)]
                    res))
                {:name (str root-name "-cartesian-product")
-                :without-coercion-to-clj true }))))
+                :without-coercion-to-clj true}))))
   ([options specs] (if (fn? specs)
                      (throw (ex-info "Wrong type of argument for join-by, join-fn is now passed as a :collector key in options" {:specs specs}))
                      (join-by options specs nil))))
@@ -1893,8 +1917,6 @@ Example:
      (apply-transform pcoll (Count/perElement) named-schema opts)))
   ([pcoll] (dfrequencies {} pcoll)))
 
-
-
 (def accumulation-mode-enum
   {:accumulate #(.accumulatingFiredPanes %)
    :discard #(.discardingFiredPanes %)})
@@ -1970,11 +1992,10 @@ Example:
      (apply-transform pcoll transform window-schema options)))
   ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
 
-
 (defn- mk-default-windowed-fn
   [{:keys [file-name suffix] :as options
     :or {file-name "file"}}]
-  (fn [shard-number shard-count ^BoundedWindow window _ ]
+  (fn [shard-number shard-count ^BoundedWindow window _]
     (safe-exec
      (let [timestamp (timf/unparse (:date-hour-minute timf/formatters)
                                    (.start window))]
@@ -2042,7 +2063,3 @@ Examples:
   (let [[expressions clauses] (parse-try body)]
     `(try (safe-exec ~@expressions)
           ~@clauses)))
-
-
-
-

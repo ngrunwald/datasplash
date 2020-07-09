@@ -1,5 +1,16 @@
 # Changes for Datasplash
 
+## v0.7.0 (2020-09-07)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.6...v0.7.0)**
+
+- Add Kafka IO support
+- Add delete-datastore-raw to datastore features
+- add :schema-update-options for BQ write
+- Update Apache Beam to 2.22.0
+- Performance improvements
+- Fixed require bug in `partition-by`
+
 ## v0.6.6 (2019-09-11)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.5...v0.6.6)**

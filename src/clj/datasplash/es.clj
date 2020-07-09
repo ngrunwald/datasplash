@@ -2,9 +2,8 @@
   (:require [datasplash.core :refer :all]
             [cheshire.core :as json])
   (:import
-   [org.codehaus.jackson.map ObjectMapper]
    [org.apache.beam.sdk.io.elasticsearch
-    ElasticsearchIO
+    ElasticsearchIO ElasticsearchIO$Read ElasticsearchIO$Write
     ElasticsearchIO$RetryConfiguration
     ElasticsearchIO$ConnectionConfiguration]
    [org.joda.time Duration]
@@ -43,16 +42,12 @@
   (merge
    es-connection-schema
    {:key-fn              {:docstr "Can be either true (to coerce keys to keywords),false to leave them as strings, or a function to provide custom coercion."}
-
-    :retry-configuration {:docstr "Creates RetryConfiguration for ElasticsearchIO with provided max-attempts, max-durations and exponential backoff based retries"
-                           :action (fn [transform [^Long max-attempts ^Long max-duration-ms]]
-                                     (.withRetryConfiguration transform (retry-config max-attempts max-duration-ms)))}
     :batch-size          {:docstr "Specify the scroll size (number of document by page). Default to 100. Maximum is 10 000. If documents are small, increasing batch size might improve read performance. If documents are big, you might need to decrease batch-size"
-                        :action (fn [transform ^Long b] (.withBatchSize transform b))}
+                        :action (fn [^ElasticsearchIO$Read transform ^Long b] (.withBatchSize transform b))}
     :query               {:docstr "Provide a query used while reading from Elasticsearch."
-                        :action (fn [transform ^String q] (.withQuery transform q))}
+                        :action (fn [^ElasticsearchIO$Read transform ^String q] (.withQuery transform q))}
     :scroll-keep-alive   {:docstr "Provide a scroll keepalive. See https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-request-scroll.html . Default is \"5m\". Change this only if you get \"No search context found\" errors."
-                        :action (fn [transform ^String q] (.withQuery transform q))}}))
+                        :action (fn [^ElasticsearchIO$Read transform ^String q] (.withQuery transform q))}}))
 
 (defn- read-es-raw
   "Connects and reads form Elasticserach, returns a PColl of strings"
@@ -98,29 +93,29 @@ Examples:
   (merge
    es-connection-schema
    {:max-batch-size       {:docstr "Specify the max number of documents in a bulk. Default to 1000"
-                           :action (fn [transform ^Long b] (.withMaxBatchSizeBytes transform b))}
+                           :action (fn [^ElasticsearchIO$Write transform ^Long b] (.withMaxBatchSizeBytes transform b))}
     :max-batch-size-bytes {:docstr "Specify the max number of bytes in a bulk. Default to 5MB"
-                           :action (fn [transform ^Long b] (.withMaxBatchSizeBytes transform b))}
+                           :action (fn [^ElasticsearchIO$Write transform ^Long b] (.withMaxBatchSizeBytes transform b))}
     :retry-configuration  {:docstr "Creates RetryConfiguration for ElasticsearchIO with provided max-attempts, max-durations and exponential backoff based retries"
-                           :action (fn [transform [^Long max-attempts ^Long max-duration-ms]]
+                           :action (fn [^ElasticsearchIO$Write transform [^Long max-attempts ^Long max-duration-ms]]
                                      (.withRetryConfiguration transform (retry-config max-attempts max-duration-ms)))}
     :id-fn                {:doctstr "Provide a function to extract the id from the document."
-                           :action (fn [transform key-fn]
+                           :action (fn [^ElasticsearchIO$Write transform key-fn]
                                      (let [serializing-key-fn (comp key-fn json/parse-string)
                                            id-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withIdFn transform id-fn)))}
     :index-fn             {:doctstr "Provide a function to extract the target index from the document allowing for dynamic document routing."
-                           :action (fn [transform key-fn]
+                           :action (fn [^ElasticsearchIO$Write transform key-fn]
                                      (let [serializing-key-fn (comp key-fn json/parse-string)
                                            index-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withIndexFn transform index-fn)))}
     :type-fn              {:docstr "Provide a function to extract the target type from the document allowing for dynamic document routing."
-                           :action (fn [transform key-fn]
+                           :action (fn [^ElasticsearchIO$Write transform key-fn]
                                      (let [serializing-key-fn (comp key-fn json/parse-string)
                                            type-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withTypeFn transform type-fn)))}
     :use-partial-update   {:docstr "Provide an instruction to control whether partial updates or inserts (default) are issued to Elasticsearch."
-                           :action (fn [transform is-partial-update]
+                           :action (fn [^ElasticsearchIO$Write transform is-partial-update]
                                      (.withUsePartialUpdate transform is-partial-update))}}))
 
 (defn- write-es-raw
