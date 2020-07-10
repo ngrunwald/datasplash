@@ -483,7 +483,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn select-enum-option-fn-set
   [options enum-map action]
   (fn [transform options-list]
-    (let [enums (set (vals (select-keys enum-map options-list)))]
+    (let [enums (->  (select-keys enum-map options-list) vals set)]
       (if (seq enums)
         (action transform enums)
         (throw
