@@ -17,7 +17,6 @@
                    (.withProjectId project-id))]
     (apply-transform pcoll ptrans named-schema opts)))
 
-
 (defn read-datastore-raw
   "Read a datastore source return a pcoll of raw datastore entities"
   [{:keys [project-id query namespace num-query-split] :as options} pcoll]
@@ -67,7 +66,7 @@
       (throw (ex-info (format "Datastore type not supported: %s" t) {:value v :type t})))))
 
 (defn entity->clj
-  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :key, :kind, :namespace and :ancestors in the meta of the returned map"
+  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :key, :kind, :namespace and :path in the meta of the returned map"
   [^Entity e]
   (let [props (persistent!
                (reduce (fn [acc ^Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry kv]
@@ -154,8 +153,8 @@
   (.build ^Value$Builder (make-ds-value-builder v)))
 
 (defn make-ds-entity
-  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, ancestor, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
-  ([raw-values {:keys [key namespace kind ancestors exclude-from-index] :as options}]
+  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, path, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
+  ([raw-values {:keys [key namespace kind path exclude-from-index] :as options}]
    (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
                                      (cond-> key (add-ds-key-namespace-kind options)))]
      (.build builder)))

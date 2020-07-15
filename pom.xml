@@ -7,7 +7,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
   <groupId>za.co.simply</groupId>
   <artifactId>datasplash</artifactId>
   <packaging>jar</packaging>
-  <version>0.6.12</version>
+  <version>0.7.0</version>
   <name>datasplash</name>
   <description>Clojure API for a more dynamic Google Cloud Dataflow
   and (hopefully) Apache BEAM</description>
