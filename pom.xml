@@ -24,7 +24,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
     scm:git:git://github.com/SimplyFinServices/datasplash.git</connection>
     <developerConnection>
     scm:git:ssh://git@github.com/SimplyFinServices/datasplash.git</developerConnection>
-    <tag>4c1b935f14f7f84d4279db2d865b4402f431785f</tag>
+    <tag>691ae02baac261bfe7f4e95a31f2c331693163ea</tag>
   </scm>
   <build>
     <sourceDirectory>src/clj</sourceDirectory>
@@ -45,15 +45,16 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.5.1</version>
         <configuration>
-          <source>1.7</source>
-          <target>1.7</target>
+          <source>1.8</source>
+          <target>1.8</target>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.7</version>
+        <version>1.8</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -93,21 +94,16 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       </releases>
     </repository>
   </repositories>
-  <distributionManagement>
-    <repository>
-      <id>clojars</id>
-      <url>https://clojars.org/repo/</url>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-    </repository>
-  </distributionManagement>
   <dependencyManagement>
     <dependencies />
   </dependencyManagement>
+  <distributionManagement>
+    <repository>
+      <id>clojars</id>
+      <name>Clojars repository</name>
+      <url>https://clojars.org/repo</url>
+    </repository>
+  </distributionManagement>
   <dependencies>
     <dependency>
       <groupId>org.clojure</groupId>
