@@ -65,6 +65,11 @@
       (tx v)
       (throw (ex-info (format "Datastore type not supported: %s" t) {:value v :type t})))))
 
+(defn get-name-or-id [key-path-element]
+  (let [name (.getName key-path-element)
+        name-or-id (if (empty? name) (.getId key-path-element) name)]
+    name-or-id))
+
 (defn entity->clj
   "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :key, :kind, :namespace and :path in the meta of the returned map"
   [^Entity e]
@@ -75,7 +80,7 @@
                        (transient {}) (.getProperties e)))
         [^Key k key-name kind path] (when (.hasKey e) (let [k (.getKey e)
                                                             results (map (fn [^Key$PathElement p]
-                                                                           {:kind (.getKind p) :key (.getName p)})
+                                                                           {:kind (.getKind p) :key (get-name-or-id p)})
                                                                          (.getPathList k))
                                                             {:keys [kind key]} (last results)]
                                                         [k key kind (butlast results)]))
