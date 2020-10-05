@@ -7,7 +7,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
   <groupId>za.co.simply</groupId>
   <artifactId>datasplash</artifactId>
   <packaging>jar</packaging>
-  <version>0.7.0</version>
+  <version>0.8.0</version>
   <name>datasplash</name>
   <description>Clojure API for a more dynamic Google Cloud Dataflow
   and (hopefully) Apache BEAM</description>
@@ -24,7 +24,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
     scm:git:git://github.com/SimplyFinServices/datasplash.git</connection>
     <developerConnection>
     scm:git:ssh://git@github.com/SimplyFinServices/datasplash.git</developerConnection>
-    <tag>691ae02baac261bfe7f4e95a31f2c331693163ea</tag>
+    <tag>4d6612e8a17af282b861b38ce14a4925a1361fff</tag>
   </scm>
   <build>
     <sourceDirectory>src/clj</sourceDirectory>
@@ -54,7 +54,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.8</version>
+        <version>1.7</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -123,28 +123,28 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-core</artifactId>
-      <version>2.22.0</version>
+      <version>2.24.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-sdks-java-io-elasticsearch</artifactId>
-      <version>2.22.0</version>
+      <version>2.24.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-direct-java</artifactId>
-      <version>2.22.0</version>
+      <version>2.24.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>
       beam-runners-google-cloud-dataflow-java</artifactId>
-      <version>2.22.0</version>
+      <version>2.24.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.beam</groupId>
       <artifactId>beam-runners-core-java</artifactId>
-      <version>2.22.0</version>
+      <version>2.24.0</version>
     </dependency>
     <dependency>
       <groupId>com.taoensso</groupId>
