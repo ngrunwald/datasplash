@@ -1,5 +1,11 @@
 # Changes for Datasplash
 
+## v0.7.1 (2020-10-06)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.0...v0.7.1)**
+
+- Update Apache Beam to 2.24.0
+
 ## v0.7.0 (2020-09-07)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.6.6...v0.7.0)**
