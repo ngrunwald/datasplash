@@ -1,6 +1,6 @@
-(defproject za.co.simply/datasplash "0.8.1"
+(defproject datasplash "0.7.2"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
-  :url "https://github.com/SimplyFinServices/datasplash"
+  :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.10.1"]
