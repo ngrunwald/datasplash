@@ -125,6 +125,18 @@
     (let [res (into #{} (read-file (first (glob-file pt-cond-test))))]
       (is (= res #{2 3 4 5 6})))))
 
+(deftest partition-test
+  (let [p (ds/make-pipeline [])
+        input (ds/generate-input [1 2 3 4 5 6 7 8 9] p)
+        pcolls (ds/partition-by (fn [e _] (if (odd? e) 1 0))
+                                2
+                                {:name :partition}
+                                input)
+        [even-coll odd-coll] (.getAll pcolls)]
+    (-> (PAssert/that even-coll) (.containsInAnyOrder '(2 4 6 8)))
+    (-> (PAssert/that odd-coll) (.containsInAnyOrder '(1 3 5 7 9)))
+    (ds/run-pipeline p)))
+
 (deftest side-inputs-test
   (with-files [side-test]
     (let [p (ds/make-pipeline [])
