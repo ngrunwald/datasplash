@@ -126,8 +126,9 @@
        (catch Exception e#
          ;; if var is unbound, nothing has been required
          (let [required-at-start# (try-deref required-ns)]
-           ;; lock on something that should exist!
-           (locking #'locking
+           ;; About the use of clojure.lang.RT/REQUIRE_LOCK
+           ;; https://ask.clojure.org/index.php/9893/require-is-not-thread-safe?show=9902#c9902
+           (locking clojure.lang.RT/REQUIRE_LOCK
              (let [already-required# (try-deref required-ns)]
                (let [nss# (unloaded-ns-from-ex e#)]
                  (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
