@@ -1,5 +1,12 @@
 # Changes for Datasplash
 
+## v0.7.2 (2021-01-07)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.1...v0.7.2)**
+
+- fix locking problem with requires in safe-exec => Issue #97
+- Update Apache Beam to 2.26.0
+
 ## v0.7.1 (2020-10-06)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.0...v0.7.1)**
