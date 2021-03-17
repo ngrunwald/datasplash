@@ -10,6 +10,8 @@ import clojure.java.api.Clojure;
 
 public class ExtractKeyFn implements ElasticsearchIO.Write.FieldValueExtractFn {
 
+    private static final long serialVersionUID = 1L;
+
     private final IFn keyFn;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

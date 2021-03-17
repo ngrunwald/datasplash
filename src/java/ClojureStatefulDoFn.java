@@ -13,6 +13,8 @@ import clojure.lang.IFn;
 
 public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
 
+    private static final long serialVersionUID = 1L;
+
     @StateId("state")
     private final StateSpec<ValueState<Object>> stateSpec = StateSpecs.value(new NippyCoder());
     private transient Object system = null;
@@ -29,8 +31,8 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
      }
 
     @ProcessElement
-    public void processElement(ProcessContext c, BoundedWindow w, @StateId("state") ValueState state) {
-        HashMap extra = new HashMap();
+    public void processElement(ProcessContext c, BoundedWindow w, @StateId("state") ValueState<Object> state) {
+        HashMap<String, Object> extra = new HashMap<String, Object>();
         extra.put("state", state);
         extra.put("window", w);
         extra.put("system", system);

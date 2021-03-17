@@ -1,5 +1,9 @@
 # Changes for Datasplash
 
+** [unreleased]
+
+* resolve various java compiler warnings
+
 ## v0.7.2 (2021-01-07)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.1...v0.7.2)**
