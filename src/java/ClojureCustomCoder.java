@@ -13,25 +13,23 @@ public final class ClojureCustomCoder extends CustomCoder {
     private static final long serialVersionUID = 0;
     private final IFn encodeFn;
     private final IFn decodeFn;
-       
+
     public ClojureCustomCoder(Map<String, IFn>  fns_map ) {
         super();
         encodeFn = fns_map.get("encode-fn");
         decodeFn = fns_map.get("decode-fn");
-        
     }
-    public void encode (Object obj, OutputStream out) {
-	encodeFn.invoke(obj,out) ;
+    public void encode(Object obj, OutputStream out) {
+        encodeFn.invoke(obj,out);
     }
-    
-    public Object decode ( InputStream in) {
-	return decodeFn.invoke(in) ;
-    }
-    
 
-    public void verifyDeterministic () {
+    public Object decode(InputStream in) {
+        return decodeFn.invoke(in);
     }
-    public boolean consistentWithEquals () {
-	return true ;
+
+    public void verifyDeterministic() {
+    }
+    public boolean consistentWithEquals() {
+        return true;
     }
 }

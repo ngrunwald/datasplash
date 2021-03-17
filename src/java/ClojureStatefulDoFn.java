@@ -21,11 +21,11 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
         super(fns_map);
     }
 
-     @Setup
+    @Setup
     public void initialize() {
-         if (initializeFn != null) {
-             system = initializeFn.invoke();
-         }
+        if (initializeFn != null) {
+            system = initializeFn.invoke();
+        }
      }
 
     @ProcessElement
@@ -33,7 +33,7 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
         HashMap extra = new HashMap();
         extra.put("state", state);
         extra.put("window", w);
-        extra.put("system",system);
+        extra.put("system", system);
         doFn.invoke(c, extra);
         windowFn.invoke(w);
     }
