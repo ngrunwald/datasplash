@@ -30,7 +30,7 @@ public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
 
     @ProcessElement
     public void processElement(ProcessContext c, BoundedWindow w, @StateId("state") ValueState state) {
-        HashMap extra = new HashMap();
+        HashMap<String, Object> extra = new HashMap<String, Object>();
         extra.put("state", state);
         extra.put("window", w);
         extra.put("system", system);

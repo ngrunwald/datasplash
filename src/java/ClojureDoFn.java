@@ -25,7 +25,7 @@ public class ClojureDoFn extends AbstractClojureDoFn {
 
     @ProcessElement
     public void processElement(ProcessContext c, BoundedWindow w) {
-        HashMap extra = new HashMap();
+        HashMap<String, Object> extra = new HashMap<String, Object>();
         extra.put("window", w);
         extra.put("system", system);
         doFn.invoke(c, extra);
