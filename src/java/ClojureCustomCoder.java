@@ -8,7 +8,7 @@ import java.io.OutputStream;
 import clojure.lang.IFn;
 import clojure.java.api.Clojure;
 
-public final class ClojureCustomCoder extends CustomCoder {
+public final class ClojureCustomCoder extends CustomCoder<Object> {
 
     private static final long serialVersionUID = 0;
     private final IFn encodeFn;
