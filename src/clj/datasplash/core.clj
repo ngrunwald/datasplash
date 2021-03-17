@@ -36,10 +36,7 @@
             ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
             ClojureCustomCoder]
            [datasplash.pipelines PipelineWithOptions]
-           [datasplash.coder NippyCoder]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
-           
-))
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]))
 
 (def required-ns (atom #{}))
 
@@ -96,7 +93,7 @@
      (try
        (str/trim-newline (:out (sh "hostname")))
        (catch Exception e
-         "unknown-hostname")))))
+         (str "unknown-hostname: " (.getMessage e)))))))
 
 (defmacro try-deref
   [at]
@@ -131,7 +128,7 @@
            (locking clojure.lang.RT/REQUIRE_LOCK
              (let [already-required# (try-deref required-ns)]
                (let [nss# (unloaded-ns-from-ex e#)]
-                 (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
+                 (log/debugf "Caught Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
                              (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
                  (if (empty? nss#)
                    (throw (ex-info "Runtime exception intercepted"
@@ -955,7 +952,7 @@ map. Each value will be a list of the values that match key.
 ```"
           base-schema)
    :added "0.1.0"}
-  ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
+  ([f {:keys [coder] :as options} ^PCollection pcoll]
    (let [opts (-> options
                   (assoc :coder (or coder nil))
                   (assoc :label :group-by))
@@ -1002,9 +999,9 @@ map. Each value will be a list of the values that match key.
                                  (assoc "jobName" (job-name-template tpl args-with-name))
                                  (dissoc "jobNameTemplate"))
                              args-with-name)
-         reformed-args (->> args-with-jobname 
+         reformed-args (->> args-with-jobname
                             (map (fn [[k v]] (str "--" k "=" v)))
-                            (map (fn [x] (clojure.string/replace x #"=$" ""))))
+                            (map (fn [x] (str/replace x #"=$" ""))))
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -1442,7 +1439,7 @@ Example:
 ;; Joins ;;
 ;;;;;;;;;;;
 
-(defn- ->tuple-tag [x] (TupleTag. (str x)))
+;;(defn- ->tuple-tag [x] (TupleTag. (str x)))
 
 (defn make-keyed-pcollection-tuple
   [pcolls]
@@ -1499,7 +1496,7 @@ Example:
       (safe-exec-cfg
        options
        (let [root-name (if nam (name nam) "cogroup")
-             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
+             pcolls (for [[_idx [pcoll f {:keys [drop-nil?]}]]
                           (map-indexed (fn [idx s] (if (instance? PCollection s)
                                                      [idx [s nil nil]] [idx s])) (:specs group-specs))]
                       (let [local-name (str root-name "-" (if pcoll (.getName pcoll) "pcoll"))
@@ -1770,18 +1767,18 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                      :scope scope)
          cfn (->combine-fn f)
          base-opts (merge named-schema combine-schema)
-         [ptrans base-coder] (cond (#{:local :per-key} scope) [(Combine/perKey cfn)
-                                                               (or coder
-                                                                   (KvCoder/of
-                                                                    (or key-coder
-                                                                        (-> pcoll
-                                                                            (.getCoder)
-                                                                            (.getKeyCoder)))
-                                                                    (or value-coder (make-nippy-coder))))]
-                                   (#{:global :globally} scope) [(Combine/globally cfn)
-                                                                 (or coder (make-nippy-coder))]
-                                   :else (throw (ex-info (format "Option %s is not recognized" scope)
-                                                         {:scope-given scope :allowed-scopes #{:global :per-key}})))]
+         [ptrans _base-coder] (cond (#{:local :per-key} scope) [(Combine/perKey cfn)
+                                                                (or coder
+                                                                    (KvCoder/of
+                                                                     (or key-coder
+                                                                         (-> pcoll
+                                                                             (.getCoder)
+                                                                             (.getKeyCoder)))
+                                                                     (or value-coder (make-nippy-coder))))]
+                                    (#{:global :globally} scope) [(Combine/globally cfn)
+                                                                  (or coder (make-nippy-coder))]
+                                    :else (throw (ex-info (format "Option %s is not recognized" scope)
+                                                          {:scope-given scope :allowed-scopes #{:global :per-key}})))]
      (apply-transform pcoll ptrans base-opts opts)))
   ([f pcoll] (combine f {} pcoll)))
 
@@ -1994,7 +1991,7 @@ Example:
   ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
 
 (defn- mk-default-windowed-fn
-  [{:keys [file-name suffix] :as options
+  [{:keys [file-name suffix]
     :or {file-name "file"}}]
   (fn [shard-number shard-count ^BoundedWindow window _]
     (safe-exec
@@ -2003,7 +2000,7 @@ Example:
        (str timestamp "-" file-name "-" shard-number "-of-" shard-count "." suffix)))))
 
 (defn- mk-default-unwindowed-fn
-  [{:keys [file-name suffix] :as options
+  [{:keys [file-name suffix]
     :or {file-name "file"}}]
   (fn [shard-number shard-count  _]
     (safe-exec

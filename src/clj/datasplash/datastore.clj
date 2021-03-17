@@ -137,7 +137,7 @@
   builder)
 
 (defn- make-ds-entity-builder
-  [raw-values {:keys [exclude-from-index] :as options}]
+  [raw-values {:keys [exclude-from-index]}]
   (let [excluded-set (into #{} (map name exclude-from-index))
         ^Entity$Builder entity-builder (Entity/newBuilder)]
     (doseq [[v-key v-val] raw-values]
@@ -155,7 +155,7 @@
 
 (defn make-ds-entity
   "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, ancestor, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
-  ([raw-values {:keys [key namespace kind ancestors exclude-from-index] :as options}]
+  ([raw-values {:keys [key] :as options}]
    (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
                                      (cond-> key (add-ds-key-namespace-kind options)))]
      (.build builder)))

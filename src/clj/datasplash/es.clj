@@ -37,7 +37,7 @@
   [max-attempts max-duration-ms]
   (let [duration (Duration. max-duration-ms)]
     (ElasticsearchIO$RetryConfiguration/create max-attempts duration)))
-  
+
 (def ^:no-doc read-es-schema
   (merge
    es-connection-schema

@@ -1,10 +1,11 @@
 (ns datasplash.bq
   (:require [cheshire.core :as json]
-            [clojure.java.shell :refer [sh]]
-            [clojure.string :as str]
             [clj-time [coerce :as tc]
              [format :as tf]]
+            [clojure.java.shell :refer [sh]]
+            [clojure.string :as str]
             [clojure.tools.logging :as log]
+            [clojure.walk :refer [postwalk]]
             [datasplash.core :refer :all])
   (:import
    [org.codehaus.jackson.map ObjectMapper]
@@ -23,8 +24,8 @@
   [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (.fromQuery  (BigQueryIO/readTableRows)  query)
-                 table (.from  (BigQueryIO/readTableRows) table)
+                 query (.fromQuery (BigQueryIO/readTableRows) query)
+                 table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))]
@@ -64,7 +65,7 @@
   (cond
     (instance? java.util.Date v) (try (->> (tc/from-long (.getTime v))
                                            (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
-                                      (catch Exception e (log/errorf "error when parsing date %s" v)))
+                                      (catch Exception e (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
@@ -85,14 +86,14 @@
   [m]
   (let [f (fn [[k v]] [(clean-name k) v])]
     ;; only apply to maps
-    (clojure.walk/postwalk (fn [x] (if (map? x)
-                                     (persistent!
-                                      (reduce
-                                       (fn [acc [k v]]
-                                         (assoc! acc (clean-name k) v))
-                                       (transient {}) x))
-                                     x))
-                           m)))
+    (postwalk (fn [x] (if (map? x)
+                       (persistent!
+                        (reduce
+                         (fn [acc [k v]]
+                           (assoc! acc (clean-name k) v))
+                         (transient {}) x))
+                       x))
+              m)))
 
 (defn ^TableRow clj->table-row
   [hmap]

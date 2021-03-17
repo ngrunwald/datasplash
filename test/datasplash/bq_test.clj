@@ -1,10 +1,10 @@
 (ns datasplash.bq-test
-  (:require [clojure.test :refer :all]
-            [datasplash.bq :refer :all]))
+  (:require [clojure.test :refer [deftest are]]
+            [datasplash.bq :as sut]))
 
 (deftest ->time-partitioning-test
   (are [opts expected]
-    (let [tp (-> opts ->time-partitioning bean (select-keys [:type :expirationMs]))]
+    (let [tp (-> opts sut/->time-partitioning bean (select-keys [:type :expirationMs]))]
       (= expected tp))
     {} {:type "DAY" :expirationMs nil}
     {:type :day} {:type "DAY" :expirationMs nil}
