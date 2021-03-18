@@ -13,6 +13,8 @@ import clojure.lang.IFn;
 
 public final class ClojureStatefulDoFn extends AbstractClojureDoFn {
 
+    private static final long serialVersionUID = 1L;
+
     @StateId("state")
     private final StateSpec<ValueState<Object>> stateSpec = StateSpecs.value(new NippyCoder());
     private transient Object system = null;

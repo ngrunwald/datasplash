@@ -10,6 +10,8 @@ import clojure.java.api.Clojure;
 
 public class ClojureDoFn extends AbstractClojureDoFn {
 
+    private static final long serialVersionUID = 1L;
+
     private transient Object system = null;
 
     public ClojureDoFn(Map<String, IFn> fns_map) {

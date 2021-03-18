@@ -10,6 +10,8 @@ import org.apache.beam.sdk.coders.CustomCoder;
 
 public final class NippyCoder extends CustomCoder<Object> {
 
+    private static final long serialVersionUID = 1L;
+
     private final IFn freeze;
     private final IFn thaw;
 
