@@ -8,7 +8,7 @@ import java.io.DataOutputStream;
 import java.io.DataInputStream;
 import org.apache.beam.sdk.coders.CustomCoder;
 
-public final class NippyCoder extends CustomCoder {
+public final class NippyCoder extends CustomCoder<Object> {
 
     private final IFn freeze;
     private final IFn thaw;
