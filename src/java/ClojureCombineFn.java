@@ -16,10 +16,10 @@ public final class ClojureCombineFn extends CombineFn<Object, Object, Object> {
     private final IFn reduceFn;
     private final IFn combineFn;
     private final IFn combineFnRaw;
-    private final Coder accCoder;
-    private final Coder outputCoder;
+    private final Coder<Object> accCoder;
+    private final Coder<Object> outputCoder;
 
-    public ClojureCombineFn(Map<String, IFn> fns_map, Coder output_coder, Coder acc_coder) {
+    public ClojureCombineFn(Map<String, IFn> fns_map, Coder<Object> output_coder, Coder<Object> acc_coder) {
         super();
         initFn = fns_map.get("init-fn");
         extractFn = fns_map.get("extract-fn");
@@ -42,10 +42,10 @@ public final class ClojureCombineFn extends CombineFn<Object, Object, Object> {
         return extractFn.invoke(acc);
     }
 
-    public Coder getDefaultOutputCoder(Object a, Object b) {
+    public Coder<Object> getDefaultOutputCoder(Object a, Object b) {
         return outputCoder;
     }
-    public Coder getAccumulatorCoder(Object a, Object b) {
+    public Coder<Object> getAccumulatorCoder(Object a, Object b) {
         return accCoder;
     }
 
