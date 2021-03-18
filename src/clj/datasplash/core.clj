@@ -395,6 +395,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [^DoFn$ProcessContext c]
   (.output c (.element c)))
 
+(alter-var-root #'nippy/*thaw-serializable-allowlist*
+                (fn [_] (into nippy/default-thaw-serializable-allowlist
+                             #{"org.apache.beam.sdk.values.KV"})))
+
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
    :added "0.1.0"}

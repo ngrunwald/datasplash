@@ -6,7 +6,7 @@
   :dependencies [[cheshire "5.10.0"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
-                 [com.taoensso/nippy "2.14.0"] ; TODO: resolve to upgrade
+                 [com.taoensso/nippy "3.1.1"]
                  [org.apache.beam/beam-sdks-java-core "2.28.0"]
                  [org.apache.beam/beam-sdks-java-io-elasticsearch "2.28.0"]
                  [org.apache.beam/beam-sdks-java-io-kafka "2.28.0"]
