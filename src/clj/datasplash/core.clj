@@ -6,10 +6,10 @@
             [clojure.math.combinatorics :as combo]
             [clojure.tools.logging :as log]
             [superstring.core :as str]
-            [taoensso.nippy :as nippy]
             [clj-time.format :as timf]
             [clj-time.coerce :as timc]
-            [clj-time.core :as time])
+            [taoensso.nippy :as nippy] ;; to make aot work
+            )
   (:import [clojure.lang MapEntry ExceptionInfo]
            [org.apache.beam.sdk Pipeline]
            [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
@@ -23,18 +23,23 @@
             Watch$Growth]
            [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
            [org.apache.beam.sdk.util UserCodeException]
-
            [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
             PCollectionList PInput PCollectionTuple]
            [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
            [org.apache.beam.sdk.transforms Contextful]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
            [org.joda.time DateTimeUtils DateTimeZone]
            [org.joda.time.format DateTimeFormat]
-           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger]
+           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
+            SlidingWindows Sessions Trigger]
            [org.joda.time Duration Instant]
-           [datasplash.fns ClojureDoFn ClojureCombineFn ClojureCustomCoder ClojurePTransform]
-           [datasplash.pipelines PipelineWithOptions]))
+           [datasplash.fns
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
+            ClojureCustomCoder]
+           [datasplash.pipelines PipelineWithOptions]
+           [datasplash.coder NippyCoder]
+           [java.io InputStream OutputStream DataInputStream DataOutputStream]
+           
+))
 
 (def required-ns (atom #{}))
 
@@ -65,7 +70,7 @@
   [e]
   (loop [todo (st/parse-exception e)
          nss (list)]
-    (let [{:keys [message trace-elems cause] :as current-ex} todo]
+    (let [{:keys [message trace-elems cause]} todo]
       (if message
         (if (re-find #"clojure\.lang\.Var\$Unbound|call unbound fn|dynamically bind non-dynamic var|Unbound:|Unable to resolve spec:" message)
           (let [[_ missing-ns] (or (re-find #"call unbound fn: #'([^/]+)/" message)
@@ -121,8 +126,9 @@
        (catch Exception e#
          ;; if var is unbound, nothing has been required
          (let [required-at-start# (try-deref required-ns)]
-           ;; lock on something that should exist!
-           (locking #'locking
+           ;; About the use of clojure.lang.RT/REQUIRE_LOCK
+           ;; https://ask.clojure.org/index.php/9893/require-is-not-thread-safe?show=9902#c9902
+           (locking clojure.lang.RT/REQUIRE_LOCK
              (let [already-required# (try-deref required-ns)]
                (let [nss# (unloaded-ns-from-ex e#)]
                  (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
@@ -179,7 +185,7 @@
   [elt]
   (if (instance? KV elt)
     (let [^KV kv elt]
-      (.getKey elt))
+      (.getKey kv))
     (key elt)))
 
 (defn dval
@@ -194,18 +200,20 @@
 (def ^{:dynamic true :no-doc true} *context* nil)
 (def ^{:dynamic true :no-doc true} *side-inputs* {})
 (def ^{:dynamic true :no-doc true} *main-output* nil)
+(def ^{:dynamic true :no-doc true} *extra* {})
 
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
-              side-inputs side-outputs name window-fn]
+              side-inputs side-outputs window-fn
+              stateful? initialize-fn]
        :or {start-bundle (fn [_] nil)
             finish-bundle (fn [_] nil)
             window-fn (fn [_] nil)}
        :as opts}]
-   (let [process-ctx-fn (fn [^DoFn$ProcessContext context]
+   (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^java.util.Map extra]
                           (safe-exec-cfg
                            opts
                            (let [side-ins (persistent!
@@ -216,12 +224,21 @@
                              (binding [*context* context
                                        *coerce-to-clj* (not without-coercion-to-clj)
                                        *side-inputs* side-ins
-                                       *main-output* (when side-outputs (first (sort side-outputs)))]
-                               (f context)))))]
-     (ClojureDoFn. {"dofn" process-ctx-fn
-                    "window-fn" window-fn
-                    "start-bundle" start-bundle
-                    "finish-bundle" finish-bundle})))
+                                       *main-output* (when side-outputs (first (sort side-outputs)))
+                                       *extra* (persistent!
+                                                (reduce
+                                                 (fn [acc [k v]]
+                                                   (assoc! acc (keyword k) v))
+                                                 (transient {}) extra))]
+                               (f context)))))
+         args {"dofn" process-ctx-fn
+               "window-fn" window-fn
+               "start-bundle" start-bundle
+               "finish-bundle" finish-bundle
+               "initialize-fn" initialize-fn}]
+     (if stateful?
+       (ClojureStatefulDoFn. args)
+       (ClojureDoFn. args))))
   ([f] (dofn f {})))
 
 (defn context
@@ -229,6 +246,16 @@
    :doc "In the context of a ParDo, contains the corresponding Context object.
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/DoFn.ProcessContext.html"}
   [] *context*)
+
+(defn state
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :state))
+
+(defn system
+  {:added "0.7.0"
+   :doc "In the context of a ParDo, contains the mutable ValueState."}
+  [] (*extra* :system))
 
 (defn side-inputs
   {:doc "In the context of a ParDo, returns the corresponding side inputs as a map from names to values.
@@ -418,7 +445,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defn tapply
   [pcoll nam tr]
-  (if (and nam (not (empty? nam)))
+  (if (and nam (seq nam))
     (.apply pcoll nam tr)
     (.apply pcoll tr)))
 
@@ -515,7 +542,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                                 (TupleTag. (name (first ordered)))
                                                 (TupleTagList/of (map (comp #(TupleTag. %) name)
                                                                       (rest ordered))))))}
-    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}}))
+    :without-coercion-to-clj {:docstr "Avoids coercing Dataflow types to Clojure, like KV. Coercion will happen by default"}
+    :initialize-fn {:doc-str "Function of 0 arguments called at worker init. It shoud return an initialized state that can be retrieved at runtime with [[system]] function."
+                    :added "0.7.0"}}))
 
 (defn map-op
   [transform {:keys [isomorph? kv?] :as base-options}]
@@ -540,7 +569,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
     :added "0.2.0"
     :doc
     (with-opts-docstr
-      "Uses a raw pardo-fn as a ppardo transform
+      "Uses a raw pardo-fn as a pardo transform
 Function f should be a function of one argument, the Pardo$Context object."
       pardo-schema)}
   pardo (map-op pardo-fn {:label :pardo}))
@@ -752,7 +781,7 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
     (reify
       Partition$PartitionFn
       (partitionFor [this elem num]
-        (f elem num)))))
+        (safe-exec (f elem num))))))
 
 (defn dpartition-by
   {:doc (with-opts-docstr
@@ -862,7 +891,7 @@ Example (actual implementation of the group-by transform):
       (ds/group-by-key opts)))
 ```"
    :added "0.1.0"}
-  [nam input & body]
+  [_ input & body]
   `(let [body-fn# (fn [~(last input)] ~@body)]
      (ClojurePTransform. body-fn#)))
 
@@ -973,7 +1002,9 @@ map. Each value will be a list of the values that match key.
                                  (assoc "jobName" (job-name-template tpl args-with-name))
                                  (dissoc "jobNameTemplate"))
                              args-with-name)
-         reformed-args (map (fn [[k v]] (str "--" k "=" v)) args-with-jobname)
+         reformed-args (->> args-with-jobname 
+                            (map (fn [[k v]] (str "--" k "=" v)))
+                            (map (fn [x] (clojure.string/replace x #"=$" ""))))
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -1243,13 +1274,13 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) (str "read-text-file-from"
-                               (clean-filename from)))
+      (or (:name opts) (str "read-text-file-from"
+                            (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from p] (read-edn-file from {} p)))
 
 (defn read-edn-files
@@ -1268,12 +1299,12 @@ Example:
    (let [opts (assoc options
                      :coder (or (:coder options) (make-nippy-coder)))]
      (pt->>
-      (or (:name options) "read-edn-files")
+      (or (:name opts) "read-edn-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-edn-files")))
-      (from-edn (assoc options :name "parse-edn")))))
+      (from-edn (assoc opts :name "parse-edn")))))
   ([from] (read-edn-files {} from)))
 
 (defn write-edn-file
@@ -1318,13 +1349,13 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) (str "read-json-file-from-" (clean-filename from)))
+      (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
-      (read-text-file from (-> options
+      (read-text-file from (-> opts
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
       (dmap decode-fn
-            (assoc options :name "json-decode")))))
+            (assoc opts :name "json-decode")))))
   ([from p] (read-json-file from {} p)))
 
 (defn read-json-files
@@ -1350,9 +1381,9 @@ Example:
                      return-type #(json/decode % nil return-type)
                      :else json/decode)]
      (pt->>
-      (or (:name options) "read-json-files")
+      (or (:name opts) "read-json-files")
       from
-      (read-text-files (-> options
+      (read-text-files (-> opts
                            (dissoc :coder)
                            (assoc :name "read-json-files")))
       (dmap decode-fn
