@@ -22,6 +22,7 @@
   :source-paths ["src/clj"]
   :pedantic? false
   :java-source-paths ["src/java"]
+  :javac-options ["-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[junit/junit "4.13.2"]
                                   [me.raynes/fs "1.4.6"]
