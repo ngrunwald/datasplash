@@ -155,9 +155,9 @@
     (let [p (ds/make-pipeline [])
           input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
           {:keys [simple multi]} (ds/map (fn [x] (ds/side-outputs :simple x :multi (* x 10)))
-                                         {:side-outputs [:simple :multi]} input)
-          output-simple (ds/write-edn-file sideout-simple-test {:num-shards 1} simple)
-          output-multi (ds/write-edn-file sideout-multi-test {:num-shards 1} multi)]
+                                         {:side-outputs [:simple :multi]} input)]
+      (ds/write-edn-file sideout-simple-test {:num-shards 1 :name :simple} simple)
+      (ds/write-edn-file sideout-multi-test {:num-shards 1 :name :multi} multi)
       (ds/run-pipeline p))
     (let [res-simple (into #{} (read-file (first (glob-file sideout-simple-test))))
           res-multi (into #{} (read-file (first (glob-file sideout-multi-test))))]
@@ -207,7 +207,7 @@
             pcolls (mapv (fn [k-pcoll]
                            (ds/generate-input
                             (map (fn [i] {:i i :key k-pcoll}) (range 5))
-                            p))
+                            {:name (str "gen-" k-pcoll)} p))
                          (range nb-pcolls))
             grouped (ds/cogroup-by {:name "join-fitments"
                                     :collector (fn [[id_ same-i]] same-i)}
@@ -217,8 +217,7 @@
         (doseq [line (read-file (first (glob-file cogroup-test)))
                 :let [same-i (mapcat identity line)]]
           (is (= 1 (count (distinct (map :i same-i)))))
-          (is (= (range nb-pcolls) (map :key same-i)) ))
-        ))))
+          (is (= (range nb-pcolls) (map :key same-i))))))))
 
 (deftest cogroup-drop-nil-test
   (with-files [cogroup-drop-nil-test]
