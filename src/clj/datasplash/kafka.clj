@@ -1,12 +1,13 @@
 (ns datasplash.kafka
-  (:require [datasplash.core :refer :all])
+  (:require
+   [datasplash.core :as ds])
   (:import
-   [org.apache.beam.sdk.io.kafka
-    KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord]
-   [org.apache.kafka.common.header Header]
-   [org.joda.time Duration Instant]
-   [org.apache.beam.sdk Pipeline]
-   [org.apache.beam.sdk.values PBegin PCollection])
+   (org.apache.beam.sdk.io.kafka
+    KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord)
+   (org.apache.kafka.common.header Header)
+   (org.joda.time Duration Instant)
+   (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.values PBegin PCollection))
   (:gen-class))
 
 (defn- kafka-record->clj
@@ -32,7 +33,7 @@
 
 (def ^:no-doc read-kafka-schema
   (merge
-   named-schema
+   ds/named-schema
    {:commit-offsets-in-finalize            {:docstr "Finalized offsets are committed to Kafka."
                                             :action (fn [^KafkaIO$Read transform b]
                                                       (if b
@@ -82,28 +83,28 @@
   (let [opts (assoc options :label :read-kafka-raw)
         ptrans (-> (KafkaIO/read)
                    (.withBootstrapServers bootstrap-servers)
-                   (.withKeyDeserializerAndCoder key-deserializer (make-nippy-coder))
-                   (.withValueDeserializerAndCoder value-deserializer (make-nippy-coder))
+                   (.withKeyDeserializerAndCoder key-deserializer (ds/make-nippy-coder))
+                   (.withValueDeserializerAndCoder value-deserializer (ds/make-nippy-coder))
                    (cond->
                        (coll? topic) (.withTopics topic)
                        (string? topic) (.withTopic topic)))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform ptrans read-kafka-schema opts))))
+        (ds/apply-transform ptrans read-kafka-schema opts))))
 
 (defn- read-kafka-clj-transform
   ""
   [bootstrap-servers topic key-deserializer value-deserializer options]
   (let [safe-opts (dissoc options :name)]
-    (ptransform
+    (ds/ptransform
      :read-kafka-to-clj
      [^PCollection pcoll]
      (->> pcoll
           (read-kafka-raw bootstrap-servers topic key-deserializer value-deserializer safe-opts)
-          (dmap kafka-record->clj)))))
+          (ds/dmap kafka-record->clj)))))
 
 (defn read-kafka
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Reads from a Kafka topic. Returns a `KafkaRecord` (https://beam.apache.org/releases/javadoc/2.17.0/org/apache/beam/sdk/io/kafka/KafkaRecord.html) mapped to a clojure map
 
 ```
@@ -129,7 +130,7 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
    :added "0.6.7"}
   ([bootstrap-servers topic key-deserializer value-deserializer options p]
    (let [opts (assoc options :label :read-kafka)]
-     (apply-transform p (read-kafka-clj-transform bootstrap-servers topic key-deserializer value-deserializer options) base-schema opts)))
+     (ds/apply-transform p (read-kafka-clj-transform bootstrap-servers topic key-deserializer value-deserializer options) ds/base-schema opts)))
   ([bootstrap-servers topic key-deserializer value-deserializer p]
    (read-kafka bootstrap-servers topic key-deserializer value-deserializer {} p)))
 
@@ -139,7 +140,7 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
 
 (def ^:no-doc write-kafka-schema
   (merge
-   named-schema
+   ds/named-schema
    {:values                       {:docstr "Writes just the values to Kafka."
                                    :action (fn [^KafkaIO$Write transform b]
                                              (if b
@@ -168,20 +169,20 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
                    (.withTopic topic))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform ptrans write-kafka-schema opts))))
+        (ds/apply-transform ptrans write-kafka-schema opts))))
 
 (defn- write-kafka-clj-transform
   ""
   [bootstrap-servers topic key-serializer value-serializer options]
   (let [safe-opts (dissoc options :name)]
-    (ptransform
+    (ds/ptransform
      :write-kafka-to-clj
      [^PCollection pcoll]
      (->> pcoll
           (write-kafka-raw bootstrap-servers topic key-serializer value-serializer safe-opts)))))
 
 (defn write-kafka
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Write to Kafka.
 
 Examples:
@@ -192,6 +193,6 @@ Examples:
    :added "0.6.7"}
   ([bootstrap-servers topic key-serializer value-serializer options p]
    (let [opts (assoc options :label :write-kafka)]
-     (apply-transform p (write-kafka-clj-transform bootstrap-servers topic key-serializer value-serializer options) base-schema opts)))
+     (ds/apply-transform p (write-kafka-clj-transform bootstrap-servers topic key-serializer value-serializer options) ds/base-schema opts)))
   ([bootstrap-servers topic key-serializer value-serializer p]
    (write-kafka bootstrap-servers topic key-serializer value-serializer {} p)))

@@ -8,38 +8,36 @@
             [superstring.core :as str]
             [clj-time.format :as timf]
             [clj-time.coerce :as timc]
-            [taoensso.nippy :as nippy] ;; to make aot work
-            )
-  (:import [clojure.lang MapEntry ExceptionInfo]
-           [org.apache.beam.sdk Pipeline]
-           [org.apache.beam.sdk.coders StringUtf8Coder KvCoder]
-           [org.apache.beam.sdk.io TextIO FileIO TextIO Compression]
-           [org.apache.beam.sdk.options PipelineOptionsFactory]
-           [org.apache.beam.sdk.transforms
+            ;; to make aot work
+            [taoensso.nippy :as nippy])
+  (:import (clojure.lang MapEntry ExceptionInfo)
+           (org.apache.beam.sdk Pipeline)
+           (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
+           (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
+           (org.apache.beam.sdk.options PipelineOptionsFactory)
+           (org.apache.beam.sdk.transforms
             DoFn DoFn$ProcessContext ParDo Create PTransform
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey Distinct Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample
-            Watch$Growth]
-           [org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult]
-           [org.apache.beam.sdk.util UserCodeException]
-           [org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
-            PCollectionList PInput PCollectionTuple]
-           [org.apache.beam.sdk.io.fs EmptyMatchTreatment]
-           [org.apache.beam.sdk.transforms Contextful]
-           [org.joda.time DateTimeUtils DateTimeZone]
-           [org.joda.time.format DateTimeFormat]
-           [org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
-            SlidingWindows Sessions Trigger]
-           [org.joda.time Duration Instant]
-           [datasplash.fns
+            Watch$Growth)
+           (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
+           (org.apache.beam.sdk.util UserCodeException)
+           (org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
+            PCollectionList PInput PCollectionTuple)
+           (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
+           (org.apache.beam.sdk.transforms Contextful)
+           (org.joda.time DateTimeUtils DateTimeZone)
+           (org.joda.time.format DateTimeFormat)
+           (org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
+            SlidingWindows Sessions Trigger)
+           (org.joda.time Duration Instant)
+           (datasplash.fns
             ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
-            ClojureCustomCoder]
-           [datasplash.pipelines PipelineWithOptions]
-           [datasplash.coder NippyCoder]
-           [java.io InputStream OutputStream DataInputStream DataOutputStream]
-           
-))
+            ClojureCustomCoder)
+           (datasplash.pipelines PipelineWithOptions)
+           (datasplash.coder NippyCoder)
+           (java.io InputStream OutputStream DataInputStream DataOutputStream)))
 
 (def required-ns (atom #{}))
 
@@ -96,7 +94,7 @@
      (try
        (str/trim-newline (:out (sh "hostname")))
        (catch Exception e
-         "unknown-hostname")))))
+         (str "unknown-hostname error (" (.getMessage e) ")"))))))
 
 (defmacro try-deref
   [at]
@@ -299,7 +297,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn with-timestamp
   "Returns element(s) with the given timestamp as Timestamp. Anything that can be coerced by clj-time can be given as input.
    It can be nested inside a `(side-outputs)` or outside (in which case it applies to all results).
-   Exemple:
+   Example:
   ```
   (ds/map (fn [e] (ds/with-timestamp (clj-time.core/now) (* 2 e)) pcoll))
   ```"
@@ -647,7 +645,7 @@ returns true.
   {:doc (with-opts-docstr
           "Generates a pcollection from the given collection.
 Also accepts empty collections.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Create.html
+See https://beam.apache.org/documentation/transforms/java/other/create/
 
 Example:
 ```
@@ -672,7 +670,7 @@ Example:
   (getInitFn []))
 
 (defn combine-fn
-  {:doc "Returns a CombineFn instance from given args. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.CombineFn.html
+  {:doc "Returns a CombineFn instance from given args. See https://beam.apache.org/documentation/programming-guide/#combine
 
 Arguments in order:
 
@@ -739,7 +737,9 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
 
 (defn view
   {:doc (with-opts-docstr
-          "Produces a View out of a PColl, to be later consumed as a side-input for example. See https://cloud.google.com/dataflow/java-sdk/JavaDoc/"
+          "Produces a View out of a PColl, to be later consumed as a side-input for example.
+
+          See https://beam.apache.org/documentation/transforms/java/other/view/"
           view-schema)
    :added "0.1.0"}
   ([{:keys [type]
@@ -791,7 +791,7 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
 (defn dpartition-by
   {:doc (with-opts-docstr
           "Partitions the content of pcoll according to the PartitionFn.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Partition.
+See https://beam.apache.org/documentation/programming-guide/#partition
 The partition function is given two arguments: the current element and the number of partitions."
           named-schema)
    :added "0.1.0"}
@@ -851,9 +851,9 @@ Example:
 
 (defn with-keys
   {:doc (with-opts-docstr
-          "Returns a PCollection of KV by applying f on each element of the input PColelction and using the return value as the key and the element as the value.
+          "Returns a PCollection of KV by applying f on each element of the input PCollection and using the return value as the key and the element as the value.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/WithKeys.html
+See https://beam.apache.org/documentation/transforms/java/elementwise/withkeys/
 
 Example:
 ```
@@ -875,10 +875,10 @@ Example:
 (defn group-by-key
   {:doc "Takes a KV PCollection as input and returns a KV PCollection as output of K to list of V.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/GroupByKey.html"
+See https://beam.apache.org/documentation/programming-guide/#groupbykey"
    :added "0.1.0"}
-  ([{:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
-   (let [parent-coder (.getCoder pcoll)
+  ([options ^PCollection pcoll]
+   (let [;parent-coder (.getCoder pcoll)
          opts (assoc options :label :group-by-keys)]
      (apply-transform pcoll (GroupByKey/create) base-schema opts)))
   ([pcoll] (group-by-key {} pcoll)))
@@ -960,7 +960,7 @@ map. Each value will be a list of the values that match key.
 ```"
           base-schema)
    :added "0.1.0"}
-  ([f {:keys [key-coder value-coder coder] :as options} ^PCollection pcoll]
+  ([f {:keys [_key-coder _value-coder coder] :as options} ^PCollection pcoll]
    (let [opts (-> options
                   (assoc :coder (or coder nil))
                   (assoc :label :group-by))
@@ -1007,9 +1007,9 @@ map. Each value will be a list of the values that match key.
                                  (assoc "jobName" (job-name-template tpl args-with-name))
                                  (dissoc "jobNameTemplate"))
                              args-with-name)
-         reformed-args (->> args-with-jobname 
+         reformed-args (->> args-with-jobname
                             (map (fn [[k v]] (str "--" k "=" v)))
-                            (map (fn [x] (clojure.string/replace x #"=$" ""))))
+                            (map (fn [x] (str/replace x #"=$" ""))))
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
@@ -1037,14 +1037,18 @@ map. Each value will be a list of the values that match key.
   - %U -> User name
   - %T -> Timestamp
 
-It means the template %A-%U-%T is equivalent to the default jobName"
+It means the template %A-%U-%T is equivalent to the default jobName.
+
+See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline"
    :added "0.1.0"}
   [& args]
   `(binding [*pipeline-builder-caller* ~(str *ns*)]
      (make-pipeline* ~@args)))
 
 (defn run-pipeline
-  {:doc "Run the computation for a given pipeline or PCollection."
+  {:doc "Run the computation for a given pipeline or PCollection.
+
+  See https://beam.apache.org/documentation/pipelines/create-your-pipeline/#running-your-pipeline"
    :added "0.1.0"}
   [topology]
   (if (instance? Pipeline topology)
@@ -1191,7 +1195,7 @@ It means the template %A-%U-%T is equivalent to the default jobName"
   {:doc (with-opts-docstr
           "Writes a PCollection of Strings to disk or Google Storage, with records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
+See https://beam.apache.org/releases/javadoc/current/org/apache/beam/sdk/io/TextIO.Write.html
 
   Example:
 ```
@@ -1219,7 +1223,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn read-text-file
   {:doc (with-opts-docstr "Reads a PCollection of Strings from disk or Google Storage, with records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
+See https://beam.apache.org/releases/javadoc/current/org/apache/beam/sdk/io/TextIO.Read.html
 
 Example:
 ```
@@ -1268,7 +1272,7 @@ Example:
 
 (defn read-edn-file
   {:doc (with-opts-docstr "Reads a PCollection of edn strings from disk or Google Storage, with records separated by newlines.
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html
+See https://beam.apache.org/releases/javadoc/current/org/apache/beam/sdk/io/TextIO.Read.html
 Example:
 ```
 (read-edn-file \"gs://target/path\" pcoll)
@@ -1447,7 +1451,7 @@ Example:
 ;; Joins ;;
 ;;;;;;;;;;;
 
-(defn- ->tuple-tag [x] (TupleTag. (str x)))
+;;(defn- ->tuple-tag [x] (TupleTag. (str x)))
 
 (defn make-keyed-pcollection-tuple
   [pcolls]
@@ -1504,7 +1508,7 @@ Example:
       (safe-exec-cfg
        options
        (let [root-name (if nam (name nam) "cogroup")
-             pcolls (for [[idx [pcoll f {:keys [drop-nil?] :as opts}]]
+             pcolls (for [[_idx [pcoll f {:keys [drop-nil?] :as _opts}]]
                           (map-indexed (fn [idx s] (if (instance? PCollection s)
                                                      [idx [s nil nil]] [idx s])) (:specs group-specs))]
                       (let [local-name (str root-name "-" (if pcoll (.getName pcoll) "pcoll"))
@@ -1606,7 +1610,7 @@ Example:
                 [pcoll2 (fn [elt] (:foreign-key elt)) {:type :optional}]])
 
 ```
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/join/CoGroupByKey and for a different approach to joins see [[join-by]]"
+See https://beam.apache.org/documentation/transforms/java/aggregation/cogroupbykey/ and for a different approach to joins see [[join-by]]"
           named-schema cogroup-by-schema)
    :added "0.1.0"}
   ([options specs reduce-fn]
@@ -1688,7 +1692,7 @@ Example:
   {:doc (with-opts-docstr
           "Takes samples of the elements in a PCollection, or samples of the values associated with each key in a PCollection of KVs.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Sample.html
+See https://beam.apache.org/documentation/transforms/java/aggregation/sample/
 
   Example:
 ```
@@ -1710,7 +1714,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (defn dflatten
   {:doc "Returns a single Pcollection containing all the pcolls in the given pcolls iterable.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Flatten.html
+See https://beam.apache.org/documentation/transforms/java/other/flatten/
 
 Example:
 ```
@@ -1765,7 +1769,7 @@ Example:
   {:doc (with-opts-docstr
           "Applies a CombineFn or a Clojure function with equivalent arities to the PCollection of KVs.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine"
+See https://beam.apache.org/documentation/transforms/java/aggregation/combine/"
           combine-schema)
    :added "0.1.0"}
   ([f {:keys [coder key-coder value-coder] :as options} ^PCollection pcoll]
@@ -1775,18 +1779,22 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                      :scope scope)
          cfn (->combine-fn f)
          base-opts (merge named-schema combine-schema)
-         [ptrans base-coder] (cond (#{:local :per-key} scope) [(Combine/perKey cfn)
-                                                               (or coder
-                                                                   (KvCoder/of
-                                                                    (or key-coder
-                                                                        (-> pcoll
-                                                                            (.getCoder)
-                                                                            (.getKeyCoder)))
-                                                                    (or value-coder (make-nippy-coder))))]
-                                   (#{:global :globally} scope) [(Combine/globally cfn)
-                                                                 (or coder (make-nippy-coder))]
-                                   :else (throw (ex-info (format "Option %s is not recognized" scope)
-                                                         {:scope-given scope :allowed-scopes #{:global :per-key}})))]
+         [ptrans _base-coder] (cond
+                                (#{:local :per-key} scope)
+                                [(Combine/perKey cfn)
+                                 (or coder
+                                     (KvCoder/of
+                                      (or key-coder
+                                          (-> pcoll
+                                              (.getCoder)
+                                              (.getKeyCoder)))
+                                      (or value-coder (make-nippy-coder))))]
+
+                                (#{:global :globally} scope)
+                                [(Combine/globally cfn) (or coder (make-nippy-coder))]
+
+                                :else (throw (ex-info (format "Option %s is not recognized" scope)
+                                                      {:scope-given scope :allowed-scopes #{:global :per-key}})))]
      (apply-transform pcoll ptrans base-opts opts)))
   ([f pcoll] (combine f {} pcoll)))
 
@@ -1813,7 +1821,7 @@ Example:
      (ds/combine-by even? (ds/sum-fn) {:name :my-combine-by}))
 ```
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine and [[combine-fn]] for options about creating a combiner function (combine-fn is applied on the given clojure fn if necessary, you do not need to call it yourself)"
+See https://beam.apache.org/documentation/transforms/java/aggregation/combine/ and [[combine-fn]] for options about creating a combiner function (combine-fn is applied on the given clojure fn if necessary, you do not need to call it yourself)"
           base-schema kv-coder-schema base-combine-schema)
    :added "0.1.0"}
   ([key-fn f options ^PCollection pcoll]
@@ -1910,7 +1918,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   {:doc (with-opts-docstr
           "Returns the frequency of each unique element of the input PCollection.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Count.html
+See https://beam.apache.org/documentation/transforms/java/aggregation/count/
 
 Example:
 ```
@@ -1999,7 +2007,7 @@ Example:
   ([gap ^PCollection pcoll] (session-windows gap {} pcoll)))
 
 (defn- mk-default-windowed-fn
-  [{:keys [file-name suffix] :as options
+  [{:keys [file-name suffix] :as _options
     :or {file-name "file"}}]
   (fn [shard-number shard-count ^BoundedWindow window _]
     (safe-exec
@@ -2008,7 +2016,7 @@ Example:
        (str timestamp "-" file-name "-" shard-number "-of-" shard-count "." suffix)))))
 
 (defn- mk-default-unwindowed-fn
-  [{:keys [file-name suffix] :as options
+  [{:keys [file-name suffix] :as _options
     :or {file-name "file"}}]
   (fn [shard-number shard-count  _]
     (safe-exec

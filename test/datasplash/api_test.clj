@@ -1,18 +1,19 @@
 (ns datasplash.api-test
-  (:require [cheshire.core :as json]
-            [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.test :refer :all]
-            [clojure.tools.logging :as log]
-            [datasplash
-             [api :as ds]
-             [core :refer [clj->kv]]]
-            [clj-time.core :as time]
-            [me.raynes.fs :as fs])
-  (:import [org.apache.beam.sdk.testing TestPipeline PAssert]
-           [java.io PushbackReader]
-           [java.util.zip GZIPOutputStream GZIPInputStream]))
+  (:require
+   [cheshire.core :as json]
+   [clj-time.core :as time]
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.string :as str]
+   [clojure.test :refer [deftest is testing use-fixtures]]
+   [datasplash
+    [api :as ds]
+    [core :refer [clj->kv]]]
+   [me.raynes.fs :as fs])
+  (:import
+   (java.io PushbackReader)
+   (java.util.zip GZIPOutputStream GZIPInputStream)
+   (org.apache.beam.sdk.testing TestPipeline PAssert)))
 
 (defn glob-file
   [path]
@@ -52,8 +53,7 @@
   (let [p (ds/make-pipeline [])
         input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
         proc (ds/map (fn [x] (inc x)) {:name "increment"} input)
-        filter (ds/filter even? proc)
-        ]
+        filter (ds/filter even? proc)]
     (-> (PAssert/that input) (.containsInAnyOrder #{1 2 3 4 5}))
     (-> (PAssert/that proc)  (.containsInAnyOrder #{2 3 4 5 6}))
     (-> (PAssert/that filter) (.containsInAnyOrder #{2 4 6}))
@@ -92,11 +92,11 @@
 (deftest intra-bundle-parallelization-test
   (with-files [intra-bundle-parallelization-test]
     (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          pipe (ds/->> :pipelined input
-                       (ds/map inc {:name :inc :intra-bundle-parallelization 5})
-                       (ds/filter even? {:name :even? :intra-bundle-parallelization 5}))
-          output (ds/write-edn-file intra-bundle-parallelization-test {:num-shards 1} pipe)]
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+      (ds/->> :pipelined input
+              (ds/map inc {:name :inc :intra-bundle-parallelization 5})
+              (ds/filter even? {:name :even? :intra-bundle-parallelization 5})
+              (ds/write-edn-file intra-bundle-parallelization-test {:num-shards 1}))
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file intra-bundle-parallelization-test))))]
       (is (= res #{2 4 6})))))
@@ -104,11 +104,11 @@
 (deftest pt-macro-test
   (with-files [pt-test]
     (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          pipe (ds/->> :pipelined input
-                       (ds/map inc {:name :inc})
-                       (ds/filter even? {:name :even?}))
-          output (ds/write-edn-file pt-test {:num-shards 1} pipe)]
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+      (ds/->> :pipelined input
+              (ds/map inc {:name :inc})
+              (ds/filter even? {:name :even?})
+              (ds/write-edn-file pt-test {:num-shards 1}))
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file pt-test))))]
       (is (= res #{2 4 6})))))
@@ -116,11 +116,11 @@
 (deftest pt-cond-macro-test
   (with-files [pt-cond-test]
     (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          pipe (ds/cond->> :pipelined input
-                           true (ds/map inc {:name :inc})
-                           false (ds/filter even? {:name :even?}))
-          output (ds/write-edn-file pt-cond-test {:num-shards 1} pipe)]
+          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+      (->> (ds/cond->> :pipelined input
+                       true (ds/map inc {:name :inc})
+                       false (ds/filter even? {:name :even?}))
+           (ds/write-edn-file pt-cond-test {:num-shards 1}))
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file pt-cond-test))))]
       (is (= res #{2 3 4 5 6})))))
@@ -141,11 +141,11 @@
   (with-files [side-test]
     (let [p (ds/make-pipeline [])
           input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] {:name :side-gen} p))
-          proc (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
-                       {:side-inputs {:mapping side-input}}
-                       input)
-          output (ds/write-edn-file side-test {:num-shards 1} proc)]
+          side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] {:name :side-gen} p))]
+      (->> (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
+                   {:side-inputs {:mapping side-input}}
+                   input)
+           (ds/write-edn-file side-test {:num-shards 1}))
       (ds/run-pipeline p))
     (let [res (into #{} (read-file (first (glob-file side-test))))]
       (is (= res #{:a :b :c :d :e})))))
@@ -168,8 +168,8 @@
   (with-files [group-test]
     (let [p (ds/make-pipeline [])
           input (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
-          grouped (ds/group-by :key {:name "group"} input)
-          output (ds/write-edn-file group-test {:num-shards 1} grouped)]
+          grouped (ds/group-by :key {:name "group"} input)]
+      (ds/write-edn-file group-test {:num-shards 1} grouped)
       (is "group" (.getName grouped))
       (ds/run-pipeline p)
       (let [res (->> (read-file (first (glob-file group-test)))
@@ -185,8 +185,8 @@
             input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
             input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
             grouped (ds/cogroup-by {:name "cogroup-test"}
-                                   [[input1 :key] [input2 :key]])
-            output (ds/write-edn-file cogroup-test {:num-shards 1} grouped)]
+                                   [[input1 :key] [input2 :key]])]
+        (ds/write-edn-file cogroup-test {:num-shards 1} grouped)
         (ds/run-pipeline p)
         (is "cogroup-test" (.getName grouped))
         (let [res (->> (read-file (first (glob-file cogroup-test)))
@@ -210,9 +210,9 @@
                             {:name (str "gen-" k-pcoll)} p))
                          (range nb-pcolls))
             grouped (ds/cogroup-by {:name "join-fitments"
-                                    :collector (fn [[id_ same-i]] same-i)}
-                                   (mapv #(vector % :i) pcolls))
-            _output (ds/write-edn-file cogroup-test {:num-shards 1} grouped)]
+                                    :collector (fn [[_id same-i]] same-i)}
+                                   (mapv #(vector % :i) pcolls))]
+        (ds/write-edn-file cogroup-test {:num-shards 1} grouped)
         (ds/run-pipeline p)
         (doseq [line (read-file (first (glob-file cogroup-test)))
                 :let [same-i (mapcat identity line)]]
@@ -225,8 +225,8 @@
           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
           input2 (ds/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
           grouped (ds/cogroup-by {:name "cogroup-drop-nil-test"}
-                                 [[input1 :key] [input2 :key {:drop-nil? true}]])
-          output (ds/write-edn-file cogroup-drop-nil-test {:num-shards 1} grouped)]
+                                 [[input1 :key] [input2 :key {:drop-nil? true}]])]
+      (ds/write-edn-file cogroup-drop-nil-test {:num-shards 1} grouped)
       (ds/run-pipeline p)
       (is "cogroup-drop-nil-test" (.getName grouped))
       (let [res (->> (read-file (first (glob-file cogroup-drop-nil-test)))
@@ -242,8 +242,8 @@
           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
           input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
           grouped (ds/cogroup-by {:name "cogroup-required-test"}
-                                 [[input1 :key {:type :required}] [input2 :key]])
-          output (ds/write-edn-file cogroup-required-test {:num-shards 1} grouped)]
+                                 [[input1 :key {:type :required}] [input2 :key]])]
+      (ds/write-edn-file cogroup-required-test {:num-shards 1} grouped)
       (ds/run-pipeline p)
       (is "cogroup-required-test" (.getName grouped))
       (let [res (->> (read-file (first (glob-file cogroup-required-test)))
@@ -258,8 +258,8 @@
           input1 (ds/generate-input [{:key :a :val 42} {:val 56} {:key :a :lue 65}] {:name :gen1} p)
           input2 (ds/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
           grouped (ds/cogroup-by {:name "cogroup-join-nil-test"}
-                                 [[input1 :key] [input2 :key]])
-          output (ds/write-edn-file cogroup-join-nil-test {:num-shards 1} grouped)]
+                                 [[input1 :key] [input2 :key]])]
+      (ds/write-edn-file cogroup-join-nil-test {:num-shards 1} grouped)
       (ds/run-pipeline p)
       (is "cogroup-join-nil-test" (.getName grouped))
       (let [res (->> (read-file (first (glob-file cogroup-join-nil-test)))
@@ -276,8 +276,8 @@
           input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
           input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
           grouped (ds/join-by {:name "join-test"}
-                              [[input1 :key] [input2 :key]] merge)
-          output (ds/write-edn-file join-test {:num-shards 1} grouped)]
+                              [[input1 :key] [input2 :key]] merge)]
+      (ds/write-edn-file join-test {:num-shards 1} grouped)
       (ds/run-pipeline p)
       (is "join-test" (.getName grouped))
       (let [res (into #{} (read-file (first (glob-file join-test))))]
@@ -292,8 +292,8 @@
           grouped (ds/join-by {:name "join-test-required" :collector merge}
                               [[input1 :key]
                                [input2 :key {:type :required}]]
-                              merge)
-          output (ds/write-edn-file join-test-required {:num-shards 1} grouped)]
+                              merge)]
+      (ds/write-edn-file join-test-required {:num-shards 1} grouped)
       (ds/run-pipeline p)
       (is "join-test-required" (.getName grouped))
       (let [res (into #{} (read-file (first (glob-file join-test-required))))]
@@ -346,8 +346,8 @@
                             (ds/min-fn)
                             (ds/count-fn) (ds/count-fn :predicate even?)
                             (ds/max-fn :mapper #(* 10 %)))
-                           {:name "combine"} input)
-          output (ds/write-edn-file combine-juxt-test {:num-shards 1} proc)]
+                           {:name "combine"} input)]
+      (ds/write-edn-file combine-juxt-test {:num-shards 1} proc)
       (is "combine" (.getName proc))
       (ds/run-pipeline p)
       (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
@@ -362,20 +362,22 @@
           p3 (ds/combine (ds/min-fn) {:name :min} input)
           p4 (ds/combine (ds/sum-fn) {:name :input} input)
           all (ds/concat p1 p2 p3 p4)
-          ps (ds/sample 2 input)
-          output1 (ds/write-edn-file math-and-diamond-test {:name :output-all :num-shards 1} all)
-          output2 (ds/write-edn-file sample-test {:name :output-sample :num-shards 1} ps)]
+          ps (ds/sample 2 input)]
+      (ds/write-edn-file math-and-diamond-test {:name :output-all :num-shards 1} all)
+      (ds/write-edn-file sample-test {:name :output-sample :num-shards 1} ps)
       (ds/run-pipeline p)
       (let [res (read-file (first (glob-file math-and-diamond-test)))]
         (is (= '(1 3.0 5 15) (sort res))))
       (let [res (read-file (first (glob-file sample-test)))]
         (is (= 2 (count res)))))))
 
-(deftest timestamp
+(deftest with-timestamp-test
   (let [p (ds/make-pipeline [])
-        input (ds/generate-input [1 2 3 4 5] p)
-        proc (ds/map (fn [e] (ds/with-timestamp (time/now) e)) input)]
-    (ds/run-pipeline p)))
+        input (ds/generate-input [1 2 3 4 5] p)]
+    (ds/map (fn [e] (ds/with-timestamp (time/now) e)) input)
+    (ds/run-pipeline p))
+  ;; TODO: actually add a test
+  )
 
 (deftest stateful-map
   (let [p (->> (ds/make-pipeline [])
@@ -390,7 +392,6 @@
                        {:stateful? true}))]
     (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
     (ds/run-pipeline p)))
-
 
 
 (deftest system-map
@@ -412,9 +413,11 @@
         p (->> (ds/make-pipeline [])
                (ds/generate-input [0. 0.5 2.5 3.])
                (ds/map (fn [e] (ds/with-timestamp (time/minus now (time/seconds e)) e)) {:name :timestamp}))
-        sliding (ds/sliding-windows (time/seconds 2) (time/seconds 1) {:name :sliding} p)
-        fixed (ds/fixed-windows (time/seconds 2) {:name :fixed} p)]
-    (ds/run-pipeline p)))
+        _sliding (ds/sliding-windows (time/seconds 2) (time/seconds 1) {:name :sliding} p)
+        _fixed (ds/fixed-windows (time/seconds 2) {:name :fixed} p)]
+    (ds/run-pipeline p))
+  ;; TODO: add test
+  )
 
 (deftest session-windows
   (let [now (time/now)
@@ -424,7 +427,7 @@
                (ds/with-keys (fn [e] (get e 0))))
         session (->> (ds/session-windows (time/seconds 2) p)
                      (ds/group-by-key)
-                     (ds/map (fn [[_ elts]] (reduce + (map (fn [[k v]] v) elts))) {:name :sum}))]
+                     (ds/map (fn [[_ elts]] (reduce + (map (fn [[_k v]] v) elts))) {:name :sum}))]
     (.. PAssert (that session) (containsInAnyOrder #{0 3 4}))
     (ds/run-pipeline p)))
 
@@ -442,10 +445,10 @@
 (deftest compression-out-test
   (with-files [compression-out-test]
     (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3] p)
-          output (ds/write-edn-file compression-out-test {:num-shards 1 :compression-type :gzip} input)]
+          input (ds/generate-input [1 2 3] p)]
+      (ds/write-edn-file compression-out-test {:num-shards 1 :compression-type :gzip} input)
       (ds/run-pipeline p)
-      (let [res (->> (read-file (java.util.zip.GZIPInputStream. (io/input-stream (first (glob-file compression-out-test)))))
+      (let [res (->> (read-file (GZIPInputStream. (io/input-stream (first (glob-file compression-out-test)))))
                      (into #{}))]
         (is (= res #{1 2 3}))))))
 

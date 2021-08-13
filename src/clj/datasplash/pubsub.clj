@@ -1,10 +1,11 @@
 (ns datasplash.pubsub
-  (:require [datasplash.core :refer :all]
-            [cheshire.core :as json])
-  (:import (org.apache.beam.sdk.io.gcp.pubsub PubsubIO PubsubMessage PubsubMessageWithAttributesCoder)
-           (org.apache.beam.sdk.values PBegin)
-           (org.apache.beam.sdk Pipeline)
-           (java.nio.charset StandardCharsets)))
+  (:require
+   [datasplash.core :as ds])
+  (:import
+   (java.nio.charset StandardCharsets)
+   (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.io.gcp.pubsub PubsubIO PubsubMessage PubsubMessageWithAttributesCoder)
+   (org.apache.beam.sdk.values PBegin)))
 
 
 (def ^:no-doc message-types
@@ -22,7 +23,9 @@
 (defn ^:no-doc clj->pubsub-message
   "Converts a clojure map containing a payload and an attributes keys. payload must be a string and attributes a map"
   [{:keys [payload attributes]}]
-  (let [attributes-map (into {} (map (fn [k v] [(if (keyword? k) (name k) (str k)) (str v)]) attributes))]
+  (let [attributes-map (->> attributes
+                            (ds/dmap (fn [k v] [(if (keyword? k) (name k) (str k)) (str v)]))
+                            (into {}))]
     (PubsubMessage. (.getBytes payload StandardCharsets/UTF_8) attributes-map)))
 
 (defn encode-messages
@@ -30,24 +33,24 @@
 
   Takes as input a map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
   [options p]
-  (dmap clj->pubsub-message (assoc options :coder (PubsubMessageWithAttributesCoder/of)) p))
+  (ds/dmap clj->pubsub-message (assoc options :coder (PubsubMessageWithAttributesCoder/of)) p))
 
 (defn decode-messages
   "Converts the input PubsubMessages to clojure objects. To use after `read-from-pubsub` with type `:raw`.
 
   Returns an map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
   [options p]
-  (dmap pubsub-message->clj options p))
+  (ds/dmap pubsub-message->clj options p))
 
 (def ^:no-doc read-from-pubsub-schema
   (merge
-   named-schema
+   ds/named-schema
    {:kind {:docstr "Specifies if the input is a `:subscription` or a `:topic` (default to `:topic`)."}
     :type {:docstr "Specify the type of message reader, default to `:string.` Possible values are `:string`: UTF-8 encoded strings, `:raw`: pubsub message with attributes."}
     :timestamp-label {:docstr "Set the timestamp of the message using a message's attribute. The attribute should contain an Unix epoch in milliseconds."}}))
 
 (defn read-from-pubsub
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Create an unbounded PCollection from a pubsub stream.
 
 See https://cloud.google.com/dataflow/model/pubsub-io#reading-with-pubsubio.
@@ -77,16 +80,16 @@ If you need to access some attributes:
      (when-not (#{:subscription :topic} kind)
        (throw (ex-info (format "Wrong type of :kind for pubsub [%s], should be either :subscription or :topic" kind)
                        {:kind kind})))
-     (apply-transform pipe pubsub-read read-from-pubsub-schema options)))
+     (ds/apply-transform pipe pubsub-read read-from-pubsub-schema options)))
   ([subscription-or-topic p] (read-from-pubsub subscription-or-topic {} p)))
 
 (def ^:no-doc write-from-pubsub-schema
   (merge
-   named-schema
+   ds/named-schema
    {:type {:docstr "Specify the type of message writer, default to `:string.` Possible values are `:string`: UTF-8 encoded strings, `:raw`: raw pubsub message."}}))
 
 (defn write-to-pubsub
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Write the contents of an unbounded PCollection to to a pubsub stream.
 
 See https://cloud.google.com/dataflow/model/pubsub-io#writing-with-pubsubio.
@@ -109,5 +112,5 @@ If you need to specify some attributes:
    :added "0.4.0"}
   ([topic {:keys [type] :or {type :string} :as options} pcoll]
    (-> pcoll
-       (apply-transform (.to (get-in message-types [:write type]) topic) {} options)))
+       (ds/apply-transform (.to (get-in message-types [:write type]) topic) {} options)))
   ([topic pcoll] (write-to-pubsub topic {} pcoll)))

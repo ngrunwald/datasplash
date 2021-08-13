@@ -8,10 +8,10 @@
              [pubsub :as ps]
              [options :as options :refer [defoptions]]]
             [clojure.edn :as edn])
-  (:import [java.util UUID]
-           [com.google.datastore.v1 Query PropertyFilter$Operator]
-           [com.google.datastore.v1.client DatastoreHelper]
-           [org.apache.beam.sdk.options PipelineOptionsFactory])
+  (:import (java.util UUID)
+           (com.google.datastore.v1 Query PropertyFilter$Operator)
+           (com.google.datastore.v1.client DatastoreHelper)
+           (org.apache.beam.sdk.options PipelineOptionsFactory))
   (:gen-class))
 
 ;;;;;;;;;;;;;;;
@@ -36,7 +36,7 @@
 
 (defoptions WordCountOptions
   {:input {:default "gs://apache-beam-samples/shakespeare/kinglear.txt"
-           :type String} 
+           :type String}
    :output {:default "kinglear-freqs.txt"
             :type String}
    :numShards {:default 0
@@ -61,7 +61,7 @@
 
 (defoptions DeDupOptions
   {:input {:default "gs://apache-beam-samples/shakespeare/*"
-           :type String} 
+           :type String}
    :output {:default "shakespeare-dedup.txt"
             :type String}})
 
@@ -90,7 +90,7 @@
 
 (defn run-filter
   [str-args]
-  (let [p (ds/make-pipeline FilterOptions str-args) 
+  (let [p (ds/make-pipeline FilterOptions str-args)
         {:keys [input output monthFilter]} (ds/get-pipeline-options p)
         all-rows (->> p
                       (bq/read-bq {:table input})
@@ -196,7 +196,7 @@
 
 (def StandardSQLOptions
   {:input {:default "bigquery-public-data.samples.shakespeare"
-           :type String} 
+           :type String}
    :output {:default "project:dataset.table"
             :type String}
    :tempLocation {:default "gs://yourbucket"
@@ -206,7 +206,7 @@
   [str-args]
   ;; the DirectPipelineRunner doesn't support standardSql yet
   (let [p (ds/make-pipeline StandardSQLOptions str-args {:runner "DataflowRunner"})
-        {:keys [input output]} (ds/get-pipeline-options p)
+        {:keys [_input output]} (ds/get-pipeline-options p)
         query "SELECT * from `bigquery-public-data.samples.shakespeare` LIMIT 100"
         results (->> p
                      (bq/read-bq {:query query
@@ -221,9 +221,9 @@
 
 (defoptions DatastoreWordCountOptions
   {:input {:default "gs://apache-beam-samples/shakespeare/kinglear.txt"
-           :type String} 
+           :type String}
    :output {:default "kinglear-freqs.txt"
-            :type String} 
+            :type String}
    :dataset {:default "yourdataset"
              :type String}
    :kind {:default "yourkind"
@@ -299,9 +299,9 @@
  (->> pipeline
       (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub" :kind :topic})
       (ds/map (fn [message]
-                (do
-                  (log/info (str "Got message:\n" message))
-                  (str/reverse message))) {:name "log-message"})
+                (log/info (str "Got message:\n" message))
+                (str/reverse message))
+              {:name "log-message"})
       (ps/write-to-pubsub write-transformed-topic {:name "write-forwarded-interactions-to-pubsub"})))
 
 (defn stream-forwarded-interactions-from-pubsub
@@ -309,9 +309,9 @@
  (->> pipeline
       (ps/read-from-pubsub read-transformed-subscription {:name "read-transformed-interactions-from-pubsub"})
       (ds/map (fn [message]
-                (do
-                  (log/info (str "Got transformed message:\n" message))
-                  message)) {:name "log-transformed-message"})))
+                (log/info (str "Got transformed message:\n" message))
+                message)
+              {:name "log-transformed-message"})))
 
 
 (defn run-pub-sub
