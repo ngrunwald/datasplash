@@ -1,22 +1,22 @@
 (ns datasplash.es
-  (:require [datasplash.core :refer :all]
-            [cheshire.core :as json])
+  (:require
+   [cheshire.core :as json]
+   [datasplash.core :as ds])
   (:import
-   [org.apache.beam.sdk.io.elasticsearch
+   (datasplash.fns ExtractKeyFn)
+   (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.values PBegin PCollection)
+   (org.apache.beam.sdk.io.elasticsearch
     ElasticsearchIO ElasticsearchIO$Read ElasticsearchIO$Write
     ElasticsearchIO$RetryConfiguration
-    ElasticsearchIO$ConnectionConfiguration]
-   [org.joda.time Duration]
-   [org.apache.beam.sdk Pipeline]
-   [datasplash.fns
-    ExtractKeyFn]
-   [org.apache.beam.sdk.values PBegin PCollection])
+    ElasticsearchIO$ConnectionConfiguration)
+   (org.joda.time Duration))
   (:gen-class))
 
 
 (def ^:no-doc es-connection-schema
   (merge
-   named-schema
+   ds/named-schema
    {:username          {:docstr "username"}
     :password          {:docstr "password"}
     :keystore-password {:docstr "If Elasticsearch uses SSL/TLS with mutual authentication (via shield), provide the password to open the client keystore."}
@@ -37,16 +37,16 @@
   [max-attempts max-duration-ms]
   (let [duration (Duration. max-duration-ms)]
     (ElasticsearchIO$RetryConfiguration/create max-attempts duration)))
-  
+
 (def ^:no-doc read-es-schema
   (merge
    es-connection-schema
-   {:key-fn              {:docstr "Can be either true (to coerce keys to keywords),false to leave them as strings, or a function to provide custom coercion."}
-    :batch-size          {:docstr "Specify the scroll size (number of document by page). Default to 100. Maximum is 10 000. If documents are small, increasing batch size might improve read performance. If documents are big, you might need to decrease batch-size"
+   {:key-fn            {:docstr "Can be either true (to coerce keys to keywords),false to leave them as strings, or a function to provide custom coercion."}
+    :batch-size        {:docstr "Specify the scroll size (number of document by page). Default to 100. Maximum is 10 000. If documents are small, increasing batch size might improve read performance. If documents are big, you might need to decrease batch-size"
                         :action (fn [^ElasticsearchIO$Read transform ^Long b] (.withBatchSize transform b))}
-    :query               {:docstr "Provide a query used while reading from Elasticsearch."
+    :query             {:docstr "Provide a query used while reading from Elasticsearch."
                         :action (fn [^ElasticsearchIO$Read transform ^String q] (.withQuery transform q))}
-    :scroll-keep-alive   {:docstr "Provide a scroll keepalive. See https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-request-scroll.html . Default is \"5m\". Change this only if you get \"No search context found\" errors."
+    :scroll-keep-alive {:docstr "Provide a scroll keepalive. See https://www.elastic.co/guide/en/elasticsearch/reference/2.4/search-request-scroll.html . Default is \"5m\". Change this only if you get \"No search context found\" errors."
                         :action (fn [^ElasticsearchIO$Read transform ^String q] (.withQuery transform q))}}))
 
 (defn- read-es-raw
@@ -57,22 +57,22 @@
                    (.withConnectionConfiguration (es-config hosts index type opts)))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform ptrans read-es-schema opts))))
+        (ds/apply-transform ptrans read-es-schema opts))))
 
 (defn- read-es-clj-transform
   "Connects to ES, reads, and convert serialized json to clojure map"
   [hosts index type options]
   (let [safe-opts (dissoc options :name)
         key-fn    (or (get options :key-fn) false)]
-    (ptransform
+    (ds/ptransform
      :read-es-to-clj
      [^PCollection pcoll]
      (->> pcoll
           (read-es-raw hosts index type safe-opts)
-          (dmap (fn [x] (json/parse-string x key-fn)) safe-opts)))))
+          (ds/dmap (fn [x] (json/parse-string x key-fn)) safe-opts)))))
 
 (defn read-es
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Read from elasticsearch.
 
 See https://beam.apache.org/releases/javadoc/2.13.0/org/apache/beam/sdk/io/elasticsearch/ElasticsearchIO.html
@@ -85,9 +85,9 @@ Examples:
    :added "0.6.5"}
   ([hosts index type options p]
    (let [opts (assoc options :label :read-es)]
-     (apply-transform p (read-es-clj-transform hosts index type options) base-schema opts)))
+     (ds/apply-transform p (read-es-clj-transform hosts index type options) ds/base-schema opts)))
   ([hosts index type p]
-      (read-es hosts index type {} p)))
+   (read-es hosts index type {} p)))
 
 (def ^:no-doc write-es-schema
   (merge
@@ -121,24 +121,24 @@ Examples:
 (defn- write-es-raw
   ([hosts index type options ^PCollection pcoll]
    (let [opts (assoc options :label :write-es-raw)]
-     (apply-transform pcoll (-> (ElasticsearchIO/write)
-                                (.withConnectionConfiguration (es-config hosts index type opts)))
-                      write-es-schema
-                      opts)))
+     (ds/apply-transform pcoll (-> (ElasticsearchIO/write)
+                                   (.withConnectionConfiguration (es-config hosts index type opts)))
+                         write-es-schema
+                         opts)))
   ([hosts index type pcoll] (write-es-raw hosts index type {} pcoll)))
 
 (defn- write-es-clj-transform
   [hosts index type options]
   (let [safe-opts (dissoc options :name)]
-    (ptransform
+    (ds/ptransform
      :write-es-from-clj
      [^PCollection pcoll]
      (->> pcoll
-          (dmap (fn [x] (json/generate-string x)))
+          (ds/dmap (fn [x] (json/generate-string x)))
           (write-es-raw hosts index type safe-opts)))))
 
 (defn write-es
-  {:doc (with-opts-docstr
+  {:doc (ds/with-opts-docstr
           "Write to elasticsearch.
 
 See https://beam.apache.org/releases/javadoc/2.13.0/org/apache/beam/sdk/io/elasticsearch/ElasticsearchIO.html
@@ -151,5 +151,5 @@ Examples:
    :added "0.6.5"}
   ([hosts index type options ^PCollection pcoll]
    (let [opts (assoc options :label :write-es)]
-     (apply-transform pcoll (write-es-clj-transform hosts index type opts) named-schema opts)))
+     (ds/apply-transform pcoll (write-es-clj-transform hosts index type opts) ds/named-schema opts)))
   ([hosts index type pcoll] (write-es hosts index type {} pcoll)))

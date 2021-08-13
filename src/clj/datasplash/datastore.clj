@@ -1,11 +1,11 @@
 (ns datasplash.datastore
-  (:require [datasplash.core :refer :all])
+  (:require [datasplash.core :as ds])
   (:import
-   [com.google.datastore.v1.client DatastoreHelper]
-   [org.apache.beam.sdk.io.gcp.datastore DatastoreIO]
-   [com.google.datastore.v1 Entity Value Key Entity$Builder Key$Builder Value$Builder Value$ValueTypeCase Key$PathElement]
-   [com.google.protobuf ByteString NullValue]
-   [java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date])
+   (com.google.datastore.v1 Entity Value Key Entity$Builder Value$Builder Value$ValueTypeCase Key$PathElement)
+   (com.google.datastore.v1.client DatastoreHelper)
+   (com.google.protobuf ByteString NullValue)
+   (java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date)
+   (org.apache.beam.sdk.io.gcp.datastore DatastoreIO))
   (:gen-class))
 
 (defn write-datastore-raw
@@ -15,7 +15,7 @@
         ptrans (-> (DatastoreIO/v1)
                    (.write)
                    (.withProjectId project-id))]
-    (apply-transform pcoll ptrans named-schema opts)))
+    (ds/apply-transform pcoll ptrans ds/named-schema opts)))
 
 (defn read-datastore-raw
   "Read a datastore source return a pcoll of raw datastore entities"
@@ -27,7 +27,7 @@
                    (cond-> query (.withQuery query))
                    (cond-> namespace (.withNamespace namespace))
                    (cond-> num-query-split (.withNumQuerySplits num-query-split)))]
-    (apply-transform pcoll ptrans named-schema opts)))
+    (ds/apply-transform pcoll ptrans ds/named-schema opts)))
 
 (defn delete-datastore-raw
   "delete a pcoll of already generated datastore entity from datastore"
@@ -36,7 +36,7 @@
         ptrans (-> (DatastoreIO/v1)
                    (.deleteEntity)
                    (.withProjectId project-id))]
-    (apply-transform pcoll ptrans named-schema opts)))
+    (ds/apply-transform pcoll ptrans ds/named-schema opts)))
 
 (declare value->clj)
 (declare entity->clj)
@@ -103,7 +103,7 @@
   (make-ds-value-builder [^String v] (DatastoreHelper/makeValue v))
   clojure.lang.Keyword
   (make-ds-value-builder [v] (DatastoreHelper/makeValue (name v)))
-  java.util.Date
+  Date
   (make-ds-value-builder [^java.util.Date v] (DatastoreHelper/makeValue v))
   clojure.lang.PersistentList
   (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
@@ -120,7 +120,7 @@
   clojure.lang.PersistentTreeMap
   (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
   nil
-  (make-ds-value-builder [v] (-> (Value/newBuilder) (.setNullValue (NullValue/valueOf "NULL_VALUE"))))
+  (make-ds-value-builder [_v] (-> (Value/newBuilder) (.setNullValue (NullValue/valueOf "NULL_VALUE"))))
   Object
   (make-ds-value-builder [v] (DatastoreHelper/makeValue v)))
 
@@ -141,7 +141,7 @@
   builder)
 
 (defn- make-ds-entity-builder
-  [raw-values {:keys [exclude-from-index] :as options}]
+  [raw-values {:keys [exclude-from-index] :as _options}]
   (let [excluded-set (into #{} (map name exclude-from-index))
         ^Entity$Builder entity-builder (Entity/newBuilder)]
     (doseq [[v-key v-val] raw-values]
@@ -159,7 +159,7 @@
 
 (defn make-ds-entity
   "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, path, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
-  ([raw-values {:keys [key namespace kind path exclude-from-index] :as options}]
+  ([raw-values {:keys [key] :as options}]
    (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
                                      (cond-> key (add-ds-key-namespace-kind options)))]
      (.build builder)))

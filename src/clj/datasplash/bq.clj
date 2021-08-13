@@ -1,40 +1,40 @@
 (ns datasplash.bq
-  (:require [cheshire.core :as json]
-            [clojure.java.shell :refer [sh]]
-            [clojure.string :as str]
-            [clj-time [coerce :as tc]
-             [format :as tf]]
-            [clojure.tools.logging :as log]
-            [datasplash.core :refer :all])
+  (:require
+   [cheshire.core :as json]
+   [clj-time.coerce :as tc]
+   [clj-time.format :as tf]
+   [clojure.java.shell :refer [sh]]
+   [clojure.string :as str]
+   [clojure.tools.logging :as log]
+   [clojure.walk :refer [postwalk prewalk]]
+   [datasplash.core :as ds])
   (:import
-   [org.codehaus.jackson.map ObjectMapper]
-   [com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema TimePartitioning]
-   [org.apache.beam.sdk.transforms SerializableFunction]
-   [org.apache.beam.sdk Pipeline]
-   [org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO BigQueryIO$Read BigQueryIO$Write
+   (com.google.api.services.bigquery.model
+    TableRow TableFieldSchema TableSchema TimePartitioning)
+   (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.io.gcp.bigquery
+    BigQueryIO
     BigQueryIO$Write$WriteDisposition BigQueryIO$Write$SchemaUpdateOption
-    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy
-    BigQueryIO$Write$Method]
-   [org.apache.beam.sdk.values PBegin PCollection]))
+    BigQueryIO$Write$CreateDisposition TableDestination InsertRetryPolicy
+    BigQueryIO$Write$Method)
+   (org.apache.beam.sdk.values PBegin PCollection)))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (.fromQuery  (BigQueryIO/readTableRows)  query)
-                 table (.from  (BigQueryIO/readTableRows) table)
+                 query (.fromQuery (BigQueryIO/readTableRows) query)
+                 table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
-        (apply-transform
+        (ds/apply-transform
          (if (and standard-sql? query)
            (.usingStandardSql ptrans)
            ptrans)
-         named-schema opts))))
+         ds/named-schema opts))))
 
 (defn auto-parse-val
   [v]
@@ -64,7 +64,7 @@
   (cond
     (instance? java.util.Date v) (try (->> (tc/from-long (.getTime v))
                                            (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
-                                      (catch Exception e (log/errorf "error when parsing date %s" v)))
+                                      (catch Exception e (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
@@ -74,25 +74,22 @@
   [s]
   (let [test (number? s)]
     (-> s
-        (cond-> test (str))
-        (name)
+        (cond-> test str)
+        name
         (str/replace #"-" "_")
         (str/replace #"\?" ""))))
 
 (defn bqize-keys
-  "Recursively transforms all map keys from strings to keywords."
+  "Recursively transforms all map keys to BQ-valid strings."
   {:added "1.1"}
   [m]
-  (let [f (fn [[k v]] [(clean-name k) v])]
-    ;; only apply to maps
-    (clojure.walk/postwalk (fn [x] (if (map? x)
-                                     (persistent!
-                                      (reduce
-                                       (fn [acc [k v]]
-                                         (assoc! acc (clean-name k) v))
-                                       (transient {}) x))
-                                     x))
-                           m)))
+  (postwalk (fn [x] (if (map? x) ; only apply to maps
+                     (persistent! (reduce (fn [acc [k v]]
+                                            (assoc! acc (clean-name k) v))
+                                          (transient {})
+                                          x))
+                     x))
+            m))
 
 (defn ^TableRow clj->table-row
   [hmap]
@@ -104,7 +101,7 @@
 (defn ^TableRow clj-nested->table-row
   [hmap]
   (let [clean-map (->> hmap
-                       (clojure.walk/prewalk coerce-by-bq-val)
+                       (prewalk coerce-by-bq-val)
                        (bqize-keys))
 
         my-mapper (org.codehaus.jackson.map.ObjectMapper.)
@@ -115,17 +112,17 @@
 (defn- read-bq-clj-transform
   [options]
   (let [safe-opts (dissoc options :name)]
-    (ptransform
+    (ds/ptransform
      :read-bq-to-clj
      [pcoll]
      (->> pcoll
           (read-bq-raw safe-opts)
-          (dmap (partial table-row->clj safe-opts) safe-opts)))))
+          (ds/dmap (partial table-row->clj safe-opts) safe-opts)))))
 
 (defn read-bq
   [options ^Pipeline p]
   (let [opts (assoc options :label :read-bq-table)]
-    (apply-transform p (read-bq-clj-transform opts) base-schema opts)))
+    (ds/apply-transform p (read-bq-clj-transform opts) ds/base-schema opts)))
 
 (defn- clj->TableFieldSchema
   [defs transform-keys]
@@ -188,7 +185,7 @@
 
 (def write-bq-table-schema
   (merge
-   base-schema
+   ds/base-schema
    {:schema {:docstr "Specifies bq schema."
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
     :json-schema {:docstr "Specifies bq schema in json"
@@ -201,19 +198,19 @@
                         :action (fn [transform description] (.withTableDescription transform description))}
     :write-disposition {:docstr "Choose write disposition."
                         :enum write-disposition-enum
-                        :action (select-enum-option-fn
+                        :action (ds/select-enum-option-fn
                                  :write-disposition
                                  write-disposition-enum
                                  (fn [transform enum] (.withWriteDisposition transform enum)))}
     :create-disposition {:docstr "Choose create disposition."
                          :enum create-disposition-enum
-                         :action (select-enum-option-fn
+                         :action (ds/select-enum-option-fn
                                   :create-disposition
                                   create-disposition-enum
                                   (fn [transform enum] (.withCreateDisposition transform enum)))}
     :write-method {:docstr "Choose write method."
                    :enum write-method-enum
-                   :action (select-enum-option-fn
+                   :action (ds/select-enum-option-fn
                             :write-method
                             write-method-enum
                             (fn [transform enum] (.withMethod transform enum)))}
@@ -229,7 +226,7 @@
                                         transform))}
     :schema-update-options {:docstr "Include schema update options. (pass in a list of options)"
                             :enum schema-update-options-enum
-                            :action (select-enum-option-fn-set
+                            :action (ds/select-enum-option-fn-set
                                      :schema-update-options
                                      schema-update-options-enum
                                      (fn [transform enum] (.withSchemaUpdateOptions transform enum)))}
@@ -239,7 +236,7 @@
                                     (.skipInvalidRows transform)
                                     transform))}
     :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
-                   :action (select-enum-option-fn
+                   :action (ds/select-enum-option-fn
                             :retry-policy
                             retry-policy-enum
                             (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
@@ -248,25 +245,25 @@
                                   (.withTimePartitioning transform (->time-partitioning opts)))}}))
 
 (defn custom-output-fn [cust-fn]
-  (sfn (fn [elt]
-         (let [^String out (cust-fn elt)]
-           (TableDestination. out nil)))))
+  (ds/sfn (fn [elt]
+            (let [^String out (cust-fn elt)]
+              (TableDestination. out nil)))))
 
-(def format-fn (sfn clj-nested->table-row))
+(def format-fn (ds/sfn clj-nested->table-row))
 
 (defn write-bq-table-raw
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table-raw)]
-     (apply-transform pcoll (-> (BigQueryIO/write)
-                                (.to to)
-                                (.withFormatFunction format-fn))
-                      write-bq-table-schema opts)))
+     (ds/apply-transform pcoll (-> (BigQueryIO/write)
+                                   (.to to)
+                                   (.withFormatFunction format-fn))
+                         write-bq-table-schema opts)))
   ([to pcoll] (write-bq-table-raw to {} pcoll)))
 
 (defn- write-bq-table-clj-transform
   [to options]
   (let [safe-opts (dissoc options :name)]
-    (ptransform
+    (ds/ptransform
      :write-bq-table-from-clj
      [^PCollection pcoll]
      (write-bq-table-raw to safe-opts pcoll))))
@@ -274,5 +271,5 @@
 (defn write-bq-table
   ([to options ^PCollection pcoll]
    (let [opts (assoc options :label :write-bq-table)]
-     (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
+     (ds/apply-transform pcoll (write-bq-table-clj-transform to opts) ds/named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
