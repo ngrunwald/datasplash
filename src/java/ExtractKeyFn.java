@@ -10,25 +10,27 @@ import clojure.java.api.Clojure;
 
 public class ExtractKeyFn implements ElasticsearchIO.Write.FieldValueExtractFn {
 
-  private final IFn keyFn;
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final long serialVersionUID = 1L;
 
-  public ExtractKeyFn(IFn keyFunction) {
-    super();
-    keyFn = keyFunction;
-  }
+    private final IFn keyFn;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  @Override
-  public String apply(JsonNode input) {
-    String jsonString;
-    try {
-      if (input.isMissingNode()) {
-	throw new RuntimeException("Unable to extract field: " + input.asText());
-      }
-      jsonString = MAPPER.writer().writeValueAsString(input);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+    public ExtractKeyFn(IFn keyFunction) {
+        super();
+        keyFn = keyFunction;
     }
-    return String.valueOf(keyFn.invoke(jsonString));
-  }
+
+    @Override
+    public String apply(JsonNode input) {
+        String jsonString;
+        try {
+            if (input.isMissingNode()) {
+                throw new RuntimeException("Unable to extract field: " + input.asText());
+            }
+            jsonString = MAPPER.writer().writeValueAsString(input);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        return String.valueOf(keyFn.invoke(jsonString));
+    }
 }

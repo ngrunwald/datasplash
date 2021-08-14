@@ -17,7 +17,7 @@ public class PipelineWithOptions extends Pipeline {
         return pipelineOptions;
     }
 
-    public static PipelineWithOptions create (PipelineOptions options) {
+    public static PipelineWithOptions create(PipelineOptions options) {
         // Dirty hack to remain in sync with Beam
         PipelineRunner.fromOptions(options);
         return new PipelineWithOptions(options);

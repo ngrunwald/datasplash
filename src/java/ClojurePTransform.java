@@ -12,17 +12,13 @@ public final class ClojurePTransform extends PTransform<PInput,POutput> {
 
     private static final long serialVersionUID = 0;
     private final IFn bodyFn;
-           
+
     public ClojurePTransform(IFn body_fn) {
         super();
         bodyFn = body_fn;
-        
-        
     }
-    public POutput expand (PInput input) {
-	POutput res = (POutput)  bodyFn.invoke(input);
-	return res ;
+    public POutput expand(PInput input) {
+        POutput res = (POutput) bodyFn.invoke(input);
+        return res;
     }
-    
-    
 }

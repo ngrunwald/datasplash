@@ -10,6 +10,8 @@ import clojure.java.api.Clojure;
 
 public class ClojureDoFn extends AbstractClojureDoFn {
 
+    private static final long serialVersionUID = 1L;
+
     private transient Object system = null;
 
     public ClojureDoFn(Map<String, IFn> fns_map) {
@@ -24,8 +26,8 @@ public class ClojureDoFn extends AbstractClojureDoFn {
     }
 
     @ProcessElement
-    public void processElement(ProcessContext c , BoundedWindow w) {
-        HashMap extra = new HashMap();
+    public void processElement(ProcessContext c, BoundedWindow w) {
+        HashMap<String, Object> extra = new HashMap<String, Object>();
         extra.put("window", w);
         extra.put("system", system);
         doFn.invoke(c, extra);

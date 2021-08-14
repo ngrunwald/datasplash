@@ -25,15 +25,15 @@ public final class FileNamePolicy extends FileBasedSink.FilenamePolicy {
     private final ResourceId prefix;
     private final String raw_prefix;
 
-        public FileNamePolicy (Map<String, Object> params_map) {
-      super();
-      windowedFn = (IFn) params_map.get("windowed-fn");
-      unwindowedFn = (IFn) params_map.get("unwindowed-fn");
-      raw_prefix = (String) params_map.get("prefix");
-      prefix = FileBasedSink.convertToFileResourceIfPossible(raw_prefix);
+    public FileNamePolicy(Map<String, Object> params_map) {
+        super();
+        windowedFn = (IFn) params_map.get("windowed-fn");
+        unwindowedFn = (IFn) params_map.get("unwindowed-fn");
+        raw_prefix = (String) params_map.get("prefix");
+        prefix = FileBasedSink.convertToFileResourceIfPossible(raw_prefix);
     }
 
-    public ResourceId windowedFilename(int shardNumber, int numShards,BoundedWindow window, PaneInfo paneInfo, OutputFileHints outputFileHints) {
+    public ResourceId windowedFilename(int shardNumber, int numShards, BoundedWindow window, PaneInfo paneInfo, OutputFileHints outputFileHints) {
         String fileName = (String) windowedFn.invoke(shardNumber, numShards, window, outputFileHints.getSuggestedFilenameSuffix());
         return prefix.getCurrentDirectory().resolve(fileName, ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
     }
@@ -43,4 +43,3 @@ public final class FileNamePolicy extends FileBasedSink.FilenamePolicy {
         return prefix.getCurrentDirectory().resolve(fileName, ResolveOptions.StandardResolveOptions.RESOLVE_FILE);
     }
 }
-
