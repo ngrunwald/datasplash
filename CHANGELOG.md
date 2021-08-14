@@ -1,12 +1,15 @@
 # Changes for Datasplash
 
-** [unreleased]
+## v0.7.3 (2021-08-14)
 
-* resolve various java compiler warnings
-* bump dependencies including beam (2.31.0)
-* bump nippy to 3.1.1, adding alter-var-root of
-  nippy/*thaw-serializable-allowlist* to allow serializable
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.2...v0.7.3)**
+
+- Resolve various java compiler warnings
+- Bump dependencies including beam (2.31.0)
+- Bump nippy to 3.1.1, adding alter-var-root of
+  `nippy/*thaw-serializable-allowlist*` to allow serializable
   org.apache.beam.sdk.values.KV
+- Fix probems with Id keys in Google Datastore storage
 
 ## v0.7.2 (2021-01-07)
 
