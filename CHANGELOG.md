@@ -3,6 +3,10 @@
 ** [unreleased]
 
 * resolve various java compiler warnings
+* bump dependencies including beam (2.31.0)
+* bump nippy to 3.1.1, adding alter-var-root of
+  nippy/*thaw-serializable-allowlist* to allow serializable
+  org.apache.beam.sdk.values.KV
 
 ## v0.7.2 (2021-01-07)
 
