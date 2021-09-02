@@ -400,7 +400,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (alter-var-root #'nippy/*thaw-serializable-allowlist*
                 (fn [_] (into nippy/default-thaw-serializable-allowlist
-                             #{"org.apache.beam.sdk.values.KV"})))
+                             #{"org.apache.beam.sdk.values.KV"
+                               "com.google.datastore.v1.Entity"})))
 
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
