@@ -986,7 +986,9 @@ map. Each value will be a list of the values that match key.
 (defn job-name-template
   [tpl args]
   (-> tpl
-      (str/replace #"%U" (or (System/getProperty "user.name") "nemo"))
+      (str/replace #"%U" (or (System/getProperty "user.name")
+                             (:user (:job args))
+                             "nemo"))
       (str/replace #"%A" *pipeline-builder-caller*)
       (str/replace #"%T" (create-timestamp))
       (str/lower-case)
