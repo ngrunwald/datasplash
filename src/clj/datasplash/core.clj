@@ -98,7 +98,7 @@
 
 (defmacro try-deref
   [at]
-  `(try (deref required-ns) (catch ClassCastException e# (require 'datasplash.core) #{})))
+  `(try (deref ~at) (catch ClassCastException e# (require 'datasplash.core) #{})))
 
 (defmacro unwrap-ex-info
   [e]
