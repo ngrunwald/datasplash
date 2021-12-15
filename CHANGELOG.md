@@ -1,5 +1,15 @@
 # Changes for Datasplash
 
+## v0.7.4 (2021-12-15)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.3...v0.7.4)**
+
+- Datastore fix by @domparry for breaking change introduced by nippy
+  bump in 0.7.3
+- Bump beam dep (2.34.0)
+- Bump tools.logging (1.2.2)
+- Clean up
+
 ## v0.7.3 (2021-08-14)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.2...v0.7.3)**

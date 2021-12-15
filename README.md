@@ -53,7 +53,7 @@ Here is the classic word count:
 
 (defoptions WordCountOptions
   {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
-           :type String} 
+           :type String}
    :output {:default "kinglear-freqs.txt"
             :type String}
    :numShards {:default 0
