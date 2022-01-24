@@ -1,43 +1,39 @@
 (ns ^:no-doc datasplash.core
   (:require [clj-stacktrace.core :as st]
-            [jsonista.core :as json]
+            [clj-time.coerce :as timc]
+            [clj-time.format :as timf]
             [clojure.edn :as edn]
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
             [clojure.tools.logging :as log]
+            [jsonista.core :as json]
             [superstring.core :as str]
-            [clj-time.format :as timf]
-            [clj-time.coerce :as timc]
             ;; to make aot work
             [taoensso.nippy :as nippy])
   (:import (clojure.lang MapEntry ExceptionInfo)
+           (datasplash.fns
+            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform ClojureCustomCoder)
+           (datasplash.pipelines PipelineWithOptions)
+           (java.io InputStream OutputStream DataInputStream DataOutputStream)
            (org.apache.beam.sdk Pipeline)
            (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
            (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
+           (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
            (org.apache.beam.sdk.options PipelineOptionsFactory)
            (org.apache.beam.sdk.transforms
-            DoFn DoFn$ProcessContext ParDo Create PTransform
+            Contextful DoFn DoFn$ProcessContext ParDo Create PTransform
             Partition Partition$PartitionFn
             SerializableFunction WithKeys GroupByKey Distinct Count
             Flatten Combine$CombineFn Combine View View$AsSingleton Sample
             Watch$Growth)
            (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
+           (org.apache.beam.sdk.transforms.windowing
+            BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger)
            (org.apache.beam.sdk.util UserCodeException)
-           (org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
-                                       PCollectionList PInput PCollectionTuple)
-           (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
-           (org.apache.beam.sdk.transforms Contextful)
-           (org.joda.time DateTimeUtils DateTimeZone)
-           (org.joda.time.format DateTimeFormat)
-           (org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
-                                                     SlidingWindows Sessions Trigger)
-           (org.joda.time Duration Instant)
-           (datasplash.fns
-            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
-            ClojureCustomCoder)
-           (datasplash.pipelines PipelineWithOptions)
-           (datasplash.coder NippyCoder)
-           (java.io InputStream OutputStream DataInputStream DataOutputStream)))
+           (org.apache.beam.sdk.values
+            KV PCollection TupleTag TupleTagList PBegin PCollectionList PInput PCollectionTuple)
+           (org.joda.time DateTimeUtils DateTimeZone Duration Instant)
+           (org.joda.time.format DateTimeFormat)))
 
 (def required-ns (atom #{}))
 
@@ -129,7 +125,7 @@
            (locking clojure.lang.RT/REQUIRE_LOCK
              (let [already-required# (try-deref required-ns)]
                (let [nss# (unloaded-ns-from-ex e#)]
-                 (log/debugf "Catched Exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
+                 (log/debugf "Caught exception %s at runtime with message -> %s => already initialized : %s / candidates for init : %s"
                              (type e#) (.getMessage e#) (into #{} already-required#) (into [] nss#))
                  (if (empty? nss#)
                    (throw (ex-info "Runtime exception intercepted"
