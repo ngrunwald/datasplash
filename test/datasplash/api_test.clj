@@ -1,6 +1,6 @@
 (ns datasplash.api-test
   (:require
-   [cheshire.core :as json]
+   [jsonista.core :as json]
    [clj-time.core :as time]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -70,7 +70,7 @@
                          :gzip #(GZIPOutputStream. %)
                          identity)]
     (with-open [wrtr (io/writer (compression-fn (io/output-stream path-or-stream)))]
-      (.write wrtr (str/join "\n" (for [l data] (json/encode l)))))))
+      (.write wrtr (str/join "\n" (for [l data] (json/write-value-as-string l)))))))
 
 (defn create-json-input-fixture
   [f]
@@ -308,7 +308,6 @@
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
 
-
 (defn- test-combine-fn
   [combine-fn]
   (let [p (ds/make-pipeline [])
@@ -318,7 +317,6 @@
     (-> (PAssert/that proc) (.containsInAnyOrder #{{:a 1 :b 2 :c 3 :d 4 :e 5}}))
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
-
 
 (deftest combine-pipeline-map
   (let [reducef (fn [acc x] (merge acc x))
@@ -393,7 +391,6 @@
     (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
     (ds/run-pipeline p)))
 
-
 (deftest system-map
   (let [p (->> (ds/make-pipeline [])
                (ds/generate-input [{:a 1}
@@ -406,7 +403,6 @@
                                                {:b 2 :init 10}
                                                {:c 3 :init 10}}))
     (ds/run-pipeline p)))
-
 
 (deftest windows
   (let [now (time/now)

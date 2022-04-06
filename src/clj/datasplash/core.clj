@@ -1,6 +1,6 @@
 (ns ^:no-doc datasplash.core
   (:require [clj-stacktrace.core :as st]
-            [cheshire.core :as json]
+            [jsonista.core :as json]
             [clojure.edn :as edn]
             [clojure.java.shell :refer [sh]]
             [clojure.math.combinatorics :as combo]
@@ -24,13 +24,13 @@
            (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
            (org.apache.beam.sdk.util UserCodeException)
            (org.apache.beam.sdk.values KV PCollection TupleTag TupleTagList PBegin
-            PCollectionList PInput PCollectionTuple)
+                                       PCollectionList PInput PCollectionTuple)
            (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
            (org.apache.beam.sdk.transforms Contextful)
            (org.joda.time DateTimeUtils DateTimeZone)
            (org.joda.time.format DateTimeFormat)
            (org.apache.beam.sdk.transforms.windowing BoundedWindow Window FixedWindows
-            SlidingWindows Sessions Trigger)
+                                                     SlidingWindows Sessions Trigger)
            (org.joda.time Duration Instant)
            (datasplash.fns
             ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform
@@ -398,8 +398,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (alter-var-root #'nippy/*thaw-serializable-allowlist*
                 (fn [_] (into nippy/default-thaw-serializable-allowlist
-                             #{"org.apache.beam.sdk.values.KV"
-                               "com.google.datastore.v1.Entity"})))
+                              #{"org.apache.beam.sdk.values.KV"
+                                "com.google.datastore.v1.Entity"})))
 
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
@@ -1168,7 +1168,7 @@ See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline
                              (sfn
                               (fn [x]
                                 (case file-format
-                                  :json (json/encode x {})
+                                  :json (json/write-value-as-string x)
                                   :edn (pr-str x)
                                   (file-format x)))))
                            (TextIO/sink))))}
@@ -1341,7 +1341,7 @@ Example:
 (defn read-json-file
   {:doc (with-opts-docstr "Reads a PCollection of JSON strings from disk or Google Storage, with records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html and https://github.com/dakrone/cheshire#decoding for details on options.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html.
 
 Example:
 ```
@@ -1349,16 +1349,15 @@ Example:
 ```"
           base-schema text-reader-schema json-reader-schema)
    :added "0.2.0"}
-  ([from {:keys [key-fn return-type] :as options} ^Pipeline p]
+  ([from {:keys [key-fn] :as options} ^Pipeline p]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
+         mapper-fn (json/object-mapper {:decode-key-fn key-fn})
          decode-fn (cond
-                     (and key-fn return-type) #(json/decode % key-fn return-type)
-                     key-fn #(json/decode % key-fn)
-                     return-type #(json/decode % nil return-type)
-                     :else json/decode)]
+                     key-fn #(json/read-value % mapper-fn)
+                     :else json/read-value)]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1381,16 +1380,15 @@ Example:
 ```"
           base-schema json-reader-schema)
    :added "0.6.5"}
-  ([{:keys [key-fn return-type] :as options} ^PCollection from]
+  ([{:keys [key-fn] :as options} ^PCollection from]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
+         mapper-fn (json/object-mapper {:decode-key-fn key-fn})
          decode-fn (cond
-                     (and key-fn return-type) #(json/decode % key-fn return-type)
-                     key-fn #(json/decode % key-fn)
-                     return-type #(json/decode % nil return-type)
-                     :else json/decode)]
+                     key-fn #(json/read-value % mapper-fn)
+                     :else json/read-value)]
      (pt->>
       (or (:name opts) "read-json-files")
       from
@@ -1410,7 +1408,7 @@ Example:
   {:doc (with-opts-docstr
           "Writes a PCollection of data to disk or Google Storage, with JSON records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html and https://github.com/dakrone/cheshire#encoding for details on options
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
 
 Example:
 ```
