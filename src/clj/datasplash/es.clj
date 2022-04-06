@@ -1,6 +1,6 @@
 (ns datasplash.es
   (:require
-   [cheshire.core :as json]
+   [jsonista.core :as json]
    [datasplash.core :as ds])
   (:import
    (datasplash.fns ExtractKeyFn)
@@ -12,7 +12,6 @@
     ElasticsearchIO$ConnectionConfiguration)
    (org.joda.time Duration))
   (:gen-class))
-
 
 (def ^:no-doc es-connection-schema
   (merge
@@ -63,13 +62,14 @@
   "Connects to ES, reads, and convert serialized json to clojure map"
   [hosts index type options]
   (let [safe-opts (dissoc options :name)
-        key-fn    (or (get options :key-fn) false)]
+        key-fn    (or (get options :key-fn) false)
+        mapper-fn (json/object-mapper {:decode-key-fn key-fn})]
     (ds/ptransform
      :read-es-to-clj
      [^PCollection pcoll]
      (->> pcoll
           (read-es-raw hosts index type safe-opts)
-          (ds/dmap (fn [x] (json/parse-string x key-fn)) safe-opts)))))
+          (ds/dmap (fn [x] (json/read-value x mapper-fn)) safe-opts)))))
 
 (defn read-es
   {:doc (ds/with-opts-docstr
@@ -101,17 +101,17 @@ Examples:
                                      (.withRetryConfiguration transform (retry-config max-attempts max-duration-ms)))}
     :id-fn                {:doctstr "Provide a function to extract the id from the document."
                            :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn (comp key-fn json/parse-string)
+                                     (let [serializing-key-fn (comp key-fn json/read-value)
                                            id-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withIdFn transform id-fn)))}
     :index-fn             {:doctstr "Provide a function to extract the target index from the document allowing for dynamic document routing."
                            :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn (comp key-fn json/parse-string)
+                                     (let [serializing-key-fn (comp key-fn json/read-value)
                                            index-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withIndexFn transform index-fn)))}
     :type-fn              {:docstr "Provide a function to extract the target type from the document allowing for dynamic document routing."
                            :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn (comp key-fn json/parse-string)
+                                     (let [serializing-key-fn (comp key-fn json/read-value)
                                            type-fn (ExtractKeyFn. serializing-key-fn)]
                                        (.withTypeFn transform type-fn)))}
     :use-partial-update   {:docstr "Provide an instruction to control whether partial updates or inserts (default) are issued to Elasticsearch."
@@ -134,7 +134,7 @@ Examples:
      :write-es-from-clj
      [^PCollection pcoll]
      (->> pcoll
-          (ds/dmap (fn [x] (json/generate-string x)))
+          (ds/dmap (fn [x] (json/write-value-as-string x)))
           (write-es-raw hosts index type safe-opts)))))
 
 (defn write-es
