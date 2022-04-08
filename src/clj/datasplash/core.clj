@@ -1354,9 +1354,9 @@ Example:
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         mapper-fn (json/object-mapper {:decode-key-fn key-fn})
+         with-key-fn (fn [val] (json/read-value val (json/object-mapper {:decode-key-fn key-fn})))
          decode-fn (cond
-                     key-fn #(json/read-value % mapper-fn)
+                     key-fn with-key-fn
                      :else json/read-value)]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
@@ -1385,9 +1385,9 @@ Example:
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         mapper-fn (json/object-mapper {:decode-key-fn key-fn})
+         with-key-fn (fn [val] (json/read-value val (json/object-mapper {:decode-key-fn key-fn})))
          decode-fn (cond
-                     key-fn #(json/read-value % mapper-fn)
+                     key-fn with-key-fn
                      :else json/read-value)]
      (pt->>
       (or (:name opts) "read-json-files")
