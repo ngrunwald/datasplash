@@ -63,13 +63,13 @@
   [hosts index type options]
   (let [safe-opts (dissoc options :name)
         key-fn    (or (get options :key-fn) false)
-        mapper-fn (json/object-mapper {:decode-key-fn key-fn})]
+        with-key-fn (fn [val] (json/read-value val (json/object-mapper {:decode-key-fn key-fn})))]
     (ds/ptransform
      :read-es-to-clj
      [^PCollection pcoll]
      (->> pcoll
           (read-es-raw hosts index type safe-opts)
-          (ds/dmap (fn [x] (json/read-value x mapper-fn)) safe-opts)))))
+          (ds/dmap with-key-fn safe-opts)))))
 
 (defn read-es
   {:doc (ds/with-opts-docstr
