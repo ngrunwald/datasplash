@@ -1,5 +1,12 @@
 # Changes for Datasplash
 
+## v0.7.5 (2022-04-09)
+
+**[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.4...v0.7.5)**
+
+- replace cheshire usage with jsonista by @domparry
+- Bump beam to 2.37.0; bump other deps
+
 ## v0.7.4 (2021-12-15)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.3...v0.7.4)**
