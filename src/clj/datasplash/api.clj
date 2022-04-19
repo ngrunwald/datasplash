@@ -3,12 +3,9 @@
                             distinct flatten concat juxt identity
                             max min count frequencies key val partition-by
                             cond->> ->>])
-  (:require [datasplash
-             [core :as dt]
-             [bq :as bq]
-             [options :as opt]
-             [datastore :as dts]
-             [pubsub :as ps]]))
+  (:require
+   [datasplash.core :as dt]
+   [datasplash.options :as opt]))
 
 ;;;;;;;;;;;;
 ;; Coders ;;

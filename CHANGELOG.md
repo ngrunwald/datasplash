@@ -1,5 +1,7 @@
 # Changes for Datasplash
 
+- don't require bq, pubsub, datastore in api.clj. Resolves [94](issues/94).
+
 ## v0.7.5 (2022-04-09)
 
 **[compare](https://github.com/ngrunwald/datasplash/compare/v0.7.4...v0.7.5)**
