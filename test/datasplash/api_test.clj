@@ -87,13 +87,7 @@
         input (ds/read-json-file json-file-path {:name :read-json} p)]
     (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
     (is "read-json" (.getName input))
-    (ds/run-pipeline p))
-  (testing "with key-fn"
-    (let [p (ds/make-pipeline [])
-          input (ds/read-json-file json-file-path {:name :read-json-k :key-fn keyword} p)]
-      (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
-      (is "read-json-k" (.getName input))
-      (ds/run-pipeline p))))
+    (ds/run-pipeline p)))
 
 (deftest intra-bundle-parallelization-test
   (with-files [intra-bundle-parallelization-test]
