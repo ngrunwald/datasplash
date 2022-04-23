@@ -1,6 +1,6 @@
 (ns datasplash.bq
   (:require
-   [jsonista.core :as json]
+   [cheshire.core :as json]
    [clj-time.coerce :as tc]
    [clj-time.format :as tf]
    [clojure.java.shell :refer [sh]]
@@ -84,11 +84,11 @@
   {:added "1.1"}
   [m]
   (postwalk (fn [x] (if (map? x) ; only apply to maps
-                      (persistent! (reduce (fn [acc [k v]]
-                                             (assoc! acc (clean-name k) v))
-                                           (transient {})
-                                           x))
-                      x))
+                     (persistent! (reduce (fn [acc [k v]]
+                                            (assoc! acc (clean-name k) v))
+                                          (transient {})
+                                          x))
+                     x))
             m))
 
 (defn ^TableRow clj->table-row
@@ -106,7 +106,7 @@
 
         my-mapper (org.codehaus.jackson.map.ObjectMapper.)
 
-        ^TableRow row (.readValue my-mapper (json/write-value-as-string clean-map) TableRow)]
+        ^TableRow row (.readValue my-mapper (json/encode clean-map) TableRow)]
     row))
 
 (defn- read-bq-clj-transform
@@ -156,7 +156,7 @@
   [table-spec]
   (let [{:keys [exit out] :as return} (sh "bq" "--format=json" "show" (name table-spec))]
     (if (zero? exit)
-      (-> (json/read-value out true) (:schema) (:fields))
+      (-> (json/decode out true) (:schema) (:fields))
       (throw (ex-info (str "Could not get bq table schema for table " table-spec)
                       {:table table-spec
                        :bq-return return})))))
@@ -189,10 +189,10 @@
    {:schema {:docstr "Specifies bq schema."
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
     :json-schema {:docstr "Specifies bq schema in json"
-                  :action (fn [transform json-schema] (let [sch (json/read-value json-schema)
+                  :action (fn [transform json-schema] (let [sch (cheshire.core/decode json-schema)
                                                             full-sch (if (get sch "fields")
-                                                                       (json/write-value-as-string sch)
-                                                                       (json/write-value-as-string {"fields" sch}))]
+                                                                       (cheshire.core/encode sch)
+                                                                       (cheshire.core/encode {"fields" sch}))]
                                                         (.withJsonSchema transform full-sch)))}
     :table-description {:docstr "Specifies table description"
                         :action (fn [transform description] (.withTableDescription transform description))}
