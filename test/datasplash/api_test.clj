@@ -1,6 +1,6 @@
 (ns datasplash.api-test
   (:require
-   [jsonista.core :as json]
+   [cheshire.core :as json]
    [clj-time.core :as time]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -70,7 +70,7 @@
                          :gzip #(GZIPOutputStream. %)
                          identity)]
     (with-open [wrtr (io/writer (compression-fn (io/output-stream path-or-stream)))]
-      (.write wrtr (str/join "\n" (for [l data] (json/write-value-as-string l)))))))
+      (.write wrtr (str/join "\n" (for [l data] (json/encode l)))))))
 
 (defn create-json-input-fixture
   [f]
@@ -87,13 +87,7 @@
         input (ds/read-json-file json-file-path {:name :read-json} p)]
     (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
     (is "read-json" (.getName input))
-    (ds/run-pipeline p))
-  (testing "with key-fn"
-    (let [p (ds/make-pipeline [])
-          input (ds/read-json-file json-file-path {:name :read-json-k :key-fn keyword} p)]
-      (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
-      (is "read-json-k" (.getName input))
-      (ds/run-pipeline p))))
+    (ds/run-pipeline p)))
 
 (deftest intra-bundle-parallelization-test
   (with-files [intra-bundle-parallelization-test]
@@ -314,6 +308,7 @@
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
 
+
 (defn- test-combine-fn
   [combine-fn]
   (let [p (ds/make-pipeline [])
@@ -323,6 +318,7 @@
     (-> (PAssert/that proc) (.containsInAnyOrder #{{:a 1 :b 2 :c 3 :d 4 :e 5}}))
     (is "combine" (.getName proc))
     (ds/run-pipeline p)))
+
 
 (deftest combine-pipeline-map
   (let [reducef (fn [acc x] (merge acc x))
@@ -397,6 +393,7 @@
     (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
     (ds/run-pipeline p)))
 
+
 (deftest system-map
   (let [p (->> (ds/make-pipeline [])
                (ds/generate-input [{:a 1}
@@ -409,6 +406,7 @@
                                                {:b 2 :init 10}
                                                {:c 3 :init 10}}))
     (ds/run-pipeline p)))
+
 
 (deftest windows
   (let [now (time/now)

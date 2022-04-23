@@ -1,4 +1,4 @@
-(defproject datasplash "0.7.5"
+(defproject datasplash "0.7.6-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
@@ -7,16 +7,16 @@
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "1.2.4"]
 
-                 [metosin/jsonista "0.3.5"]
+                 [cheshire "5.10.2"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
                  [com.taoensso/nippy "3.1.1"]
-                 [org.apache.beam/beam-sdks-java-core "2.37.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.37.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.37.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.37.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.37.0"]
-                 [org.apache.beam/beam-runners-core-java "2.37.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.38.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.38.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.38.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.38.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.38.0"]
+                 [org.apache.beam/beam-runners-core-java "2.38.0"]
                  [org.apache.kafka/kafka-clients "3.1.0"]
                  [superstring "3.1.0"]]
   :source-paths ["src/clj"]

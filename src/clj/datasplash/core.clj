@@ -1,39 +1,41 @@
 (ns ^:no-doc datasplash.core
-  (:require [clj-stacktrace.core :as st]
-            [clj-time.coerce :as timc]
-            [clj-time.format :as timf]
-            [clojure.edn :as edn]
-            [clojure.java.shell :refer [sh]]
-            [clojure.math.combinatorics :as combo]
-            [clojure.tools.logging :as log]
-            [jsonista.core :as json]
-            [superstring.core :as str]
-            ;; to make aot work
-            [taoensso.nippy :as nippy])
-  (:import (clojure.lang MapEntry ExceptionInfo)
-           (datasplash.fns
-            ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform ClojureCustomCoder)
-           (datasplash.pipelines PipelineWithOptions)
-           (java.io InputStream OutputStream DataInputStream DataOutputStream)
-           (org.apache.beam.sdk Pipeline)
-           (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
-           (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
-           (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
-           (org.apache.beam.sdk.options PipelineOptionsFactory)
-           (org.apache.beam.sdk.transforms
-            Contextful DoFn DoFn$ProcessContext ParDo Create PTransform
-            Partition Partition$PartitionFn
-            SerializableFunction WithKeys GroupByKey Distinct Count
-            Flatten Combine$CombineFn Combine View View$AsSingleton Sample
-            Watch$Growth)
-           (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
-           (org.apache.beam.sdk.transforms.windowing
-            BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger)
-           (org.apache.beam.sdk.util UserCodeException)
-           (org.apache.beam.sdk.values
-            KV PCollection TupleTag TupleTagList PBegin PCollectionList PInput PCollectionTuple)
-           (org.joda.time DateTimeUtils DateTimeZone Duration Instant)
-           (org.joda.time.format DateTimeFormat)))
+  (:require
+   [cheshire.core :as json]
+   [clj-stacktrace.core :as st]
+   [clj-time.coerce :as timc]
+   [clj-time.format :as timf]
+   [clojure.edn :as edn]
+   [clojure.java.shell :refer [sh]]
+   [clojure.math.combinatorics :as combo]
+   [clojure.tools.logging :as log]
+   [superstring.core :as str]
+   ;; to make aot work
+   [taoensso.nippy :as nippy])
+  (:import
+   (clojure.lang MapEntry ExceptionInfo)
+   (datasplash.fns
+    ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform ClojureCustomCoder)
+   (datasplash.pipelines PipelineWithOptions)
+   (java.io InputStream OutputStream DataInputStream DataOutputStream)
+   (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
+   (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
+   (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
+   (org.apache.beam.sdk.options PipelineOptionsFactory)
+   (org.apache.beam.sdk.transforms
+    Contextful DoFn DoFn$ProcessContext ParDo Create PTransform
+    Partition Partition$PartitionFn
+    SerializableFunction WithKeys GroupByKey Distinct Count
+    Flatten Combine$CombineFn Combine View View$AsSingleton Sample
+    Watch$Growth)
+   (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
+   (org.apache.beam.sdk.transforms.windowing
+    BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger)
+   (org.apache.beam.sdk.util UserCodeException)
+   (org.apache.beam.sdk.values
+    KV PCollection TupleTag TupleTagList PBegin PCollectionList PInput PCollectionTuple)
+   (org.joda.time DateTimeUtils DateTimeZone Duration Instant)
+   (org.joda.time.format DateTimeFormat)))
 
 (def required-ns (atom #{}))
 
@@ -394,8 +396,8 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (alter-var-root #'nippy/*thaw-serializable-allowlist*
                 (fn [_] (into nippy/default-thaw-serializable-allowlist
-                              #{"org.apache.beam.sdk.values.KV"
-                                "com.google.datastore.v1.Entity"})))
+                             #{"org.apache.beam.sdk.values.KV"
+                               "com.google.datastore.v1.Entity"})))
 
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization"
@@ -1164,7 +1166,7 @@ See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline
                              (sfn
                               (fn [x]
                                 (case file-format
-                                  :json (json/write-value-as-string x)
+                                  :json (json/encode x {})
                                   :edn (pr-str x)
                                   (file-format x)))))
                            (TextIO/sink))))}
@@ -1337,7 +1339,7 @@ Example:
 (defn read-json-file
   {:doc (with-opts-docstr "Reads a PCollection of JSON strings from disk or Google Storage, with records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html and https://github.com/dakrone/cheshire#decoding for details on options.
 
 Example:
 ```
@@ -1345,15 +1347,16 @@ Example:
 ```"
           base-schema text-reader-schema json-reader-schema)
    :added "0.2.0"}
-  ([from {:keys [key-fn] :as options} ^Pipeline p]
+  ([from {:keys [key-fn return-type] :as options} ^Pipeline p]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         with-key-fn (fn [val] (json/read-value val (json/object-mapper {:decode-key-fn key-fn})))
          decode-fn (cond
-                     key-fn with-key-fn
-                     :else json/read-value)]
+                     (and key-fn return-type) #(json/decode % key-fn return-type)
+                     key-fn #(json/decode % key-fn)
+                     return-type #(json/decode % nil return-type)
+                     :else json/decode)]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1376,15 +1379,16 @@ Example:
 ```"
           base-schema json-reader-schema)
    :added "0.6.5"}
-  ([{:keys [key-fn] :as options} ^PCollection from]
+  ([{:keys [key-fn return-type] :as options} ^PCollection from]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         with-key-fn (fn [val] (json/read-value val (json/object-mapper {:decode-key-fn key-fn})))
          decode-fn (cond
-                     key-fn with-key-fn
-                     :else json/read-value)]
+                     (and key-fn return-type) #(json/decode % key-fn return-type)
+                     key-fn #(json/decode % key-fn)
+                     return-type #(json/decode % nil return-type)
+                     :else json/decode)]
      (pt->>
       (or (:name opts) "read-json-files")
       from
@@ -1404,7 +1408,7 @@ Example:
   {:doc (with-opts-docstr
           "Writes a PCollection of data to disk or Google Storage, with JSON records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Write.html and https://github.com/dakrone/cheshire#encoding for details on options
 
 Example:
 ```
