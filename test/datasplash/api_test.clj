@@ -1,6 +1,6 @@
 (ns datasplash.api-test
   (:require
-   [cheshire.core :as json]
+   [charred.api :as charred]
    [clj-time.core :as time]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -70,7 +70,7 @@
                          :gzip #(GZIPOutputStream. %)
                          identity)]
     (with-open [wrtr (io/writer (compression-fn (io/output-stream path-or-stream)))]
-      (.write wrtr (str/join "\n" (for [l data] (json/encode l)))))))
+      (.write wrtr (str/join "\n" (for [l data] (charred/write-json-str l)))))))
 
 (defn create-json-input-fixture
   [f]
@@ -85,7 +85,7 @@
 (deftest json-io
   (let [p (ds/make-pipeline [])
         input (ds/read-json-file json-file-path {:name :read-json} p)]
-    (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
+    (-> (PAssert/that input)  (.containsInAnyOrder (map long test-data)))
     (is "read-json" (.getName input))
     (ds/run-pipeline p)))
 
@@ -455,5 +455,5 @@
 (deftest compression-in-test
   (let [p (ds/make-pipeline [])
         input (ds/read-json-file gzipped-json-file-path {:name :read-json :compression-type :gzip} p)]
-    (-> (PAssert/that input)  (.containsInAnyOrder (map int test-data)))
+    (-> (PAssert/that input)  (.containsInAnyOrder (map long test-data)))
     (ds/run-pipeline p)))
