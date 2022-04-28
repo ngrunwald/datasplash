@@ -3,7 +3,7 @@
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.10.3"]
+  :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "1.2.4"]
 
