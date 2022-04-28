@@ -24,10 +24,11 @@
   :java-source-paths ["src/java"]
   :javac-options ["-Xlint:unchecked" "-source" "1.8" "-target" "1.8"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
-  :profiles {:dev {:dependencies [[junit/junit "4.13.2"]
-                                  [me.raynes/fs "1.4.6"]
-                                  [org.hamcrest/hamcrest-all "1.3"]
-                                  [ch.qos.logback/logback-core "1.2.11"]]
+  :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.2.11"]
+                                  [com.oscaro/tools-io "0.3.24"]
+                                  [junit/junit "4.13.2"]
+                                  [org.hamcrest/hamcrest-all "1.3"]]
+                   :source-paths ["test"]
                    :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
              :uberjar {:aot :all}}
   :main datasplash.examples)

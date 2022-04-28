@@ -6,6 +6,7 @@
   </appender>
 
   <logger name="org.apache.beam.sdk" level="WARN"/>
+  <logger name="org.apache.beam.sdk.runners.TransformHierarchy" level="WARN"/>
 
   <property name="level" value="INFO"/>
   <logger name="datasplash" level="${level}"/>
