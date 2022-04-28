@@ -19,10 +19,10 @@
                  [org.apache.beam/beam-runners-core-java "2.38.0"]
                  [org.apache.kafka/kafka-clients "3.1.0"]
                  [superstring "3.1.0"]]
-  :source-paths ["src/clj"]
   :pedantic? false
+  :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
-  :javac-options ["-Xlint:unchecked"]
+  :javac-options ["-Xlint:unchecked" "-source" "1.8" "-target" "1.8"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[junit/junit "4.13.2"]
                                   [me.raynes/fs "1.4.6"]
