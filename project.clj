@@ -1,4 +1,4 @@
-(defproject datasplash "0.7.7"
+(defproject datasplash "0.7.8-SNAPSHOT"
   :description "Clojure API for a more dynamic Google Cloud Dataflow and (hopefully) Apache BEAM"
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
@@ -25,7 +25,7 @@
   :javac-options ["-Xlint:unchecked" "-source" "1.8" "-target" "1.8"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.2.11"]
-                                  [com.oscaro/tools-io "0.3.24"]
+                                  [com.oscaro/tools-io "0.3.25"]
                                   [junit/junit "4.13.2"]
                                   [org.hamcrest/hamcrest-all "1.3"]]
                    :source-paths ["test"]

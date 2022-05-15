@@ -1,10 +1,14 @@
 # Changes for Datasplash
 
-## [v0.7.8] - 2022-05-14
-
+## [Unreleased]
+### Added
 - Add ability to specify a teardown function for a `DoFn`
 - Invoke `start-bundle`, `finish-bundle` and `teardown-fn` when specified
 - Reuse no-op function in `dofn`
+
+### Changed
+
+### Fixed
 
 ## [v0.7.7] - 2022-05-13
 
