@@ -198,16 +198,19 @@
 (def ^{:dynamic true :no-doc true} *main-output* nil)
 (def ^{:dynamic true :no-doc true} *extra* {})
 
+(def ^{:private true :no-doc true} no-op (constantly nil))
+
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn"
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
               side-inputs side-outputs window-fn
-              stateful? initialize-fn]
-       :or {start-bundle (fn [_] nil)
-            finish-bundle (fn [_] nil)
-            window-fn (fn [_] nil)}
+              stateful? initialize-fn teardown-fn]
+       :or {start-bundle no-op
+            finish-bundle no-op
+            window-fn no-op
+            teardown-fn no-op}
        :as opts}]
    (let [process-ctx-fn (fn [^DoFn$ProcessContext context, ^java.util.Map extra]
                           (safe-exec-cfg
@@ -231,7 +234,8 @@
                "window-fn" window-fn
                "start-bundle" start-bundle
                "finish-bundle" finish-bundle
-               "initialize-fn" initialize-fn}]
+               "initialize-fn" initialize-fn
+               "teardown-fn" teardown-fn}]
      (if stateful?
        (ClojureStatefulDoFn. args)
        (ClojureDoFn. args))))
