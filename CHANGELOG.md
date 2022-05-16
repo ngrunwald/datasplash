@@ -1,14 +1,5 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
-### Changed
-
-### Fixed
-
-
 ## [v0.7.7] - 2022-05-13
 
 - Enforce target jdk as 1.8
