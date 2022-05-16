@@ -16,7 +16,7 @@
    (datasplash.fns
     ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform ClojureCustomCoder)
    (datasplash.pipelines PipelineWithOptions)
-   (java.io InputStream OutputStream DataInputStream DataOutputStream)
+   (java.io InputStream OutputStream DataInputStream DataOutputStream StringWriter)
    (org.apache.beam.sdk Pipeline)
    (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
    (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
@@ -38,6 +38,13 @@
    (org.joda.time.format DateTimeFormat)))
 
 (def required-ns (atom #{}))
+
+(def fast-charred-write (charred/write-json-fn {:indent-str nil}))
+
+(defn write-json-str [data]
+  (let [w (StringWriter.)]
+    (fast-charred-write w data)
+    (.toString w)))
 
 (defn- ->duration
   [time]
@@ -1170,7 +1177,7 @@ See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline
                              (sfn
                               (fn [x]
                                 (case file-format
-                                  :json (charred/write-json-str x)
+                                  :json (write-json-str x)
                                   :edn (pr-str x)
                                   (file-format x)))))
                            (TextIO/sink))))}
