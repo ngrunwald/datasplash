@@ -4,175 +4,590 @@
    [clj-time.core :as time]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
+   [clojure.set :as set]
    [clojure.string :as str]
-   [clojure.test :refer [deftest is testing use-fixtures]]
-   [datasplash
-    [api :as ds]
-    [core :refer [clj->kv]]]
-   [me.raynes.fs :as fs])
+   [clojure.test :refer [deftest is testing]]
+   [datasplash.api :as sut]
+   [datasplash.core :refer [clj->kv]]
+   [tools.io :as tio])
   (:import
    (java.io PushbackReader)
-   (java.util.zip GZIPOutputStream GZIPInputStream)
-   (org.apache.beam.sdk.testing TestPipeline PAssert)))
+   (java.util.zip GZIPInputStream)
+   (org.apache.beam.sdk.testing PAssert)
+   (org.apache.beam.sdk.values PCollectionView)))
 
-(defn glob-file
-  [path]
-  (fs/glob (str path "*")))
+(defn- read-edn-file
+  "Helper to check write-edn-file and ensure compression is used when specified."
+  ([path] (read-edn-file nil path))
+  ([{:keys [compressed?]} path]
+   (let [in (cond->> (io/input-stream path)
+              compressed? (GZIPInputStream.))]
+     (with-open [rdr (PushbackReader. (io/reader in))]
+       (loop [acc []]
+         (let [line (edn/read {:eof ::eof} rdr)]
+           (if (= line ::eof)
+             acc
+             (recur (conj acc line)))))))))
 
-(defmacro with-files
-  [files & body]
-  `(let [~@(flatten
-            (for [file files]
-              [file (fs/temp-name (name file) ".edn")]))]
-     (try
-       ~@body
-       (finally
-         ~@(for [file files]
-             `(doseq [f# (glob-file ~file)]
-                (fs/delete (.getPath f#))))))))
+(defn- make-fixture
+  "Pass a filename with either .edn or .json as an extension to select
+  the output format. If it also suffixed with .gz (e.g.,
+  'xx.json.gz'), the file will also be compressed."
+  [base-path file-path data]
+  (let [fmt (->> (re-matches #"(.*).(edn|json)(.*)?" file-path)
+                 (drop 2)
+                 first
+                 keyword)
+        writer-fn (case fmt
+                    :json tio/write-jsons-file
+                    tio/write-edns-file)
+        dest-file-path (tio/join-path base-path file-path)]
+    (writer-fn dest-file-path data)
+    dest-file-path))
 
-(defn read-file
-  [path]
-  (with-open [rdr (PushbackReader. (io/reader path))]
-    (loop [acc []]
-      (let [line (edn/read {:eof ::eof} rdr)]
-        (if (= line ::eof)
-          acc
-          (recur (conj acc line)))))))
+(deftest read-edn-file-test
+  (tio/with-tempdir [tmp-dir]
+    (let [data #{{:id "1" :name "elem 1"}
+                 {:id "2" :name "elem 2"}
+                 {:id "3" :name "elem 3"}
+                 {:id "4" :name "elem 4"}
+                 {:id "5" :name "elem 5"}}]
 
-(defn make-test-pipeline
-  []
-  (let [p (TestPipeline/create)
-        coder-registry (.getCoderRegistry p)]
-    (doto coder-registry
-      (.registerCoderForClass clojure.lang.IPersistentCollection (ds/make-nippy-coder))
-      (.registerCoderForClass clojure.lang.Keyword (ds/make-nippy-coder)))
-    p))
+      (testing "nominal case"
+        (let [p (sut/make-pipeline [])
+              fixture-path (make-fixture tmp-dir "colls.edn" data)
+              rslt (sut/read-edn-file fixture-path
+                                      {:name :read-edn}
+                                      p)]
 
-(deftest basic-pipeline
-  (let [p (ds/make-pipeline [])
-        input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-        proc (ds/map (fn [x] (inc x)) {:name "increment"} input)
-        filter (ds/filter even? proc)]
-    (-> (PAssert/that input) (.containsInAnyOrder #{1 2 3 4 5}))
-    (-> (PAssert/that proc)  (.containsInAnyOrder #{2 3 4 5 6}))
-    (-> (PAssert/that filter) (.containsInAnyOrder #{2 4 6}))
-    (is "increment" (.getName proc))
-    (ds/run-pipeline p)))
+          (is (str/starts-with? (.getName rslt) "read-edn"))
 
-(def test-data [1 2 3 4 5])
-(def json-file-path "json-test-input.json")
-(def gzipped-json-file-path "json-test-input.ndjson.gz")
+          (is (-> (PAssert/that rslt)
+                  (.containsInAnyOrder data)))
 
-(defn write-data
-  [path-or-stream data & {:keys [compression]}]
-  (let [compression-fn (case compression
-                         :gzip #(GZIPOutputStream. %)
-                         identity)]
-    (with-open [wrtr (io/writer (compression-fn (io/output-stream path-or-stream)))]
-      (.write wrtr (str/join "\n" (for [l data] (charred/write-json-str l)))))))
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
 
-(defn create-json-input-fixture
-  [f]
-  (do (write-data json-file-path test-data)
-      (write-data gzipped-json-file-path test-data :compression :gzip))
-  (f)
-  (do (fs/delete json-file-path)
-      (fs/delete gzipped-json-file-path)))
+        (testing "gz-compressed"
+          (let [p (sut/make-pipeline [])
+                fixture-path (make-fixture tmp-dir "colls.edn.gz" data)
+                rslt (sut/read-edn-file fixture-path
+                                        {:name :read-edn-gz
+                                         :compression-type :gzip}
+                                        p)]
+            (is (str/starts-with? (.getName rslt) "read-edn-gz"))
+            (is (-> (PAssert/that rslt)
+                    (.containsInAnyOrder data)))
 
-(use-fixtures :once create-json-input-fixture)
+            (sut/wait-pipeline-result (sut/run-pipeline p)))))
 
-(deftest json-io
-  (let [p (ds/make-pipeline [])
-        input (ds/read-json-file json-file-path {:name :read-json} p)]
-    (-> (PAssert/that input)  (.containsInAnyOrder (map long test-data)))
-    (is "read-json" (.getName input))
-    (ds/run-pipeline p)))
+      (testing "nested map w date fields"
+        (let [data #{{:id "4" :name "elem 4"
+                      :lifespan {:start #inst "2004-04-01T00:00:00.000-00:00"
+                                 :end #inst "2007-01-01T00:00:00.000-00:00"}}
+                     {:id "3" :name "elem 3"
+                      :lifespan {:start #inst "2017-01-01T00:00:00.000-00:00"
+                                 :end #inst "2019-12-01T00:00:00.000-00:00"}}
+                     {:id "1" :name "elem 1"
+                      :lifespan {:start #inst "2005-02-01T00:00:00.000-00:00"
+                                 :end #inst "2006-11-01T00:00:00.000-00:00"}}}
+              fixture-path (make-fixture tmp-dir "colls.edn" data)
 
-(deftest intra-bundle-parallelization-test
-  (with-files [intra-bundle-parallelization-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
-      (ds/->> :pipelined input
-              (ds/map inc {:name :inc :intra-bundle-parallelization 5})
-              (ds/filter even? {:name :even? :intra-bundle-parallelization 5})
-              (ds/write-edn-file intra-bundle-parallelization-test {:num-shards 1}))
-      (ds/run-pipeline p))
-    (let [res (into #{} (read-file (first (glob-file intra-bundle-parallelization-test))))]
-      (is (= res #{2 4 6})))))
+              p (sut/make-pipeline [])
+              rslt (sut/read-edn-file fixture-path
+                                      {:name :read-edn}
+                                      p)]
 
-(deftest pt-macro-test
-  (with-files [pt-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
-      (ds/->> :pipelined input
-              (ds/map inc {:name :inc})
-              (ds/filter even? {:name :even?})
-              (ds/write-edn-file pt-test {:num-shards 1}))
-      (ds/run-pipeline p))
-    (let [res (into #{} (read-file (first (glob-file pt-test))))]
-      (is (= res #{2 4 6})))))
+          (is (-> (PAssert/that rslt)
+                  (.containsInAnyOrder data)))
 
-(deftest pt-cond-macro-test
-  (with-files [pt-cond-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)]
-      (->> (ds/cond->> :pipelined input
-                       true (ds/map inc {:name :inc})
-                       false (ds/filter even? {:name :even?}))
-           (ds/write-edn-file pt-cond-test {:num-shards 1}))
-      (ds/run-pipeline p))
-    (let [res (into #{} (read-file (first (glob-file pt-cond-test))))]
-      (is (= res #{2 3 4 5 6})))))
+          (sut/wait-pipeline-result (sut/run-pipeline p)))))))
 
-(deftest partition-test
-  (let [p (ds/make-pipeline [])
-        input (ds/generate-input [1 2 3 4 5 6 7 8 9] p)
-        pcolls (ds/partition-by (fn [e _] (if (odd? e) 1 0))
-                                2
-                                {:name :partition}
-                                input)
+(deftest read-edn-files-test
+  (let [data #{{:id "1" :name "elem 1"}
+               {:id "2" :name "elem 2"}
+               {:id "3" :name "elem 3"}
+               {:id "4" :name "elem 4"}
+               {:id "5" :name "elem 5"}
+               {:id "6" :name "elem 6"}}
+        [fix-1 fix-2] (split-at 4 data)]
+
+    (tio/with-tempdir [tmp-dir]
+      (let [file-list [(make-fixture tmp-dir "01.edn" fix-1)
+                       (make-fixture tmp-dir "02.edn" fix-2)]
+            p (sut/make-pipeline [])
+            rslt (-> (sut/generate-input file-list {:name :file-list} p)
+                     sut/read-edn-files)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder data)))
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest write-edn-file-test
+  (testing "nominal case"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])]
+
+        (->> (-> [1 2 3]
+                 (sut/generate-input p))
+             (sut/write-edn-file (tio/join-path tmp-dir "test")
+                                 {:num-shards 1}))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (read-edn-file (first (tio/list-files tmp-dir)))
+                       (into #{}))]
+          (is (= #{1 2 3}
+                 res))))))
+
+  (testing "gz-compression"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])]
+
+        (->> (-> [1 2 3]
+                 (sut/generate-input p))
+             (sut/write-edn-file (tio/join-path tmp-dir "test")
+                                 {:num-shards 1
+                                  :compression-type :gzip}))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [file-path (first (tio/list-files tmp-dir))
+              res (->> (read-edn-file {:compressed? true} file-path)
+                       (into #{}))]
+          (is (str/includes? file-path ".gz"))
+          (is (= #{1 2 3}
+                 res)))))))
+
+(deftest read-json-file-test
+  (tio/with-tempdir [tmp-dir]
+    (testing "nominal case"
+      (let [data #{1.0 2.0 3.0}
+            fixture-path (make-fixture tmp-dir "colls.json" data)
+            p (sut/make-pipeline [])
+            input (sut/read-json-file fixture-path
+                                      {:name :read-json}
+                                      p)]
+        (is (str/starts-with? (.getName input) "read-json"))
+
+        (is (-> (PAssert/that input)
+                (.containsInAnyOrder data)))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with key-fn"
+      (let [data #{{:id "1" :name "elem 1"}
+                   {:id "2" :name "elem 2"}
+                   {:id "3" :name "elem 3"}}
+            fixture-path (make-fixture tmp-dir "colls.json" data)
+            p (sut/make-pipeline [])
+            input (sut/read-json-file fixture-path
+                                      {:name :read-json-k
+                                       :key-fn keyword}
+                                      p)]
+        (is (str/starts-with? (.getName input) "read-json-k"))
+
+        (is (-> (PAssert/that input)
+                (.containsInAnyOrder data)))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "nested map w date fields"
+      (let [data #{{:id "3" :name "elem 3"
+                    :created {:date "2017-01-01T00:00:00.000-00:00"}}
+                   {:id "1" :name "elem 1"
+                    :created {:date "2005-02-01T00:00:00Z"}}}
+            fixture-path (make-fixture tmp-dir "colls.json" data)
+            p (sut/make-pipeline [])
+            input (sut/read-json-file fixture-path
+                                      {:name :read-json-nested
+                                       :key-fn keyword}
+                                      p)]
+
+        (is (-> (PAssert/that input)
+                (.containsInAnyOrder data)))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p)))))
+
+  (testing "gz-compressed"
+    (tio/with-tempdir [tmp-dir]
+      (let [data #{1.0 2.0 3.0}
+            fixture-path (make-fixture tmp-dir "colls.json.gz" data)
+            p (sut/make-pipeline [])
+            input (sut/read-json-file fixture-path
+                                      {:name :read-json-gz
+                                       :compression-type :gzip}
+                                      p)]
+        (is (str/starts-with? (.getName input) "read-json-gz"))
+        (is (-> (PAssert/that input)
+                (.containsInAnyOrder data)))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest read-json-files-test
+  (testing "with key-fn"
+    (let [data #{{:id "1" :name "elem 1"}
+                 {:id "2" :name "elem 2"}
+                 {:id "3" :name "elem 3"}
+                 {:id "4" :name "elem 4"}
+                 {:id "5" :name "elem 5"}
+                 {:id "6" :name "elem 6"}}
+          [fix-1 fix-2] (split-at 4 data)]
+
+      (tio/with-tempdir [tmp-dir]
+        (let [file-list [(make-fixture tmp-dir "01.json" fix-1)
+                         (make-fixture tmp-dir "02.json" fix-2)]
+              p (sut/make-pipeline [])
+              rslt (->> (sut/generate-input file-list {:name :file-list} p)
+                        (sut/read-json-files {:key-fn keyword}))]
+
+          (is (-> (PAssert/that rslt)
+                  (.containsInAnyOrder data)))
+          (sut/wait-pipeline-result (sut/run-pipeline p)))))))
+
+(deftest generate-input-test
+  (testing "nominal case"
+    (let [input #{1 2 3}]
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              rslt (sut/generate-input input {:name :test-input} p)]
+
+          (is (str/starts-with? (.getName rslt) "test-input"))
+
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
+
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+        (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                        (into #{}))]
+          (is (= input
+                 rslt))))))
+
+  (testing "map coll"
+    (let [input #{{:id "1" :label "s"}
+                  {:id "2" :label "cc"}}]
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              rslt (sut/generate-input input p)]
+
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
+
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+        (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                        (into #{}))]
+          (is (= input
+                 rslt))))))
+
+  (testing "booleans"
+    (let [input #{true false}]
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              rslt (sut/generate-input input p)]
+
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
+
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+        (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                        (into #{}))]
+          (is (= input
+                 rslt))))))
+
+  ;; TODO: fix me! generate-input is broken with boolean values in maps :(
+  ;; see issue #101
+  ;; (testing "map coll w/ boolean values"
+  ;;   (let [input #{{:done true} {:done false}}]
+  ;;     (tio/with-tempdir [tmp-dir]
+  ;;       (let [p (sut/make-pipeline [])
+  ;;             rslt (sut/generate-input input p)]
+
+  ;;         (sut/write-edn-file (tio/join-path tmp-dir "test")
+  ;;                             {:num-shards 1} rslt)
+
+  ;;         (sut/wait-pipeline-result (sut/run-pipeline p)))
+  ;;       (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+  ;;                       (into #{}))]
+  ;;         (is (= input
+  ;;                rslt))))))
+  )
+
+(deftest map-test
+  (testing "with system"
+    (let [p (sut/make-pipeline [])
+          input (-> [{:a 1} {:b 2} {:c 3}]
+                    (sut/generate-input p))
+          rslt (sut/map (fn [x]
+                          (merge x (sut/system)))
+                        {:name :map-w-sys
+                         :initialize-fn (fn [] {:init 10})}
+                        input)]
+
+      (is (str/starts-with? (.getName rslt) "map-w-sys"))
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder [{:a 1 :init 10}
+                                    {:b 2 :init 10}
+                                    {:c 3 :init 10}])))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "stateful"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input [(clj->kv [:a 1]) (clj->kv [:a 1])
+                   (clj->kv [:b 2]) (clj->kv [:b 2])]
+            rslt (->> (sut/generate-input input {:coder (sut/make-kv-coder)} p)
+                      (sut/map (fn [[k v]]
+                            (let [state (sut/state)
+                                  current (or (.read state) 0)]
+                              (.write state v)
+                              (clj->kv [k (+ v current)])))
+                          {:stateful? true}))]
+
+        ;; TODO: check state
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+        (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+      (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                      (into #{}))]
+        (is (= #{[:a 2] [:b 2] [:a 1] [:b 4]}
+               rslt)))))
+
+  (testing "checkpoint"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (->> (sut/make-pipeline []))
+            rslt (->> (sut/generate-input [0 1 2 3] p)
+                      (sut/map inc {:name :inc :checkpoint (tio/join-path tmp-dir "02-checkpoint")})
+                      (sut/map inc {:name :inc-again}))]
+
+        (sut/write-edn-file (tio/join-path tmp-dir "01-test") {:num-shards 1} rslt)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [file-list (sort (tio/list-files tmp-dir))]
+          (is (> (count file-list) 1)
+              "checkpoint file(s) generated")
+
+          (let [rslt (->> (tio/read-edns-file (first file-list))
+                          (into #{}))]
+            (is (= #{2 3 4 5}
+                   rslt)
+                "result valid"))
+          (let [checkpoint-rslt (->> (filter #(str/includes? % "checkpoint") file-list)
+                                     tio/read-edns-files
+                                     (into #{}))]
+            (is (= #{1 2 3 4}
+                   checkpoint-rslt)
+                "checkpoint values valid")))))))
+
+(deftest map-kv-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (-> [{:k 1 :v 2} {:k 3 :v 4} {:k 5 :v 6}]
+                    (sut/generate-input p))
+          rslt (sut/map-kv (fn [{:keys [k v]}]
+                             [k v])
+                           {:name :map-vals}
+                           input)]
+
+      (is (str/starts-with? (.getName rslt) "map-vals"))
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{[3 4] [5 6] [1 2]}
+             res)))))
+
+(deftest mapcat-test
+  (let [p (sut/make-pipeline [])
+        input (-> [{:values [1 2]} {:values [3 4]} {:values [5 6]}]
+                  (sut/generate-input p))
+        rslt (sut/mapcat #(:values %)
+                         {:name :mapcat-vals}
+                         input)]
+
+    (is (str/starts-with? (.getName rslt) "mapcat-vals"))
+    (is (-> (PAssert/that rslt)
+            (.containsInAnyOrder [1 2 3 4 5 6])))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest filter-test
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)
+        rslt (sut/filter even? {:name :filter-even} input)]
+
+    (is (str/starts-with? (.getName rslt) "filter-even"))
+
+    (is (-> (PAssert/that rslt)
+            (.containsInAnyOrder #{2 4})))
+
+    (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
+      (is (= :done status)))))
+
+(deftest with-keys-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (-> [{:id "1" :rank 4}
+                     {:id "2" :rank 3}
+                     {:id "3" :rank 4}
+                     {:id "4" :rank 1}]
+                    (sut/generate-input {:name :test-input} p))
+          rslt (->> input
+                    (sut/with-keys :rank {:name :w-k}))]
+
+      (is (str/starts-with? (.getName rslt) "w-k"))
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{[1 {:id "4" :rank 1}]
+               [4 {:id "3" :rank 4}]
+               [3 {:id "2" :rank 3}]
+               [4 {:id "1" :rank 4}]}
+             res)))))
+
+(deftest group-by-key-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (-> [{:id "1" :rank 4 :name "no 1"}
+                     {:id "2" :rank 3 :name "no 2"}
+                     {:id "3" :rank 4 :name "no 3"}
+                     {:id "4" :rank 1 :name "no 4"}]
+                    (sut/generate-input {:name :test-input} p))
+          rslt (->> input
+                    (sut/with-keys :rank)
+                    (sut/group-by-key {:name :group-by-rank}))]
+
+      (is (str/starts-with? (.getName rslt) "group-by-rank"))
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (filter (fn [[k _]] (= k 4)))
+                   (map (fn [[_ v]] v))
+                   first
+                   (into #{}))]
+      (is (= #{{:id "1" :rank 4 :name "no 1"} {:id "3" :rank 4 :name "no 3"}}
+             res)))))
+
+(deftest ->>-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+
+      (sut/->> :pipelined input
+               (sut/map inc {:name :inc})
+               (sut/filter even? {:name :even?})
+               (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1}))
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{2 4 6}
+             res)))))
+
+(deftest cond->>-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+
+      (->> (sut/cond->> :pipelined input
+                        true (sut/map inc {:name :inc})
+                        false (sut/filter even? {:name :even?}))
+           (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1}))
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{2 3 4 5 6}
+             res)))))
+
+(deftest partition-by-test
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [1 2 3 4 5 6 7 8 9] p)
+        pcolls (sut/partition-by (fn [e _] (if (odd? e) 1 0))
+                                 2
+                                 {:name :partition}
+                                 input)
         [even-coll odd-coll] (.getAll pcolls)]
-    (-> (PAssert/that even-coll) (.containsInAnyOrder '(2 4 6 8)))
-    (-> (PAssert/that odd-coll) (.containsInAnyOrder '(1 3 5 7 9)))
-    (ds/run-pipeline p)))
+
+    (is (-> (PAssert/that even-coll)
+            (.containsInAnyOrder '(2 4 6 8))))
+    (is (-> (PAssert/that odd-coll)
+            (.containsInAnyOrder '(1 3 5 7 9))))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest view-test
+  (let [p (sut/make-pipeline [])
+        rslt (->> (sut/generate-input ["a" "b" "c"] {:name :side-gen} p)
+                  (sut/combine (sut/combine-fn (fn [acc v] (conj acc v))
+                                               identity
+                                               (fn [& accs] (apply set/union accs))
+                                               (fn [] #{}))
+                               {:name :as-set})
+                  (sut/view {:name :si}))
+        output (->> (sut/generate-input [{:id "a"} {:id "d"} {:id "c"}] {:name :main-gen} p)
+                    (sut/filter (fn [{:keys [id]}]
+                                  (get-in (sut/side-inputs) [:mapping id]))
+                                {:side-inputs {:mapping rslt}}))]
+
+    (is (instance? PCollectionView rslt))
+    (is (-> (PAssert/that output)
+            (.containsInAnyOrder [{:id "a"} {:id "c"}])))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
 (deftest side-inputs-test
-  (with-files [side-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          side-input (ds/view (ds/generate-input [{1 :a 2 :b 3 :c 4 :d 5 :e}] {:name :side-gen} p))]
-      (->> (ds/map (fn [x] (get-in (ds/side-inputs) [:mapping x]))
-                   {:side-inputs {:mapping side-input}}
-                   input)
-           (ds/write-edn-file side-test {:num-shards 1}))
-      (ds/run-pipeline p))
-    (let [res (into #{} (read-file (first (glob-file side-test))))]
-      (is (= res #{:a :b :c :d :e})))))
+  (let [p (sut/make-pipeline [])
+        side-input (-> [{1 :a 2 :b 3 :c 4 :d 5 :e}]
+                       (sut/generate-input {:name :side-gen} p)
+                       sut/view)
+        rslt (->> (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)
+                  (sut/map (fn [x] (get-in (sut/side-inputs) [:mapping x]))
+                           {:side-inputs {:mapping side-input}}))]
+
+    (is (-> (PAssert/that rslt)
+            (.containsInAnyOrder [:a :b :c :d :e])))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
 (deftest side-outputs-test
-  (with-files [sideout-simple-test sideout-multi-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] {:name :main-gen} p)
-          {:keys [simple multi]} (ds/map (fn [x] (ds/side-outputs :simple x :multi (* x 10)))
-                                         {:side-outputs [:simple :multi]} input)]
-      (ds/write-edn-file sideout-simple-test {:num-shards 1 :name :simple} simple)
-      (ds/write-edn-file sideout-multi-test {:num-shards 1 :name :multi} multi)
-      (ds/run-pipeline p))
-    (let [res-simple (into #{} (read-file (first (glob-file sideout-simple-test))))
-          res-multi (into #{} (read-file (first (glob-file sideout-multi-test))))]
-      (is (= res-simple #{1 2 3 4 5}))
-      (is (= res-multi #{10 20 30 40 50})))))
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)
+        {:keys [simple multi]} (->> input
+                                    (sut/map (fn [x] (sut/side-outputs :simple x :multi (* x 10)))
+                                             {:side-outputs [:simple :multi]}))]
+
+    (is (-> (PAssert/that simple)
+            (.containsInAnyOrder [1 2 3 4 5])))
+
+    (is (-> (PAssert/that multi)
+            (.containsInAnyOrder [10 20 30 40 50])))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
 (deftest group-test
-  (with-files [group-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] p)
-          grouped (ds/group-by :key {:name "group"} input)]
-      (ds/write-edn-file group-test {:num-shards 1} grouped)
-      (is "group" (.getName grouped))
-      (ds/run-pipeline p)
-      (let [res (->> (read-file (first (glob-file group-test)))
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (-> [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}]
+                    (sut/generate-input p))
+          grouped (sut/group-by :key {:name "group"} input)]
+
+      (is (str/starts-with? (.getName grouped) "group"))
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+      (sut/wait-pipeline-result (sut/run-pipeline p))
+
+      (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
                      (map (fn [[k v]] [k (into #{} v)]))
                      (into #{}))]
         (is (res [:a #{{:key :a :lue 65} {:key :a :val 42}}]))
@@ -180,280 +595,616 @@
 
 (deftest cogroup-test
   (testing "nominal case"
-    (with-files [cogroup-test]
-      (let [p (ds/make-pipeline [])
-            input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-            input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
-            grouped (ds/cogroup-by {:name "cogroup-test"}
-                                   [[input1 :key] [input2 :key]])]
-        (ds/write-edn-file cogroup-test {:num-shards 1} grouped)
-        (ds/run-pipeline p)
-        (is "cogroup-test" (.getName grouped))
-        (let [res (->> (read-file (first (glob-file cogroup-test)))
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/cogroup-by {:name "cogroup-test"}
+                                    [[input1 :key] [input2 :key]])]
+
+        (is (str/starts-with? (.getName grouped) "cogroup-test"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
                        (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
                        (into #{}))]
-          (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]]
-                       [:c [#{} #{{:key :c, :foo 42}}]]
-                       [:b [#{{:key :b, :val 56}} #{}]]}))))))
+          (is (= #{[:a [#{{:key :a :lue 65} {:key :a :val 42}} #{{:key :a :uel 65} {:key :a :lav 42}}]]
+                   [:c [#{} #{{:key :c :foo 42}}]]
+                   [:b [#{{:key :b :val 56}} #{}]]}
+                 res))))))
 
   (testing "large set of pcollection"
-    (with-files [cogroup-test]
-      (let [p (ds/make-pipeline [])
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
             ;; pcolls is something like
-            ;; [ [{:i 0 :key 0}, {:i 1 :key 0} ...] 🠐 this is a pcoll
-            ;;   [{:i 0 :key 1}, {:i 1 :key 1} ...]
+            ;; [ [{:i 0 :key 0} {:i 1 :key 0} ...] 🠐 this is a pcoll
+            ;;   [{:i 0 :key 1} {:i 1 :key 1} ...]
             ;;   ... ]
             nb-pcolls 101
             pcolls (mapv (fn [k-pcoll]
-                           (ds/generate-input
+                           (sut/generate-input
                             (map (fn [i] {:i i :key k-pcoll}) (range 5))
                             {:name (str "gen-" k-pcoll)} p))
                          (range nb-pcolls))
-            grouped (ds/cogroup-by {:name "join-fitments"
-                                    :collector (fn [[_id same-i]] same-i)}
-                                   (mapv #(vector % :i) pcolls))]
-        (ds/write-edn-file cogroup-test {:num-shards 1} grouped)
-        (ds/run-pipeline p)
-        (doseq [line (read-file (first (glob-file cogroup-test)))
+            grouped (sut/cogroup-by {:name "join-fitments"
+                                     :collector (fn [[_id same-i]] same-i)}
+                                    (mapv #(vector % :i) pcolls))]
+
+        (is (str/starts-with? (.getName grouped) "join-fitments"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (doseq [line (tio/read-edns-file (first (tio/list-files tmp-dir)))
                 :let [same-i (mapcat identity line)]]
-          (is (= 1 (count (distinct (map :i same-i)))))
-          (is (= (range nb-pcolls) (map :key same-i))))))))
+          (is (= 1
+                 (count (distinct (map :i same-i)))))
+          (is (= (map :key same-i)
+                 (range nb-pcolls)))))))
 
-(deftest cogroup-drop-nil-test
-  (with-files [cogroup-drop-nil-test]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/cogroup-by {:name "cogroup-drop-nil-test"}
-                                 [[input1 :key] [input2 :key {:drop-nil? true}]])]
-      (ds/write-edn-file cogroup-drop-nil-test {:num-shards 1} grouped)
-      (ds/run-pipeline p)
-      (is "cogroup-drop-nil-test" (.getName grouped))
-      (let [res (->> (read-file (first (glob-file cogroup-drop-nil-test)))
-                     (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
+  (testing "drop-nil"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/cogroup-by {:name "cogroup-drop-nil-test"}
+                                    [[input1 :key] [input2 :key {:drop-nil? true}]])]
+        (is (str/starts-with? (.getName grouped) "cogroup-drop-nil-test"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
+                       (into #{}))]
+          (is (= #{[:a [#{{:key :a :lue 65} {:key :a :val 42}} #{{:key :a :lav 42}}]]
+                   [:c [#{} #{{:key :c :foo 42}}]]
+                   [:b [#{{:key :b :val 56}} #{}]]}
+                 res))))))
+
+  (testing "required"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/cogroup-by {:name "cogroup-required-test"}
+                                    [[input1 :key {:type :required}] [input2 :key]])]
+
+        (is (str/starts-with? (.getName grouped) "cogroup-required-test"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
+                       (into #{}))]
+          (is (= #{[:a [#{{:key :a :lue 65} {:key :a :val 42}} #{{:key :a :uel 65} {:key :a :lav 42}}]]
+                   [:b [#{{:key :b :val 56}} #{}]]}
+                 res))))))
+
+  (testing "join-nil"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/cogroup-by {:name "cogroup-join-nil-test"}
+                                    [[input1 :key] [input2 :key]])]
+
+        (is (str/starts-with? (.getName grouped) "cogroup-join-nil-test"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
+                       (into #{}))]
+          (is (= #{[:a [#{{:key :a :lue 65} {:key :a :val 42}} #{{:key :a :lav 42}}]]
+                   [nil [#{{:val 56}} #{}]]
+                   [nil [#{} #{{:uel 65}}]]
+                   [:c [#{} #{{:key :c :foo 42}}]]}
+                 res)))))))
+
+(deftest join-by-test
+  (testing "nomical case"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/join-by {:name "join-test"}
+                                 [[input1 :key] [input2 :key]] merge)]
+
+        (is (str/starts-with? (.getName grouped) "join-test"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (into #{}))]
+          (is (= #{{:key :b :val 56} {:key :c :foo 42} {:key :a :lue 65 :lav 42} {:key :a :val 42 :lav 42}
+                   {:key :a :val 42 :uel 65} {:key :a :lue 65 :uel 65}}
+                 res))))))
+
+  (testing "required"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input1 (sut/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
+            input2 (sut/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
+            grouped (sut/join-by {:name "join-test-required" :collector merge}
+                                 [[input1 :key]
+                                  [input2 :key {:type :required}]]
+                                 merge)]
+
+        (is (str/starts-with? (.getName grouped) "join-test-required"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} grouped)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (into #{}))]
+          (is (= #{{:key :c :foo 42} {:key :a :lue 65 :lav 42} {:key :a :val 42 :lav 42}
+                   {:key :a :val 42 :uel 65} {:key :a :lue 65 :uel 65}}
+                 res)))))))
+
+(deftest distinct-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 2 4 1 5] p)
+          rslt (sut/distinct {:name :unique} input)]
+
+      (is (str/starts-with? (.getName rslt) "unique"))
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (sort))]
+      (is (= '(1 2 3 4 5)
+             res)))))
+
+(deftest sample-test
+  (tio/with-tempdir [tmp-dir]
+    (let [data #{1 2 3 4 5 6 7}
+          p (sut/make-pipeline [])
+          input (sut/generate-input data p)
+          rslt (sut/sample 3 input)]
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))
+
+      (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
                      (into #{}))]
-        (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :lav 42}}]]
-                     [:c [#{} #{{:key :c, :foo 42}}]]
-                     [:b [#{{:key :b, :val 56}} #{}]]}))))))
+        (is (set/subset? res data))))))
 
-(deftest cogroup-required-test
-  (with-files [cogroup-required-test]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/cogroup-by {:name "cogroup-required-test"}
-                                 [[input1 :key {:type :required}] [input2 :key]])]
-      (ds/write-edn-file cogroup-required-test {:num-shards 1} grouped)
-      (ds/run-pipeline p)
-      (is "cogroup-required-test" (.getName grouped))
-      (let [res (->> (read-file (first (glob-file cogroup-required-test)))
-                     (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
-                     (into #{}))]
-        (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :uel 65} {:key :a, :lav 42}}]]
-                     [:b [#{{:key :b, :val 56}} #{}]]}))))))
+(deftest concat-test
+  (let [p (sut/make-pipeline [])
+        input-1 (sut/generate-input [1 2 3] p)
+        input-2 (sut/generate-input [4 5 6] p)
+        rslt (sut/concat {:name :concat-pcolls} input-1 input-2)]
 
-(deftest cogroup-join-nil-test
-  (with-files [cogroup-join-nil-test]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/cogroup-by {:name "cogroup-join-nil-test"}
-                                 [[input1 :key] [input2 :key]])]
-      (ds/write-edn-file cogroup-join-nil-test {:num-shards 1} grouped)
-      (ds/run-pipeline p)
-      (is "cogroup-join-nil-test" (.getName grouped))
-      (let [res (->> (read-file (first (glob-file cogroup-join-nil-test)))
-                     (map (fn [[k [i1 i2]]] [k [(into #{} i1) (into #{} i2)]]))
-                     (into #{}))]
-        (is (= res #{[:a [#{{:key :a, :lue 65} {:key :a, :val 42}} #{{:key :a, :lav 42}}]]
-                     [nil [#{{:val 56}} #{}]]
-                     [nil [#{} #{{:uel 65}}]]
-                     [:c [#{} #{{:key :c, :foo 42}}]]}))))))
+    (is (str/starts-with? (.getName rslt) "concat-pcolls"))
+    (is (-> (PAssert/that rslt)
+            (.containsInAnyOrder #{1 2 3 4 5 6})))
 
-(deftest join-test
-  (with-files [join-test]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/join-by {:name "join-test"}
-                              [[input1 :key] [input2 :key]] merge)]
-      (ds/write-edn-file join-test {:num-shards 1} grouped)
-      (ds/run-pipeline p)
-      (is "join-test" (.getName grouped))
-      (let [res (into #{} (read-file (first (glob-file join-test))))]
-        (is (= res #{{:key :b, :val 56} {:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
-                     {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
-(deftest join-test-required
-  (with-files [join-test-required]
-    (let [p (ds/make-pipeline [])
-          input1 (ds/generate-input [{:key :a :val 42} {:key :b :val 56} {:key :a :lue 65}] {:name :gen1} p)
-          input2 (ds/generate-input [{:key :a :lav 42} {:key :a :uel 65} {:key :c :foo 42}] {:name :gen2} p)
-          grouped (ds/join-by {:name "join-test-required" :collector merge}
-                              [[input1 :key]
-                               [input2 :key {:type :required}]]
-                              merge)]
-      (ds/write-edn-file join-test-required {:num-shards 1} grouped)
-      (ds/run-pipeline p)
-      (is "join-test-required" (.getName grouped))
-      (let [res (into #{} (read-file (first (glob-file join-test-required))))]
-        (is (= res #{{:key :c, :foo 42} {:key :a, :lue 65, :lav 42} {:key :a, :val 42, :lav 42}
-                     {:key :a, :val 42, :uel 65} {:key :a, :lue 65, :uel 65}}))))))
+(deftest combine-test
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [1 2 3 4 5] p)
+        proc (sut/combine + {:name "combine" :scope :global} input)]
 
-(deftest combine-pipeline
-  (let [p (ds/make-pipeline [])
-        input (ds/generate-input [1 2 3 4 5] p)
-        proc (ds/combine + {:name "combine" :scope :global} input)]
-    (-> (PAssert/that proc) (.containsInAnyOrder #{15}))
-    (is "combine" (.getName proc))
-    (ds/run-pipeline p)))
+    (is (str/starts-with? (.getName proc) "combine"))
+    (is (-> (PAssert/that proc)
+            (.containsInAnyOrder #{15})))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
 
 (defn- test-combine-fn
   [combine-fn]
-  (let [p (ds/make-pipeline [])
-        input (ds/generate-input [{:a 1} {:b 2} {:c 3} {:d 4} {:e 5}] p)
-        proc (ds/combine combine-fn
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [{:a 1} {:b 2} {:c 3} {:d 4} {:e 5}] p)
+        proc (sut/combine combine-fn
                          {:name "combine" :scope :global} input)]
-    (-> (PAssert/that proc) (.containsInAnyOrder #{{:a 1 :b 2 :c 3 :d 4 :e 5}}))
-    (is "combine" (.getName proc))
-    (ds/run-pipeline p)))
 
+    (is (str/starts-with? (.getName proc) "combine"))
+    (is (-> (PAssert/that proc)
+            (.containsInAnyOrder #{{:a 1 :b 2 :c 3 :d 4 :e 5}})))
 
-(deftest combine-pipeline-map
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest combine-fn-test
   (let [reducef (fn [acc x] (merge acc x))
         extractf identity
         combinef (fn [& accs] (apply merge accs))
         initf (fn [] {})]
 
-    (test-combine-fn (ds/combine-fn reducef extractf combinef initf))
+    (testing "discrete args"
+      (test-combine-fn (sut/combine-fn reducef extractf combinef initf)))
 
-    (doseq [m [{:reduce reducef :extract extractf :combine combinef :init initf}
-               {:reduce reducef                   :combine combinef :init initf}
-               {:reduce merge                                       :init initf}
-               {:reduce merge}]]
-      (test-combine-fn (ds/combine-fn m)))))
+    (testing "args map"
+      (doseq [m [{:reduce reducef :extract extractf :combine combinef :init initf}
+                 {:reduce reducef                   :combine combinef :init initf}
+                 {:reduce merge                                       :init initf}
+                 {:reduce merge}]]
+        (test-combine-fn (sut/combine-fn m))))))
 
-(deftest combine-juxt
-  (with-files [combine-juxt-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] p)
-          proc (ds/combine (ds/juxt
-                            + *
-                            (ds/sum-fn)
-                            (ds/mean-fn)
-                            (ds/max-fn)
-                            (ds/min-fn)
-                            (ds/count-fn) (ds/count-fn :predicate even?)
-                            (ds/max-fn :mapper #(* 10 %)))
-                           {:name "combine"} input)]
-      (ds/write-edn-file combine-juxt-test {:num-shards 1} proc)
-      (is "combine" (.getName proc))
-      (ds/run-pipeline p)
-      (let [res (into #{} (read-file (first (glob-file combine-juxt-test))))]
-        (is (= res #{'(15 120 15 3.0 5 1 5 2 50)}))))))
+(deftest juxt-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 4 5] p)
+          proc (sut/combine (sut/juxt
+                             + *
+                             (sut/sum-fn)
+                             (sut/mean-fn)
+                             (sut/max-fn)
+                             (sut/min-fn)
+                             (sut/count-fn)
+                             (sut/count-fn :predicate even?)
+                             (sut/max-fn :mapper #(* 10 %)))
+                            {:name "combine-juxt"} input)]
 
-(deftest math-and-diamond
-  (with-files [math-and-diamond-test sample-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3 4 5] p)
-          p1 (ds/combine (ds/mean-fn) {:name :mean} input)
-          p2 (ds/combine (ds/max-fn) {:name :max} input)
-          p3 (ds/combine (ds/min-fn) {:name :min} input)
-          p4 (ds/combine (ds/sum-fn) {:name :input} input)
-          all (ds/concat p1 p2 p3 p4)
-          ps (ds/sample 2 input)]
-      (ds/write-edn-file math-and-diamond-test {:name :output-all :num-shards 1} all)
-      (ds/write-edn-file sample-test {:name :output-sample :num-shards 1} ps)
-      (ds/run-pipeline p)
-      (let [res (read-file (first (glob-file math-and-diamond-test)))]
-        (is (= '(1 3.0 5 15) (sort res))))
-      (let [res (read-file (first (glob-file sample-test)))]
-        (is (= 2 (count res)))))))
+      (is (str/starts-with? (.getName proc) "combine-juxt"))
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} proc)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))
+
+      (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                     (into #{}))]
+        (is (= #{'(15 120 15 3.0 5 1 5 2 50)}
+               res))))))
+
+(deftest count-fn-test
+  (testing "nominal case"
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [10 30 60] p)
+          rslt (sut/combine (sut/count-fn) input)]
+
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder #{3})))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "with options"
+    (testing "with pred"
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6] p)
+            rslt (sut/combine (sut/count-fn {:predicate even?}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{3})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [{:ids #{1 2 3} :rank 2}
+                                       {:ids #{4}}
+                                       {:ids #{5} :rank 1}] p)
+            rslt (sut/combine
+                  (sut/count-fn {:predicate :rank :mapper #(count (:ids %))}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{4})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest sum-fn-test
+  (testing "nominal case"
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [10 20 30] p)
+          rslt (sut/combine (sut/sum-fn) input)]
+
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder #{60})))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "with options"
+    (testing "with pred"
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine (sut/sum-fn {:predicate odd?}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{16})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine
+                  (sut/sum-fn {:predicate odd? :mapper inc}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{20})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest mean-fn-test
+  (testing "nominal case"
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1.0 2.0 3.0] p)
+          rslt (sut/combine (sut/mean-fn) input)]
+
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder #{2.0})))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "with options"
+    (testing "with pred"
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine (sut/mean-fn {:predicate even?}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{4.0})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine
+                  (sut/mean-fn {:predicate even? :mapper #(* % 10)}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{40.0})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p)))))  )
+
+(deftest min-fn-test
+  (testing "nominal case"
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1.0 2.0 3.0] p)
+          rslt (sut/combine (sut/min-fn) input)]
+
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder #{1.0})))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "with options"
+    (testing "with pred"
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine (sut/min-fn {:predicate even?}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{2})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine
+                  (sut/min-fn {:predicate even? :mapper #(* % 10)}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{20})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest max-fn-test
+  (testing "nominal case"
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1.0 2.0 3.0] p)
+          rslt (sut/combine (sut/max-fn) input)]
+
+      (is (-> (PAssert/that rslt)
+              (.containsInAnyOrder #{3.0})))
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+  (testing "with options"
+    (testing "with pred"
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine (sut/max-fn {:predicate even?}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{6})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [1 2 3 4 5 6 7] p)
+            rslt (sut/combine
+                  (sut/max-fn {:predicate even? :mapper #(* % 10)}) input)]
+
+        (is (-> (PAssert/that rslt)
+                (.containsInAnyOrder #{60})))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))))
+
+(deftest frequencies-fn-test
+  (testing "nominal case"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input (sut/generate-input [2 1 2 3 1 2] p)
+            rslt (sut/combine (sut/frequencies-fn) input)]
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test")
+                            {:num-shards 1} rslt)
+
+        (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+      (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                     (into {}))]
+        (is (= {2 3
+                1 2
+                3 1}
+               res)))))
+
+  (testing "with options"
+    (testing "with pred"
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              input (sut/generate-input [2 1 2 3 1 2] p)
+              rslt (sut/combine (sut/frequencies-fn {:predicate even?}) input)]
+
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
+
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (into {}))]
+          (is (= {2 3}
+                 res)))))
+
+    (testing "with pred & mapper"
+      ;; NOTE: mapper without a predicate is ignored
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              input (sut/generate-input [{:ranked? true :rank 2} {:rank 3} {:ranked? true :rank 1}] p)
+              rslt (sut/combine
+                    (sut/frequencies-fn {:predicate :ranked? :mapper #(:rank %)}) input)]
+
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
+
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+        (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                       (into {}))]
+          (is (= {2 1 1 1}
+                 res)))))))
+
+(deftest frequencies-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 5 2 1 1 3 4 2 5 5] p)
+          rslt (sut/frequencies {:name :elem-freq} input)]
+
+      (is (str/starts-with? (.getName rslt) "elem-freq"))
+
+      (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{[1 3] [2 2] [3 1] [4 1] [5 3]}
+             res)))))
 
 (deftest with-timestamp-test
-  (let [p (ds/make-pipeline [])
-        input (ds/generate-input [1 2 3 4 5] p)]
-    (ds/map (fn [e] (ds/with-timestamp (time/now) e)) input)
-    (ds/run-pipeline p))
-  ;; TODO: actually add a test
-  )
+  (let [p (sut/make-pipeline [])
+        timestamp (time/now)
+        input (sut/generate-input [1 2 3 4 5] p)
+        _rslt (sut/map #(sut/with-timestamp timestamp %) input)]
 
-(deftest stateful-map
-  (let [p (->> (ds/make-pipeline [])
-               (ds/generate-input [(clj->kv [:a 1]) (clj->kv [:a 1])
-                                   (clj->kv [:b 2]) (clj->kv [:b 2])]
-                                  {:coder (ds/make-kv-coder)})
-               (ds/map (fn [[k v]]
-                         (let [state (ds/state)
-                               current (or (.read state) 0)]
-                           (.write state v)
-                           (clj->kv [k (+ v current)])))
-                       {:stateful? true}))]
-    (.. PAssert (that p) (containsInAnyOrder #{(clj->kv [:a 1]) (clj->kv [:a 2]) (clj->kv [:b 2]) (clj->kv [:b 4])}))
-    (ds/run-pipeline p)))
+    ;; TODO: add test
 
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
 
-(deftest system-map
-  (let [p (->> (ds/make-pipeline [])
-               (ds/generate-input [{:a 1}
-                                   {:b 2}
-                                   {:c 3}])
-               (ds/map (fn [x]
-                         (merge x (ds/system)))
-                       {:initialize-fn (fn [] {:init 10})}))]
-    (.. PAssert (that p) (containsInAnyOrder #{{:a 1 :init 10}
-                                               {:b 2 :init 10}
-                                               {:c 3 :init 10}}))
-    (ds/run-pipeline p)))
-
-
-(deftest windows
+(deftest sliding-windows-test
   (let [now (time/now)
-        p (->> (ds/make-pipeline [])
-               (ds/generate-input [0. 0.5 2.5 3.])
-               (ds/map (fn [e] (ds/with-timestamp (time/minus now (time/seconds e)) e)) {:name :timestamp}))
-        _sliding (ds/sliding-windows (time/seconds 2) (time/seconds 1) {:name :sliding} p)
-        _fixed (ds/fixed-windows (time/seconds 2) {:name :fixed} p)]
-    (ds/run-pipeline p))
-  ;; TODO: add test
-  )
+        p (sut/make-pipeline [])
+        input (->> (sut/generate-input [0. 0.5 2.5 3.] p)
+                   (sut/map #(sut/with-timestamp (time/minus now (time/seconds %)) %) {:name :timestamp}))
 
-(deftest session-windows
+        _sliding (sut/sliding-windows (time/seconds 2) (time/seconds 1) {:name :sliding} input)]
+
+    ;; TODO: add test
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest fixed-windows-test
   (let [now (time/now)
-        p (->> (ds/make-pipeline [])
-               (ds/generate-input [[:k0 0] [:k1 1] [:k1 2] [:k0 4]])
-               (ds/map (fn [[k e]] (ds/with-timestamp (time/minus now (time/seconds e)) [k e])) {:name :timestamp})
-               (ds/with-keys (fn [e] (get e 0))))
-        session (->> (ds/session-windows (time/seconds 2) p)
-                     (ds/group-by-key)
-                     (ds/map (fn [[_ elts]] (reduce + (map (fn [[_k v]] v) elts))) {:name :sum}))]
-    (.. PAssert (that session) (containsInAnyOrder #{0 3 4}))
-    (ds/run-pipeline p)))
+        p (sut/make-pipeline [])
+        input (->> (sut/generate-input [0. 0.5 2.5 3.] p)
+                   (sut/map #(sut/with-timestamp (time/minus now (time/seconds %)) %) {:name :timestamp}))
 
-(deftest checkpoint
-  (with-files [checkpoint-test]
-    (let [p (->> (ds/make-pipeline [])
-                 (ds/generate-input [0 1 2 3])
-                 (ds/map inc {:name :inc :checkpoint checkpoint-test})
-                 (ds/map inc {:name :inc-again}))]
-      (ds/run-pipeline p)
-      (let [cp (flatten (map read-file (glob-file checkpoint-test)))]
-        (.. PAssert (that p) (containsInAnyOrder #{2 3 4 5}))
-        (is (= '(1 2 3 4) (sort cp)))))))
+        _window (sut/fixed-windows (time/seconds 2) {:name :fixed} input)]
 
-(deftest compression-out-test
-  (with-files [compression-out-test]
-    (let [p (ds/make-pipeline [])
-          input (ds/generate-input [1 2 3] p)]
-      (ds/write-edn-file compression-out-test {:num-shards 1 :compression-type :gzip} input)
-      (ds/run-pipeline p)
-      (let [res (->> (read-file (GZIPInputStream. (io/input-stream (first (glob-file compression-out-test)))))
-                     (into #{}))]
-        (is (= res #{1 2 3}))))))
+    ;; TODO: add test
 
-(deftest compression-in-test
-  (let [p (ds/make-pipeline [])
-        input (ds/read-json-file gzipped-json-file-path {:name :read-json :compression-type :gzip} p)]
-    (-> (PAssert/that input)  (.containsInAnyOrder (map long test-data)))
-    (ds/run-pipeline p)))
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest session-windows-test
+  (let [now (time/now)
+        p (sut/make-pipeline [])
+        input (->> (sut/generate-input [[:k0 0] [:k1 1] [:k1 2] [:k0 4]] p)
+                   (sut/map (fn [[k e]] (sut/with-timestamp (time/minus now (time/seconds e)) [k e])) {:name :timestamp})
+                   (sut/with-keys (fn [e] (get e 0))))
+
+        session (->> (sut/session-windows (time/seconds 2) input)
+                     (sut/group-by-key)
+                     (sut/map (fn [[_ elts]]
+                                (reduce + (map (fn [[_k v]] v) elts))) {:name :sum}))]
+
+    (is (.. PAssert (that session)
+            (containsInAnyOrder #{0 3 4})))
+
+    (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+(deftest basic-pipeline-test
+  (let [p (sut/make-pipeline [])
+        input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)
+        proc (sut/map (fn [x] (inc x)) {:name "increment"} input)
+        filter (sut/filter even? proc)]
+
+    (is (-> (PAssert/that input)
+            (.containsInAnyOrder #{1 2 3 4 5})))
+    (is (-> (PAssert/that proc)
+            (.containsInAnyOrder #{2 3 4 5 6})))
+    (is (-> (PAssert/that filter)
+            (.containsInAnyOrder #{2 4 6})))
+
+    (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
+      (is (= :done status)))))
+
+(deftest intra-bundle-parallelization-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 4 5] {:name :main-gen} p)]
+      (sut/->> :pipelined input
+               (sut/map inc {:name :inc :intra-bundle-parallelization 5})
+               (sut/filter even? {:name :even? :intra-bundle-parallelization 5})
+               (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1}))
+      (sut/wait-pipeline-result (sut/run-pipeline p)))
+    (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                   (into #{}))]
+      (is (= #{2 4 6}
+             res)))))
+
+(deftest math-and-diamond-test
+  (tio/with-tempdir [tmp-dir]
+    (let [p (sut/make-pipeline [])
+          input (sut/generate-input [1 2 3 4 5] p)
+          p1 (sut/combine (sut/mean-fn) {:name :mean} input)
+          p2 (sut/combine (sut/max-fn) {:name :max} input)
+          p3 (sut/combine (sut/min-fn) {:name :min} input)
+          p4 (sut/combine (sut/sum-fn) {:name :input} input)
+          all (sut/concat p1 p2 p3 p4)
+          ps (sut/sample 2 input)]
+
+      (sut/write-edn-file (tio/join-path tmp-dir "01-test") {:name :output-all :num-shards 1} all)
+      (sut/write-edn-file (tio/join-path tmp-dir "02-test") {:name :output-sample :num-shards 1} ps)
+
+      (sut/wait-pipeline-result (sut/run-pipeline p))
+
+      (let [file-list (sort (tio/list-files tmp-dir))]
+        (testing "all"
+          (let [res (->> (tio/read-edns-file (first file-list))
+                         (into #{}))]
+            (is (= #{1 3.0 5 15}
+                   res))))
+        (testing "sample"
+          (let [res (->> (tio/read-edns-file (last file-list))
+                         (into #{}))]
+            (is (= 2
+                   (count res)))))))))
