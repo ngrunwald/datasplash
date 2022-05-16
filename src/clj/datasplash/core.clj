@@ -1,6 +1,6 @@
 (ns ^:no-doc datasplash.core
   (:require
-   [cheshire.core :as json]
+   [charred.api :as charred]
    [clj-stacktrace.core :as st]
    [clj-time.coerce :as timc]
    [clj-time.format :as timf]
@@ -1170,7 +1170,7 @@ See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline
                              (sfn
                               (fn [x]
                                 (case file-format
-                                  :json (json/encode x {})
+                                  :json (charred/write-json-str x)
                                   :edn (pr-str x)
                                   (file-format x)))))
                            (TextIO/sink))))}
@@ -1357,10 +1357,10 @@ Example:
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
          decode-fn (cond
-                     (and key-fn return-type) #(json/decode % key-fn return-type)
-                     key-fn #(json/decode % key-fn)
-                     return-type #(json/decode % nil return-type)
-                     :else json/decode)]
+                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type)
+                     key-fn #(charred/read-json % :key-fn key-fn)
+                     return-type #(charred/read-json % :value-fn return-type)
+                     :else charred/read-json)]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1389,10 +1389,10 @@ Example:
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
          decode-fn (cond
-                     (and key-fn return-type) #(json/decode % key-fn return-type)
-                     key-fn #(json/decode % key-fn)
-                     return-type #(json/decode % nil return-type)
-                     :else json/decode)]
+                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type)
+                     key-fn #(charred/read-json % :key-fn key-fn)
+                     return-type #(charred/read-json % :value-fn return-type)
+                     :else charred/read-json)]
      (pt->>
       (or (:name opts) "read-json-files")
       from

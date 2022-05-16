@@ -1,6 +1,6 @@
 (ns datasplash.bq
   (:require
-   [cheshire.core :as json]
+   [charred.api :as charred]
    [clj-time.coerce :as tc]
    [clj-time.format :as tf]
    [clojure.java.shell :refer [sh]]
@@ -106,7 +106,7 @@
 
         my-mapper (org.codehaus.jackson.map.ObjectMapper.)
 
-        ^TableRow row (.readValue my-mapper (json/encode clean-map) TableRow)]
+        ^TableRow row (.readValue my-mapper (charred/write-json-str clean-map) TableRow)]
     row))
 
 (defn- read-bq-clj-transform
@@ -156,7 +156,7 @@
   [table-spec]
   (let [{:keys [exit out] :as return} (sh "bq" "--format=json" "show" (name table-spec))]
     (if (zero? exit)
-      (-> (json/decode out true) (:schema) (:fields))
+      (-> (charred/read-json out :key-fn keyword) (:schema) (:fields))
       (throw (ex-info (str "Could not get bq table schema for table " table-spec)
                       {:table table-spec
                        :bq-return return})))))
@@ -189,10 +189,10 @@
    {:schema {:docstr "Specifies bq schema."
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
     :json-schema {:docstr "Specifies bq schema in json"
-                  :action (fn [transform json-schema] (let [sch (cheshire.core/decode json-schema)
+                  :action (fn [transform json-schema] (let [sch (charred/read-json json-schema)
                                                             full-sch (if (get sch "fields")
-                                                                       (cheshire.core/encode sch)
-                                                                       (cheshire.core/encode {"fields" sch}))]
+                                                                       (charred/write-json-str sch)
+                                                                       (charred/write-json-str {"fields" sch}))]
                                                         (.withJsonSchema transform full-sch)))}
     :table-description {:docstr "Specifies table description"
                         :action (fn [transform description] (.withTableDescription transform description))}
