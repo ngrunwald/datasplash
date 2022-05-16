@@ -106,7 +106,7 @@
 
         my-mapper (org.codehaus.jackson.map.ObjectMapper.)
 
-        ^TableRow row (.readValue my-mapper (charred/write-json-str clean-map) TableRow)]
+        ^TableRow row (.readValue my-mapper (ds/write-json-str clean-map) TableRow)]
     row))
 
 (defn- read-bq-clj-transform
@@ -191,8 +191,8 @@
     :json-schema {:docstr "Specifies bq schema in json"
                   :action (fn [transform json-schema] (let [sch (charred/read-json json-schema)
                                                             full-sch (if (get sch "fields")
-                                                                       (charred/write-json-str sch)
-                                                                       (charred/write-json-str {"fields" sch}))]
+                                                                       (ds/write-json-str sch)
+                                                                       (ds/write-json-str {"fields" sch}))]
                                                         (.withJsonSchema transform full-sch)))}
     :table-description {:docstr "Specifies table description"
                         :action (fn [transform description] (.withTableDescription transform description))}
