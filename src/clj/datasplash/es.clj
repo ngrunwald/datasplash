@@ -134,7 +134,7 @@ Examples:
      :write-es-from-clj
      [^PCollection pcoll]
      (->> pcoll
-          (ds/dmap charred/write-json-str)
+          (ds/dmap ds/write-json-str)
           (write-es-raw hosts index type safe-opts)))))
 
 (defn write-es
