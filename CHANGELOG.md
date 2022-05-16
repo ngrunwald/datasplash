@@ -1,10 +1,12 @@
 # Changes for Datasplash
 
-## [v0.7.8] - 2022-05-14
+## [v0.7.8] - 2022-05-16
 
+- More complete tests, again.
 - Add ability to specify a teardown function for a `DoFn`
 - Invoke `start-bundle`, `finish-bundle` and `teardown-fn` when specified
 - Reuse no-op function in `dofn`
+- switch from cheshire to com.cnuernber/charred.
 
 ## [v0.7.7] - 2022-05-13
 
@@ -166,24 +168,25 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.7...devel
-[v0.7.7]: https://github.com/ngrunwald/datasplash/-/compare/0.7.6...0.7.7
-[v0.7.6]: https://github.com/ngrunwald/datasplash/compare/v0.7.6...v0.7.7
-[v0.7.5]: https://github.com/ngrunwald/datasplash/compare/v0.7.5...v0.7.6
-[v0.7.4]: https://github.com/ngrunwald/datasplash/compare/v0.7.4...v0.7.5
-[v0.7.3]: https://github.com/ngrunwald/datasplash/compare/v0.7.3...v0.7.4
-[v0.7.2]: https://github.com/ngrunwald/datasplash/compare/v0.7.2...v0.7.3
-[v0.7.1]: https://github.com/ngrunwald/datasplash/compare/v0.7.1...v0.7.2
-[v0.7.0]: https://github.com/ngrunwald/datasplash/compare/v0.7.0...v0.7.1
-[v0.6.6]: https://github.com/ngrunwald/datasplash/compare/v0.6.6...v0.7.0
-[v0.6.5]: https://github.com/ngrunwald/datasplash/compare/v0.6.5...v0.6.6
-[v0.6.4]: https://github.com/ngrunwald/datasplash/compare/v0.6.4...v0.6.5
-[v0.6.3]: https://github.com/ngrunwald/datasplash/compare/v0.6.3...v0.6.4
-[v0.6.2]: https://github.com/ngrunwald/datasplash/compare/v0.6.2...v0.6.3
-[v0.6.1]: https://github.com/ngrunwald/datasplash/compare/v0.6.1...v0.6.2
-[v0.6.0]: https://github.com/ngrunwald/datasplash/compare/v0.6.0...v0.6.1
-[v0.5.3]: https://github.com/ngrunwald/datasplash/compare/v0.5.3...v0.6.0
-[v0.5.2]: https://github.com/ngrunwald/datasplash/compare/v0.5.2...v0.5.3
-[v0.5.1]: https://github.com/ngrunwald/datasplash/compare/v0.5.1...v0.5.2
-[v0.4.0]: https://github.com/ngrunwald/datasplash/compare/v0.4.0...v0.4.1
-[v0.3.1]: https://github.com/ngrunwald/datasplash/compare/v0.3.1...v0.4.0
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.8...devel
+[v0.7.8]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.7...v0.7.8
+[v0.7.7]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.6...v0.7.7
+[v0.7.6]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.6...v0.7.7
+[v0.7.5]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.5...v0.7.6
+[v0.7.4]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.4...v0.7.5
+[v0.7.3]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.3...v0.7.4
+[v0.7.2]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.2...v0.7.3
+[v0.7.1]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.1...v0.7.2
+[v0.7.0]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.0...v0.7.1
+[v0.6.6]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.6...v0.7.0
+[v0.6.5]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.5...v0.6.6
+[v0.6.4]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.4...v0.6.5
+[v0.6.3]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.3...v0.6.4
+[v0.6.2]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.2...v0.6.3
+[v0.6.1]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.1...v0.6.2
+[v0.6.0]: https://github.com/ngrunwald/datasplash/-/compare/v0.6.0...v0.6.1
+[v0.5.3]: https://github.com/ngrunwald/datasplash/-/compare/v0.5.3...v0.6.0
+[v0.5.2]: https://github.com/ngrunwald/datasplash/-/compare/v0.5.2...v0.5.3
+[v0.5.1]: https://github.com/ngrunwald/datasplash/-/compare/v0.5.1...v0.5.2
+[v0.4.0]: https://github.com/ngrunwald/datasplash/-/compare/v0.4.0...v0.4.1
+[v0.3.1]: https://github.com/ngrunwald/datasplash/-/compare/v0.3.1...v0.4.0
