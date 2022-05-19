@@ -25,7 +25,7 @@
   :javac-options ["-Xlint:unchecked" "-source" "1.8" "-target" "1.8"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.2.11"]
-                                  [com.oscaro/tools-io "0.3.25"]
+                                  [com.oscaro/tools-io "0.3.26"]
                                   [junit/junit "4.13.2"]
                                   [org.hamcrest/hamcrest-all "1.3"]]
                    :source-paths ["test"]

@@ -54,7 +54,7 @@
 
       (testing "nominal case"
         (let [p (sut/make-pipeline [])
-              fixture-path (make-fixture tmp-dir "colls.edn" data)
+              fixture-path (make-fixture tmp-dir "colls.edns" data)
               rslt (sut/read-edn-file fixture-path
                                       {:name :read-edn}
                                       p)]
@@ -68,7 +68,7 @@
 
         (testing "gz-compressed"
           (let [p (sut/make-pipeline [])
-                fixture-path (make-fixture tmp-dir "colls.edn.gz" data)
+                fixture-path (make-fixture tmp-dir "colls.edns.gz" data)
                 rslt (sut/read-edn-file fixture-path
                                         {:name :read-edn-gz
                                          :compression-type :gzip}
@@ -89,7 +89,7 @@
                      {:id "1" :name "elem 1"
                       :lifespan {:start #inst "2005-02-01T00:00:00.000-00:00"
                                  :end #inst "2006-11-01T00:00:00.000-00:00"}}}
-              fixture-path (make-fixture tmp-dir "colls.edn" data)
+              fixture-path (make-fixture tmp-dir "colls.edns" data)
 
               p (sut/make-pipeline [])
               rslt (sut/read-edn-file fixture-path
@@ -111,8 +111,8 @@
         [fix-1 fix-2] (split-at 4 data)]
 
     (tio/with-tempdir [tmp-dir]
-      (let [file-list [(make-fixture tmp-dir "01.edn" fix-1)
-                       (make-fixture tmp-dir "02.edn" fix-2)]
+      (let [file-list [(make-fixture tmp-dir "01.edns" fix-1)
+                       (make-fixture tmp-dir "02.edns" fix-2)]
             p (sut/make-pipeline [])
             rslt (-> (sut/generate-input file-list {:name :file-list} p)
                      sut/read-edn-files)]
@@ -161,7 +161,7 @@
   (tio/with-tempdir [tmp-dir]
     (testing "nominal case"
       (let [data #{1.0 2.0 3.0}
-            fixture-path (make-fixture tmp-dir "colls.json" data)
+            fixture-path (make-fixture tmp-dir "colls.jsons" data)
             p (sut/make-pipeline [])
             input (sut/read-json-file fixture-path
                                       {:name :read-json}
@@ -177,7 +177,7 @@
       (let [data #{{:id "1" :name "elem 1"}
                    {:id "2" :name "elem 2"}
                    {:id "3" :name "elem 3"}}
-            fixture-path (make-fixture tmp-dir "colls.json" data)
+            fixture-path (make-fixture tmp-dir "colls.jsons" data)
             p (sut/make-pipeline [])
             input (sut/read-json-file fixture-path
                                       {:name :read-json-k
@@ -195,7 +195,7 @@
                     :created {:date "2017-01-01T00:00:00.000-00:00"}}
                    {:id "1" :name "elem 1"
                     :created {:date "2005-02-01T00:00:00Z"}}}
-            fixture-path (make-fixture tmp-dir "colls.json" data)
+            fixture-path (make-fixture tmp-dir "colls.jsons" data)
             p (sut/make-pipeline [])
             input (sut/read-json-file fixture-path
                                       {:name :read-json-nested
@@ -210,7 +210,7 @@
   (testing "gz-compressed"
     (tio/with-tempdir [tmp-dir]
       (let [data #{1.0 2.0 3.0}
-            fixture-path (make-fixture tmp-dir "colls.json.gz" data)
+            fixture-path (make-fixture tmp-dir "colls.jsons.gz" data)
             p (sut/make-pipeline [])
             input (sut/read-json-file fixture-path
                                       {:name :read-json-gz
@@ -233,8 +233,8 @@
           [fix-1 fix-2] (split-at 4 data)]
 
       (tio/with-tempdir [tmp-dir]
-        (let [file-list [(make-fixture tmp-dir "01.json" fix-1)
-                         (make-fixture tmp-dir "02.json" fix-2)]
+        (let [file-list [(make-fixture tmp-dir "01.jsons" fix-1)
+                         (make-fixture tmp-dir "02.jsons" fix-2)]
               p (sut/make-pipeline [])
               rslt (->> (sut/generate-input file-list {:name :file-list} p)
                         (sut/read-json-files {:key-fn keyword}))]
@@ -242,6 +242,50 @@
           (is (-> (PAssert/that rslt)
                   (.containsInAnyOrder data)))
           (sut/wait-pipeline-result (sut/run-pipeline p)))))))
+
+(deftest write-json-file-test
+  (testing "nominal case"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])]
+
+        (->> (-> [{:id "23" :score 312 :vals #{{:id "41" :ratio 1.2 :view-ident [:a :b :c]} {:id "52" :view-ident '(:myns/bravo)}}}
+                  {:id "15" :score 4 :vals #{{:id "44" :ratio 4 :view-ident [:x :y :z] } {:id "492" :view-ident '(:a :c)}}}]
+                 (sut/generate-input p))
+             (sut/write-json-file (tio/join-path tmp-dir "test")
+                                  {:num-shards 1}))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (->> (first (tio/list-files tmp-dir))
+                       slurp
+                       str/split-lines
+                       set)]
+          (is (= #{"{\"id\":\"15\",\"score\":4,\"vals\":[{\"id\":\"44\",\"ratio\":4,\"view-ident\":[\"x\",\"y\",\"z\"]},{\"id\":\"492\",\"view-ident\":[\"a\",\"c\"]}]}"
+                   "{\"id\":\"23\",\"score\":312,\"vals\":[{\"id\":\"41\",\"ratio\":1.2,\"view-ident\":[\"a\",\"b\",\"c\"]},{\"id\":\"52\",\"view-ident\":[\"myns/bravo\"]}]}"}
+                 res))))))
+
+  (testing "gz-compression"
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])]
+
+        (->> (-> [1 2 3]
+                 (sut/generate-input p))
+             (sut/write-edn-file (tio/join-path tmp-dir "test")
+                                 {:num-shards 1
+                                  :compression-type :gzip}))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [file-path (first (tio/list-files tmp-dir))]
+          (is (str/includes? file-path ".gz"))
+          (let [res (->> file-path
+                         (io/input-stream)
+                         (GZIPInputStream.)
+                         slurp
+                         str/split-lines
+                         set)]
+            (is (= #{"1" "2" "3"}
+                   res))))))))
 
 (deftest generate-input-test
   (testing "nominal case"
@@ -775,6 +819,7 @@
 
       (let [res (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
                      (into #{}))]
+        (is (= (count res) 3))
         (is (set/subset? res data))))))
 
 (deftest concat-test
