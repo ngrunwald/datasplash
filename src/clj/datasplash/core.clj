@@ -39,7 +39,7 @@
 
 (def required-ns (atom #{}))
 
-(def fast-charred-write (charred/write-json-fn {:indent-str nil}))
+(def fast-charred-write (charred/write-json-fn {:indent-str nil :escape-slash false}))
 
 (defn write-json-str [data]
   (let [w (StringWriter.)]
