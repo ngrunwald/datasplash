@@ -1,5 +1,10 @@
 # Changes for Datasplash
 
+## [v0.7.9] - 2022-05-24
+- Bump charred to fix more white-space issues. Enable options to match
+  previous output.
+- Add write-json-file-test.
+
 ## [v0.7.8] - 2022-05-16
 
 - More complete tests, again.
