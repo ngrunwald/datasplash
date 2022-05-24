@@ -173,7 +173,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.8...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.9...devel
+[v0.7.9]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.8...v0.7.9
 [v0.7.8]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.7...v0.7.8
 [v0.7.7]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.6...v0.7.7
 [v0.7.6]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.6...v0.7.7
