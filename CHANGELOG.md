@@ -1,5 +1,10 @@
 # Changes for Datasplash
 
+## [v0.7.10] - 2022-06-24
+- Bump nippy to fix serializing of boolean values in map
+  collections.
+- Bump Beam to 2.39.0.
+
 ## [v0.7.9] - 2022-05-24
 - Bump charred to fix more white-space issues. Enable options to match
   previous output.
@@ -173,7 +178,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.9...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.10...devel
+[v0.7.10]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.9...v0.7.10
 [v0.7.9]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.8...v0.7.9
 [v0.7.8]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.7...v0.7.8
 [v0.7.7]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.6...v0.7.7
