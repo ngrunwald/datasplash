@@ -337,23 +337,21 @@
           (is (= input
                  rslt))))))
 
-  ;; TODO: fix me! generate-input is broken with boolean values in maps :(
-  ;; see issue #101
-  ;; (testing "map coll w/ boolean values"
-  ;;   (let [input #{{:done true} {:done false}}]
-  ;;     (tio/with-tempdir [tmp-dir]
-  ;;       (let [p (sut/make-pipeline [])
-  ;;             rslt (sut/generate-input input p)]
+  ;; nippy fix, by @RolT. see #101
+  (testing "map coll w/ boolean values"
+    (let [input #{{:done true} {:done false}}]
+      (tio/with-tempdir [tmp-dir]
+        (let [p (sut/make-pipeline [])
+              rslt (sut/generate-input input p)]
 
-  ;;         (sut/write-edn-file (tio/join-path tmp-dir "test")
-  ;;                             {:num-shards 1} rslt)
+          (sut/write-edn-file (tio/join-path tmp-dir "test")
+                              {:num-shards 1} rslt)
 
-  ;;         (sut/wait-pipeline-result (sut/run-pipeline p)))
-  ;;       (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
-  ;;                       (into #{}))]
-  ;;         (is (= input
-  ;;                rslt))))))
-  )
+          (sut/wait-pipeline-result (sut/run-pipeline p)))
+        (let [rslt (->> (tio/read-edns-file (first (tio/list-files tmp-dir)))
+                        (into #{}))]
+          (is (= input
+                 rslt)))))))
 
 (deftest map-test
   (testing "with system"
