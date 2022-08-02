@@ -10,7 +10,8 @@
    [datasplash.core :as ds])
   (:import
    (com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema TimePartitioning)
+    TableRow TableFieldSchema TableSchema TimePartitioning
+    Clustering)
    (org.apache.beam.sdk Pipeline)
    (org.apache.beam.sdk.io.gcp.bigquery
     BigQueryIO
@@ -148,8 +149,14 @@
   (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
     (cond-> tp
       (int? expiration-ms)                   (.setExpirationMs expiration-ms)
-      (string? field)                        (.setField field)
+      (string? field)                        (.setField (clean-name field))
       (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
+
+
+(defn ^Clustering ->clustering
+  [fields]
+  (let [obj (Clustering.)]
+    (.setFields ^Clustering obj (mapv clean-name fields))))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
@@ -219,6 +226,10 @@
                                    (if without-validation
                                      (.withoutValidation transform)
                                      transform))}
+    :with-optimized-writes {:docstr "Allows optimized writes feature, deactivated by default to maintain backward compatibility"
+                            :action (fn [transform bool]
+                                      (when (true? bool)
+                                        (.optimizedWrites transform)))}
     :ignore-unknown-values {:docstr "Ignores fields which does not match the schema."
                             :action (fn [transform ignore-unknown-values]
                                       (if ignore-unknown-values
@@ -242,7 +253,10 @@
                             (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
     :time-partitioning {:docstr "Toggles write partitioning for the destination table"
                         :action (fn [transform opts]
-                                  (.withTimePartitioning transform (->time-partitioning opts)))}}))
+                                  (.withTimePartitioning transform (->time-partitioning opts)))}
+    :clustering {:docstr "Toggles clustering for the destination table"
+                 :action (fn [transform opts]
+                           (.withClustering transform (->clustering opts)))}}))
 
 (defn custom-output-fn [cust-fn]
   (ds/sfn (fn [elt]
