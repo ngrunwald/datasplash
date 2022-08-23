@@ -1,5 +1,11 @@
 # Changes for Datasplash
 
+## [v0.7.11] - 2022-08-23
+- Add BQ clustering & optimized-write options in write-bq-table.
+- Bump beam to 2.40.0.
+- Bump charred to 1.0.11.
+- Bump nippy to 3.2.0.
+
 ## [v0.7.10] - 2022-06-24
 - Bump nippy to fix serializing of boolean values in map
   collections.
@@ -178,7 +184,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.10...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.11...devel
+[v0.7.11]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.10...v0.7.11
 [v0.7.10]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.9...v0.7.10
 [v0.7.9]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.8...v0.7.9
 [v0.7.8]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.7...v0.7.8
