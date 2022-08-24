@@ -1003,24 +1003,32 @@ map. Each value will be a list of the values that match key.
       (str/lower-case)
       (str/replace #"[^-a-z0-9]" "0")))
 
+
+(defn args->cli-args
+  "Merge args and convert to cli args to be used with `PipelineOptionsFactory/fromArgs`."
+  [str-args kw-args]
+  (let [atomic-args (into {} (map (fn [kv] (let [[k v] (str/split kv #"=" 2)]
+                                            [(str/camel-case (str/replace k #"^--" "")) v]))
+                                  str-args))
+        clean-args (into {} (map (fn [[k v]] [(str/camel-case (name k)) v]) kw-args))
+        args (merge clean-args atomic-args)
+        args-with-name (if (args "appName")
+                         args
+                         (assoc args "appName" *pipeline-builder-caller*))
+        args-with-jobname (if-let [tpl (args-with-name "jobNameTemplate")]
+                            (-> args-with-name
+                                (assoc "jobName" (job-name-template tpl args-with-name))
+                                (dissoc "jobNameTemplate"))
+                            args-with-name)]
+    (->> args-with-jobname
+         (mapcat (fn [[k v]]
+                   (for [v (if (coll? v) v [v])]
+                     (str "--" k "=" v))))
+         (mapv (fn [x] (str/replace x #"=$" ""))))))
+
 (defn make-pipeline*
   ([itf str-args kw-args]
-   (let [atomic-args (into {} (map (fn [kv] (let [[k v] (str/split kv #"=" 2)]
-                                              [(str/camel-case (str/replace k #"^--" "")) v]))
-                                   str-args))
-         clean-args (into {} (map (fn [[k v]] [(str/camel-case (name k)) v]) kw-args))
-         args (merge clean-args atomic-args)
-         args-with-name (if (args "appName")
-                          args
-                          (assoc args "appName" *pipeline-builder-caller*))
-         args-with-jobname (if-let [tpl (args-with-name "jobNameTemplate")]
-                             (-> args-with-name
-                                 (assoc "jobName" (job-name-template tpl args-with-name))
-                                 (dissoc "jobNameTemplate"))
-                             args-with-name)
-         reformed-args (->> args-with-jobname
-                            (map (fn [[k v]] (str "--" k "=" v)))
-                            (map (fn [x] (str/replace x #"=$" ""))))
+   (let [reformed-args (args->cli-args str-args kw-args)
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))
          options (if itf
