@@ -21,10 +21,12 @@
    (org.apache.beam.sdk.values PBegin PCollection)))
 
 (defn read-bq-raw
-  [{:keys [query table standard-sql?] :as options} p]
+  [{:keys [query table standard-sql? query-location] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
-                 query (.fromQuery (BigQueryIO/readTableRows) query)
+                 query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
+                               standard-sql? (.usingStandardSql)
+                               query-location (.withQueryLocation query-location))
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
@@ -32,9 +34,7 @@
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
         (ds/apply-transform
-         (if (and standard-sql? query)
-           (.usingStandardSql ptrans)
-           ptrans)
+         ptrans
          ds/named-schema opts))))
 
 (defn auto-parse-val
