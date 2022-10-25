@@ -68,6 +68,10 @@
 (intern *ns* (with-meta 'sliding-windows (meta #'dt/sliding-windows)) @#'dt/sliding-windows)
 (intern *ns* (with-meta 'session-windows (meta #'dt/session-windows)) @#'dt/session-windows)
 
+(intern *ns* (with-meta 'intersect-distinct (meta #'dt/intersect-distinct)) @#'dt/intersect-distinct)
+(intern *ns* (with-meta 'union-distinct (meta #'dt/union-distinct)) @#'dt/union-distinct)
+(intern *ns* (with-meta 'except-distinct (meta #'dt/except-distinct)) @#'dt/except-distinct)
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Syntactic Sugar ;;
 ;;;;;;;;;;;;;;;;;;;;;
