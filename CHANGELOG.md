@@ -1,5 +1,11 @@
 # Changes for Datasplash
 
+## [v0.7.13] - 2022-10-26
+- Add BQ raw read `:query-location` option.
+- Add support for Pcoll set operations.
+- Bump beam to 2.42.0
+- Bump charred to 1.0.14
+
 ## [v0.7.12] - 2022-09-16
 - handle collection for generating pipeline args
 - Bump beam to 2.41.0
@@ -189,7 +195,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.12...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.13...devel
+[v0.7.13]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.12...v0.7.13
 [v0.7.12]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.11...v0.7.12
 [v0.7.11]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.10...v0.7.11
 [v0.7.10]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.9...v0.7.10
