@@ -1250,3 +1250,39 @@
                          (into #{}))]
             (is (= 2
                    (count res)))))))))
+
+(deftest intersect-distinct-test
+  (let [p (sut/make-pipeline [])
+        input-1 (sut/generate-input [1 2 2 3 4 4 5] {:name :main-gen} p)
+        input-2 (sut/generate-input [2 3 3 5 6 6 7] {:name :main-gen} p)
+        result (sut/intersect-distinct {:name :intersect-pcolls} input-1 input-2)]
+
+    (is (-> (PAssert/that result)
+            (.containsInAnyOrder #{2 3 5})))
+
+    (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
+      (is (= :done status)))))
+
+(deftest union-distinct-test
+  (let [p (sut/make-pipeline [])
+        input-1 (sut/generate-input [1 2 2 3 4 4 5] {:name :main-gen} p)
+        input-2 (sut/generate-input [2 3 3 5 6 6 7] {:name :main-gen} p)
+        result (sut/union-distinct {:name :union-pcolls} input-1 input-2)]
+
+    (is (-> (PAssert/that result)
+            (.containsInAnyOrder #{1 2 3 4 5 6 7})))
+
+    (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
+      (is (= :done status)))))
+
+(deftest except-distinct-test
+  (let [p (sut/make-pipeline [])
+        input-1 (sut/generate-input [1 2 2 3 4 4 5] {:name :main-gen} p)
+        input-2 (sut/generate-input [2 3 3 5 6 6 7] {:name :main-gen} p)
+        result (sut/except-distinct {:name :except-pcolls} input-1 input-2)]
+
+    (is (-> (PAssert/that result)
+            (.containsInAnyOrder #{1 4})))
+
+    (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
+      (is (= :done status)))))

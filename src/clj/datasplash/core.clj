@@ -27,7 +27,7 @@
     Partition Partition$PartitionFn
     SerializableFunction WithKeys GroupByKey Distinct Count
     Flatten Combine$CombineFn Combine View View$AsSingleton Sample
-    Watch$Growth)
+    Watch$Growth Sets)
    (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
    (org.apache.beam.sdk.transforms.windowing
     BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger)
@@ -1745,25 +1745,69 @@ Example:
      (apply-transform pcoll (Flatten/iterables) base-schema opts)))
   ([pcoll] (dflatten {} pcoll)))
 
-(defn dconcat
-  {:doc "Returns a single PCollection containing all the given pcolls. Accepts an option map as an optional first arg.
+(defn- create-coll-list-transform [transform label]
+  (fn [options & colls]
+    (let [[real-options ^Iterable all-colls]
+          (if (map? options)
+            [options colls]
+            [{} (conj colls options)])
+          opts (assoc real-options :label label)
+          coll-list (if (and (= 1 (count all-colls)) (instance? PCollectionList (first all-colls)))
+                      (first all-colls)
+                      (PCollectionList/of all-colls))]
+      (apply-transform coll-list transform base-schema opts))))
+
+(def
+  ^{:doc "Returns a single PCollection containing all the given pcolls. Accepts an option map as an optional first arg.
 
 Example:
 ```
 (ds/concat pcoll1 pcoll2)
 (ds/concat {:name :concat-node} pcoll1 pcoll2)
 ```"
-   :added "0.1.0"}
-  [options & colls]
-  (let [[real-options ^Iterable all-colls]
-        (if (map? options)
-          [options colls]
-          [{} (conj colls options)])
-        opts (assoc real-options :label :concat)
-        coll-list (if (and (= 1 (count all-colls)) (instance? PCollectionList (first all-colls)))
-                    (first all-colls)
-                    (PCollectionList/of all-colls))]
-    (apply-transform coll-list (Flatten/pCollections) base-schema opts)))
+    :added "0.1.0"}
+  dconcat
+  (create-coll-list-transform (Flatten/pCollections) :concat))
+
+(def
+  ^{:doc "Returns a single PCollection containing the distinct intersection of the given pcolls.
+Accepts an option map as an optional first arg.
+
+Example:
+```
+(ds/intersect-distinct pcoll1 pcoll2)
+(ds/intersect-distinct {:name :intersect-node} pcoll1 pcoll2)
+```"
+    :added "0.7.13"}
+  intersect-distinct
+
+  (create-coll-list-transform (Sets/intersectDistinct) :intersect-distinct))
+
+(def
+  ^{:doc "Returns a single PCollection containing the distinct union of the given pcolls.
+Accepts an option map as an optional first arg.
+
+Example:
+```
+(ds/union-distinct pcoll1 pcoll2)
+(ds/union-distinct {:name :intersect-node} pcoll1 pcoll2)
+```"
+    :added "0.7.13"}
+  union-distinct
+  (create-coll-list-transform (Sets/unionDistinct) :union-distinct))
+
+(def
+  ^{:doc "Returns a single PCollection containing the distinct difference (p1 - p2 - p3 ...) of the given pcolls.
+Accepts an option map as an optional first arg.
+
+Example:
+```
+(ds/except-distinct pcoll1 pcoll2)
+(ds/except-distinct {:name :intersect-node} pcoll1 pcoll2)
+```"
+    :added "0.7.13"}
+  except-distinct
+  (create-coll-list-transform (Sets/exceptDistinct) :except-distinct))
 
 ;; https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/transforms/Combine.Globally
 
