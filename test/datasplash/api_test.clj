@@ -1,5 +1,6 @@
 (ns datasplash.api-test
   (:require
+   [charred.api :as charred]
    [clj-time.core :as time]
    [clojure.edn :as edn]
    [clojure.java.io :as io]
@@ -42,6 +43,25 @@
                     tio/write-edns-file)
         dest-file-path (tio/join-path base-path file-path)]
     (writer-fn dest-file-path data)
+    dest-file-path))
+
+(defn- make-fixture-with-nil
+  "Same as `make-fixture` except that it writes an empty line when it receives
+  a nil value."
+  [base-path file-path data]
+  (let [fmt (->> (re-matches #"(.*).(edn|json)(.*)?" file-path)
+                 (drop 2)
+                 first
+                 keyword)
+        writer-fn (case fmt
+                    :json #(charred/write-json-str % :indent-str nil :escape-slash false)
+                    prn-str)
+        dest-file-path (tio/join-path base-path file-path)]
+    (with-open [wrt (io/writer dest-file-path)]
+      (doseq [x data]
+        (when x
+          (.write wrt (writer-fn x)))
+        (.newLine wrt)))
     dest-file-path))
 
 (deftest read-edn-file-test
@@ -202,6 +222,23 @@
                                        :key-fn keyword}
                                       p)]
 
+        (is (-> (PAssert/that input)
+                (.containsInAnyOrder data)))
+
+        (sut/wait-pipeline-result (sut/run-pipeline p))))
+
+    (testing "testing empty line"
+      (let [data #{{:id "3" :name "elem 3"
+                    :created {:date "2017-01-01T00:00:00.000-00:00"}}
+                   nil
+                   {:id "1" :name "elem 1"
+                    :created {:date "2005-02-01T00:00:00Z"}}}
+            fixture-path (make-fixture-with-nil tmp-dir "colls.jsons" data)
+            p (sut/make-pipeline [])
+            input (sut/read-json-file fixture-path
+                                      {:name :read-json-nested
+                                       :key-fn keyword}
+                                      p)]
         (is (-> (PAssert/that input)
                 (.containsInAnyOrder data)))
 
