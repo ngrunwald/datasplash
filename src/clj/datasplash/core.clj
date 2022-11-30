@@ -1358,7 +1358,10 @@ Example:
 (defn read-json-file
   {:doc (with-opts-docstr "Reads a PCollection of JSON strings from disk or Google Storage, with records separated by newlines.
 
-See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html and https://github.com/dakrone/cheshire#decoding for details on options.
+See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.Read.html for options.
+JSON decode options include:
+  - :key-fn - custom key transformation fn
+  - :return-type - custom value transformation fn
 
 Example:
 ```
@@ -1371,11 +1374,12 @@ Example:
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
+         ;;TODO make eof-error? optional and deal with combinatorial explosion
          decode-fn (cond
-                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type)
-                     key-fn #(charred/read-json % :key-fn key-fn)
-                     return-type #(charred/read-json % :value-fn return-type)
-                     :else charred/read-json)]
+                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type :eof-error? false :eof-value nil)
+                     key-fn #(charred/read-json % :key-fn key-fn :eof-error? false :eof-value nil)
+                     return-type #(charred/read-json % :value-fn return-type :eof-error? false :eof-value nil)
+                     :else #(charred/read-json % :eof-error? false :eof-value nil))]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1390,6 +1394,9 @@ Example:
   {:doc (with-opts-docstr "Reads multiple JSON files from a PCollection of Strings from disk or Google Storage, with records separated by newlines.
 
 See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow/sdk/io/TextIO.ReadFiles.html
+JSON decode options include:
+  - :key-fn - custom key transformation fn
+  - :return-type - custom value transformation fn
 
 Example:
 ```
@@ -1403,11 +1410,12 @@ Example:
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
+         ;;TODO make eof-error? optional and deal with combinatorial explosion
          decode-fn (cond
-                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type)
-                     key-fn #(charred/read-json % :key-fn key-fn)
-                     return-type #(charred/read-json % :value-fn return-type)
-                     :else charred/read-json)]
+                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type :eof-error? false :eof-value nil)
+                     key-fn #(charred/read-json % :key-fn key-fn :eof-error? false :eof-value nil)
+                     return-type #(charred/read-json % :value-fn return-type :eof-error? false :eof-value nil)
+                     :else #(charred/read-json % :eof-error? false :eof-value nil))]
      (pt->>
       (or (:name opts) "read-json-files")
       from
