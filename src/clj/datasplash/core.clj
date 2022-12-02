@@ -1362,6 +1362,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 JSON decode options include:
   - :key-fn - custom key transformation fn
   - :return-type - custom value transformation fn
+  - :eof-error? - if the pipeline should fail on unexpected eof (default false)
 
 Example:
 ```
@@ -1369,17 +1370,15 @@ Example:
 ```"
           base-schema text-reader-schema json-reader-schema)
    :added "0.2.0"}
-  ([from {:keys [key-fn return-type] :as options} ^Pipeline p]
+  ([from {:keys [key-fn return-type eof-error?] :as options} ^Pipeline p]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         ;;TODO make eof-error? optional and deal with combinatorial explosion
-         decode-fn (cond
-                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type :eof-error? false :eof-value nil)
-                     key-fn #(charred/read-json % :key-fn key-fn :eof-error? false :eof-value nil)
-                     return-type #(charred/read-json % :value-fn return-type :eof-error? false :eof-value nil)
-                     :else #(charred/read-json % :eof-error? false :eof-value nil))]
+         decode-fn  #(charred/read-json % (cond-> {:eof-error? false :eof-value nil}
+                                            key-fn (assoc :key-fn key-fn)
+                                            return-type (assoc :value-fn return-type)
+                                            eof-error? (assoc :eof-error? eof-error?)))]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1397,6 +1396,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 JSON decode options include:
   - :key-fn - custom key transformation fn
   - :return-type - custom value transformation fn
+  - :eof-error? - if the pipeline should fail on unexpected eof (default false)
 
 Example:
 ```
@@ -1405,17 +1405,15 @@ Example:
 ```"
           base-schema json-reader-schema)
    :added "0.6.5"}
-  ([{:keys [key-fn return-type] :as options} ^PCollection from]
+  ([{:keys [key-fn return-type eof-error?] :as options} ^PCollection from]
    (let [opts (assoc options
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         ;;TODO make eof-error? optional and deal with combinatorial explosion
-         decode-fn (cond
-                     (and key-fn return-type) #(charred/read-json % :key-fn key-fn :value-fn return-type :eof-error? false :eof-value nil)
-                     key-fn #(charred/read-json % :key-fn key-fn :eof-error? false :eof-value nil)
-                     return-type #(charred/read-json % :value-fn return-type :eof-error? false :eof-value nil)
-                     :else #(charred/read-json % :eof-error? false :eof-value nil))]
+         decode-fn  #(charred/read-json % (cond-> {:eof-error? false :eof-value nil}
+                                            key-fn (assoc :key-fn key-fn)
+                                            return-type (assoc :value-fn return-type)
+                                            eof-error? (assoc :eof-error? eof-error?)))]
      (pt->>
       (or (:name opts) "read-json-files")
       from
