@@ -7,7 +7,7 @@
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "1.2.4"]
 
-                 [com.cnuernber/charred "1.014"]
+                 [com.cnuernber/charred "1.015"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
                  [com.taoensso/nippy "3.2.0"]
