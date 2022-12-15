@@ -1,5 +1,8 @@
 # Changes for Datasplash
 
+## [v0.7.15] - 2022-12-15
+- Bump charred to 1.018
+
 ## [v0.7.14] - 2022-12-02
 - adapt charred options to avoid throwing on empty lines
 - Bump charred to 1.016, beam to 2.43.0
@@ -199,7 +202,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.14...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.15...devel
+[v0.7.15]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.14...v0.7.15
 [v0.7.14]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.13...v0.7.14
 [v0.7.13]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.12...v0.7.13
 [v0.7.12]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.11...v0.7.12
