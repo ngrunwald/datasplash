@@ -7,7 +7,7 @@
                  [org.clojure/math.combinatorics "0.1.6"]
                  [org.clojure/tools.logging "1.2.4"]
 
-                 [com.cnuernber/charred "1.016"]
+                 [com.cnuernber/charred "1.018"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
                  [com.taoensso/nippy "3.2.0"]
@@ -25,7 +25,7 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.3.4"]
-                                  [com.oscaro/tools-io "0.3.27"]]
+                                  [com.oscaro/tools-io "0.3.28"]]
                    :source-paths ["test"]
                    :resource-paths ["test/resources"]
                    :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
