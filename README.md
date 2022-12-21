@@ -73,7 +73,7 @@ Here is the classic word count:
 Run it from the repl with:
 ```clojure
 (in-ns 'datasplash.examples)
-(compile 'datasplash.examples)
+(clojure.core/compile 'datasplash.examples)
 (-main "--input=in.txt" "--output=out.txt")
 ```
 Note that you will need to run `(compile 'datasplash.examples)` every time you
