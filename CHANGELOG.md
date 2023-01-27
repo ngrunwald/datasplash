@@ -1,5 +1,8 @@
 # Changes for Datasplash
 
+## [v0.7.16] - 2023-01-27
+- Bump charred to 1.019, beam to 2.44.0
+
 ## [v0.7.15] - 2022-12-15
 - Bump charred to 1.018
 
@@ -202,7 +205,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.15...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.16...devel
+[v0.7.16]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.15...v0.7.16
 [v0.7.15]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.14...v0.7.15
 [v0.7.14]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.13...v0.7.14
 [v0.7.13]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.12...v0.7.13

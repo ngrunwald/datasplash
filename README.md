@@ -114,7 +114,7 @@ lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --o
 
 ## License
 
-Copyright © 2015-2019 Oscaro.com
+Copyright © 2015-2023 Oscaro.com
 
 Distributed under the Eclipse Public License either version 1.0 or (at your
 option) any later version.
