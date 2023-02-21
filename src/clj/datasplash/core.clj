@@ -62,7 +62,7 @@
       v)))
 
 (defn kv->clj
-  "Coerce from KV to Clojure MapEntry"
+  "Coerce from KV to Clojure MapEntry."
   [^KV kv]
   (MapEntry. (.getKey kv) (val->clj kv)))
 
@@ -81,7 +81,7 @@
                                    (re-find #"Can't dynamically bind non-dynamic var: ([^/]+)/" message)
                                    (re-find #"Unable to resolve spec: :([^/]+)/" message))
                 ns-to-add (->> trace-elems
-                               (filter #(:clojure %))
+                               (filter :clojure)
                                (map :ns)
                                (concat (list missing-ns)))]
 
@@ -111,7 +111,7 @@
      (if (and c# (instance? ~e UserCodeException) (instance? ExceptionInfo c#)) c# ~e)))
 
 (defmacro safe-exec-cfg
-  "Like [[safe-exec]], but takes a map as first argument containing the name of the ptransform for better error message"
+  "Like [[safe-exec]], but takes a map as first argument containing the name of the ptransform for better error message."
   [config & body]
   `(let [pt-name# (-> ~config
                       (get :name)
@@ -208,7 +208,7 @@
 (def ^{:private true :no-doc true} no-op (constantly nil))
 
 (defn dofn
-  {:doc "Returns an Instance of DoFn from given Clojure fn"
+  {:doc "Returns an Instance of DoFn from given Clojure fn."
    :added "0.1.0"}
   ^DoFn
   ([f {:keys [start-bundle finish-bundle without-coercion-to-clj
@@ -278,7 +278,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   [] *side-inputs*)
 
 (defn get-element-from-context
-  "Get element from context in ParDo while applying relevent Clojure type conversions"
+  "Get element from context in ParDo while applying relevent Clojure type conversions."
   [^DoFn$ProcessContext c]
   (let [element (.element c)]
     (if *coerce-to-clj*
@@ -348,7 +348,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
    (output-to-context identity context result)))
 
 (defn clj->kv
-  "Coerce from Clojure data to KV objects"
+  "Coerce from Clojure data to KV objects."
   ^KV
   [obj]
   (cond
@@ -360,7 +360,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                            :input-object-type (type obj)}))))
 
 (defn map-fn
-  "Returns a function that corresponds to a Clojure map operation inside a ParDo"
+  "Returns a function that corresponds to a Clojure map operation inside a ParDo."
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
@@ -368,7 +368,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (output-to-context c result))))
 
 (defn map-kv-fn
-  "Returns a function that corresponds to a Clojure map operation inside a ParDo coercing to KV the return"
+  "Returns a function that corresponds to a Clojure map operation inside a ParDo coercing to KV the return."
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
@@ -376,7 +376,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (output-to-context clj->kv c result))))
 
 (defn mapcat-fn
-  "Returns a function that corresponds to a Clojure mapcat operation inside a ParDo"
+  "Returns a function that corresponds to a Clojure mapcat operation inside a ParDo."
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
@@ -385,13 +385,13 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         (output-to-context c res)))))
 
 (defn pardo-fn
-  "Returns a function that uses the raw ProcessContext from ParDo"
+  "Returns a function that uses the raw ProcessContext from ParDo."
   [f]
   (fn [^DoFn$ProcessContext c]
     (f c)))
 
 (defn filter-fn
-  "Returns a function that corresponds to a Clojure filter operation inside a ParDo"
+  "Returns a function that corresponds to a Clojure filter operation inside a ParDo."
   [f]
   (fn [^DoFn$ProcessContext c]
     (let [elt (get-element-from-context c)
@@ -400,7 +400,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
         (.output c (.element c))))))
 
 (defn didentity
-  {:doc "Identity function for use in a ParDo"
+  {:doc "Identity function for use in a ParDo."
    :added "0.1.0"}
   [^DoFn$ProcessContext c]
   (.output c (.element c)))
@@ -411,7 +411,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
                                "com.google.datastore.v1.Entity"})))
 
 (defn make-nippy-coder
-  {:doc "Returns an instance of a CustomCoder using nippy for serialization"
+  {:doc "Returns an instance of a CustomCoder using nippy for serialization."
    :added "0.1.0"}
   []
   (let [encode-fn (fn [obj ^OutputStream out]
@@ -448,9 +448,9 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 
 (defrecord GroupSpecs [specs]
   PInput
-  (expand [this] (into {} (map-indexed (fn [idx x] [(TupleTag. (str idx)) (first x)]) specs)))
-  (getPipeline [this] (let [^PInput pval (-> specs (first) (first))]
-                        (.getPipeline pval)))
+  (expand [_this] (into {} (map-indexed (fn [idx x] [(TupleTag. (str idx)) (first x)]) specs)))
+  (getPipeline [_this] (let [^PInput pval (-> specs (first) (first))]
+                         (.getPipeline pval)))
   IApply
   (apply [this nam ptrans] (Pipeline/applyTransform (name nam) this ptrans))
   (apply [this ptrans] (Pipeline/applyTransform this ptrans)))
@@ -473,7 +473,7 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
 (declare write-edn-file)
 
 (defn apply-transform
-  "apply the PTransform to the given Pcoll applying options according to schema."
+  "Apply the PTransform to the given Pcoll applying options according to schema."
   [pcoll ^PTransform transform schema
    {:keys [coder coll-name side-outputs checkpoint] :as options}]
   (let [nam (some-> options (:name) (name))
@@ -679,7 +679,8 @@ Example:
   (getInitFn []))
 
 (defn combine-fn
-  {:doc "Returns a CombineFn instance from given args. See https://beam.apache.org/documentation/programming-guide/#combine
+  {:doc "Returns a CombineFn instance from given args.
+See https://beam.apache.org/documentation/programming-guide/#combine
 
 Arguments in order:
 
@@ -780,21 +781,21 @@ This function is reminiscent of the reducers api. In has sensible defaults in or
   [f]
   (reify
     SerializableFunction
-    (apply [this input]
+    (apply [_this input]
       (safe-exec (f input)))
     clojure.lang.IFn
-    (invoke [this input]
+    (invoke [_this input]
       (safe-exec (f input)))))
 
 (defn partition-fn
-  "Returns a Partition.PartitionFn if possible"
+  "Returns a Partition.PartitionFn if possible."
   ^Partition$PartitionFn
   [f]
   (if (instance? Partition$PartitionFn f)
     f
     (reify
       Partition$PartitionFn
-      (partitionFor [this elem num]
+      (partitionFor [_this elem num]
         (safe-exec (f elem num))))))
 
 (defn dpartition-by
@@ -1050,7 +1051,8 @@ map. Each value will be a list of the values that match key.
          :else (make-pipeline* nil [] arg))))
 
 (defmacro make-pipeline
-  {:doc "Builds a Pipeline from command lines args and configuration. Also accepts a jobNameTemplate param which is a string in which the following var are interpolated:
+  {:doc "Builds a Pipeline from command lines args and configuration.
+Also accepts a jobNameTemplate param which is a string in which the following var are interpolated:
 
   - %A -> Application name
   - %U -> User name
@@ -1977,7 +1979,7 @@ See https://beam.apache.org/documentation/transforms/java/aggregation/combine/ a
    (combine-fn
     (fn [acc elt]
       (if (predicate elt)
-        (update-in acc [(mapper elt)] (fn [old] (if old (inc old) 1)))
+        (update acc (mapper elt) (fnil inc 0))
         acc))
     identity
     (fn [& accs] (apply merge-with + accs))
@@ -2130,7 +2132,7 @@ Examples:
                                                        (mk-default-unwindowed-fn options))}))
 
 (defn- parse-try
-  "Separates body from catch/finally clauses"
+  "Separates body from catch/finally clauses."
   [body]
   (loop [expressions []
          clauses body]
@@ -2140,7 +2142,7 @@ Examples:
         (recur (cons head expressions) tail)))))
 
 (defmacro dtry
-  {:doc "Just like try except it wraps the body in a safe-exec"
+  {:doc "Just like try except it wraps the body in a safe-exec."
    :added "0.5.2"}
   [& body]
   (let [[expressions clauses] (parse-try body)]
