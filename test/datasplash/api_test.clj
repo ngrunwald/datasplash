@@ -841,6 +841,31 @@
       (is (= '(1 2 3 4 5)
              res)))))
 
+(deftest distinct-by-test
+  (testing "it returns distinct element using a representative value."
+    (tio/with-tempdir [tmp-dir]
+      (let [p (sut/make-pipeline [])
+            input-coll [["b" 1] ["a" 2] ["b" 3]]
+            input (sut/generate-input input-coll p)
+            rslt (sut/distinct-by first
+                                  {:name "distinct-by-first"}
+                                  input)]
+        (is (str/starts-with? (.getName rslt) "distinct-by-first"))
+
+        (sut/write-edn-file (tio/join-path tmp-dir "test") {:num-shards 1} rslt)
+        (sut/wait-pipeline-result (sut/run-pipeline p))
+
+        (let [res (-> (tio/list-files tmp-dir)
+                      first
+                      tio/read-edns-file
+                      sort)]
+          (is (= 2 (count res))
+              "it has two distinct elements")
+          (is (= ["a" "b"] (mapv first res))
+              "it keeps unique first values")
+          (is (every? (set input-coll) res)
+              "distinct elements are in input coll"))))))
+
 (deftest sample-test
   (tio/with-tempdir [tmp-dir]
     (let [data #{1 2 3 4 5 6 7}

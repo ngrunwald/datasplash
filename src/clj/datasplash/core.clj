@@ -1902,6 +1902,40 @@ See https://beam.apache.org/documentation/transforms/java/aggregation/combine/ a
      (apply-transform pcoll ptrans base-schema opts)))
   ([key-fn f pcoll] (combine-by key-fn f {} pcoll)))
 
+(defn ddistinct-by
+  {:doc
+   (with-opts-docstr
+     "Removes duplicate elements from PCollection using a representative value.
+
+Args:
+  - f, the function applied to each element to get a representative value
+
+Example:
+  With a pcoll like [[\"a\" 1] [\"b\" 2] [\"a\" 3]],
+  the following code removes duplicate elements based on the first vector value.
+  ```
+  (ds/distinct-by first pcoll)
+  ```
+  Order is not preserved. Example output: [[\"a\" 3] [\"b\" 2]]"
+     base-schema)
+   :added "0.7.17"}
+  ([f ^PCollection pcoll]
+   (ddistinct-by f nil pcoll))
+  ([f options ^PCollection pcoll]
+   (let [nam (name (or (:name options) :distinct-by))]
+     (pt->>
+      nam
+      pcoll
+      (combine-by f
+                  (combine-fn
+                   (fn [acc elt] (if (nil? acc) elt acc))
+                   identity
+                   (fn [& accs]
+                     (reduce (fn [_ e] (when (some? e) (reduced e))) nil accs))
+                   (constantly nil))
+                  {:name (str nam "--combine-by")})
+      (dmap dval (assoc options :name (str nam "--collect")))))))
+
 (defn count-fn
   ([& {:keys [mapper predicate]
        :or {mapper (fn [_] 1)
