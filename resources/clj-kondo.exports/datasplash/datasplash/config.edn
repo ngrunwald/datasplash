@@ -1,0 +1,4 @@
+{:lint-as {datasplash.api/->> clojure.core/->>
+           datasplash.api/pt->> clojure.core/->>
+           datasplash.options/defoptions clojure.core/def
+           datasplash.testing/with-test-pipeline clojure.core/let}}

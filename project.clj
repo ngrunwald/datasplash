@@ -28,6 +28,12 @@
                                   [com.oscaro/tools-io "0.3.29"]]
                    :source-paths ["test"]
                    :resource-paths ["test/resources"]
-                   :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
+                   :aot [clj-time.core
+                         clojure.tools.logging.impl
+                         clojure.tools.reader.reader-types
+                         datasplash.api-test
+                         datasplash.core
+                         datasplash.examples
+                         datasplash.testing.assert-test]}
              :uberjar {:aot :all}}
   :main datasplash.examples)
