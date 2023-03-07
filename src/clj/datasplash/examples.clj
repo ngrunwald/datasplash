@@ -1,17 +1,18 @@
 (ns datasplash.examples
-  (:require [clojure.string :as str]
-            [clojure.tools.logging :as log]
-            [datasplash
-             [api :as ds]
-             [bq :as bq]
-             [datastore :as dts]
-             [pubsub :as ps]
-             [options :as options :refer [defoptions]]]
-            [clojure.edn :as edn])
-  (:import (java.util UUID)
-           (com.google.datastore.v1 Query PropertyFilter$Operator)
-           (com.google.datastore.v1.client DatastoreHelper)
-           (org.apache.beam.sdk.options PipelineOptionsFactory))
+  (:require
+   [clojure.edn :as edn]
+   [clojure.string :as str]
+   [clojure.tools.logging :as log]
+   [datasplash.api :as ds]
+   [datasplash.bq :as bq]
+   [datasplash.datastore :as dts]
+   [datasplash.options :as options :refer [defoptions]]
+   [datasplash.pubsub :as ps])
+  (:import
+   (java.util UUID)
+   (com.google.datastore.v1 Query PropertyFilter$Operator)
+   (com.google.datastore.v1.client DatastoreHelper)
+   (org.apache.beam.sdk.options PipelineOptionsFactory))
   (:gen-class))
 
 ;;;;;;;;;;;;;;;

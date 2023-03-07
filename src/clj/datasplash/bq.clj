@@ -92,14 +92,14 @@
                      x))
             m))
 
-(defn ^TableRow clj->table-row
+(defn clj->table-row ^TableRow
   [hmap]
   (let [^TableRow row (TableRow.)]
     (doseq [[k v] hmap]
       (.set row (clean-name k) (coerce-by-bq-val v)))
     row))
 
-(defn ^TableRow clj-nested->table-row
+(defn clj-nested->table-row ^TableRow
   [hmap]
   (let [clean-map (->> hmap
                        (prewalk coerce-by-bq-val)
@@ -135,7 +135,7 @@
         (cond-> description (.setDescription description))
         (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
-(defn ^TableSchema ->schema
+(defn ->schema ^TableSchema
   ([defs transform-keys]
    (if (instance? TableSchema defs)
      defs
@@ -143,7 +143,7 @@
        (-> (TableSchema.) (.setFields fields)))))
   ([defs] (->schema defs name)))
 
-(defn ^TimePartitioning ->time-partitioning
+(defn ->time-partitioning ^TimePartitioning
   [{:keys [type expiration-ms field require-partition-filter]
     :or   {type :day}}]
   (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
@@ -153,7 +153,7 @@
       (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
 
 
-(defn ^Clustering ->clustering
+(defn ->clustering ^Clustering
   [fields]
   (let [obj (Clustering.)]
     (.setFields ^Clustering obj (mapv clean-name fields))))
