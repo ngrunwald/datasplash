@@ -1,3 +1,4 @@
-{:lint-as {datasplash.api/->> clojure.core/->>}
+{:lint-as {datasplash.api/->> clojure.core/->>
+           datasplash.options/defoptions clojure.core/def}
  :linters {:unsorted-required-namespaces {:level :warning}
            :unresolved-symbol {:exclude [(tools.io/with-tempdir)]}}}
