@@ -1,5 +1,5 @@
 (ns datasplash.api
-  (:refer-clojure :exclude [map filter mapcat group-by
+  (:refer-clojure :exclude [map filter keep mapcat group-by
                             distinct flatten concat juxt identity
                             max min count frequencies key val partition-by
                             cond->> ->>])
@@ -32,6 +32,7 @@
 (intern *ns* (with-meta 'map (meta #'dt/dmap)) @#'dt/dmap)
 (intern *ns* (with-meta 'map-kv (meta #'dt/map-kv)) @#'dt/map-kv)
 (intern *ns* (with-meta 'filter (meta #'dt/dfilter)) @#'dt/dfilter)
+(intern *ns* (with-meta 'keep (meta #'dt/dkeep)) @#'dt/dkeep)
 (intern *ns* (with-meta 'mapcat (meta #'dt/dmapcat)) @#'dt/dmapcat)
 (intern *ns* (with-meta 'with-keys (meta #'dt/with-keys)) @#'dt/with-keys)
 (intern *ns* (with-meta 'group-by-key (meta #'dt/group-by-key)) @#'dt/group-by-key)
