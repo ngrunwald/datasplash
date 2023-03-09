@@ -20,6 +20,7 @@
     BigQueryIO$Write$Method)
    (org.apache.beam.sdk.values PBegin PCollection)))
 
+
 (defn read-bq-raw
   [{:keys [query table standard-sql? query-location] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
@@ -39,12 +40,13 @@
 
 (defn auto-parse-val
   [v]
-  (cond
-    (and (string? v) (re-find #"^\d+$" v)) (Long/parseLong v)
-    :else v))
+  (cond-> v
+    (and (string? v)
+         (re-find #"^\d+$" v))
+    Long/parseLong))
 
 (defn table-row->clj
-  ([{:keys [auto-parse]} ^TableRow row]
+  ([{:keys [auto-parse] :as opts} ^TableRow row]
    (let [keyset (.keySet row)]
      (persistent!
       (reduce
@@ -52,11 +54,21 @@
          (assoc! acc (keyword k)
                  (let [raw-v (get row k)]
                    (cond
-                     (instance? java.util.List raw-v) (if (instance? java.util.AbstractMap (first raw-v))
-                                                        (map #(table-row->clj {:auto-parse auto-parse} %) raw-v)
-                                                        (map #(if auto-parse (auto-parse-val %) %) raw-v))
-                     (instance? java.util.AbstractMap raw-v) (table-row->clj {:auto-parse auto-parse} raw-v)
-                     :else (if auto-parse (auto-parse-val raw-v) raw-v)))))
+                     (instance? java.util.List raw-v)
+                     (let [with-map? (instance? java.util.AbstractMap (first raw-v))]
+                       (map (fn [v]
+                              (cond
+                                with-map?  (table-row->clj opts v)
+                                auto-parse (auto-parse-val v)
+                                :else v))
+                            raw-v))
+
+                     (instance? java.util.AbstractMap raw-v)
+                     (table-row->clj opts raw-v)
+
+                     :else
+                     (cond-> raw-v
+                       auto-parse auto-parse-val)))))
        (transient {}) keyset))))
   ([row] (table-row->clj {} row)))
 
@@ -65,7 +77,8 @@
   (cond
     (instance? java.util.Date v) (try (->> (tc/from-long (.getTime v))
                                            (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
-                                      (catch Exception e (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
+                                      (catch Exception e
+                                        (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
@@ -73,10 +86,10 @@
 
 (defn clean-name
   [s]
-  (let [test (number? s)]
-    (-> s
-        (cond-> test str)
-        name
+  (let [stringified (cond-> s
+                      (number? s) str
+                      (keyword? s) name)]
+    (-> stringified
         (str/replace #"-" "_")
         (str/replace #"\?" ""))))
 
@@ -125,28 +138,35 @@
   (let [opts (assoc options :label :read-bq-table)]
     (ds/apply-transform p (read-bq-clj-transform opts) ds/base-schema opts)))
 
+(defn- normalize-field [t]
+  (str/upper-case (name t)))
+
 (defn- clj->TableFieldSchema
   [defs transform-keys]
-  (for [{:keys [type mode description] field-name :name nested-fields :fields} defs]
-    (-> (TableFieldSchema.)
-        (.setName (transform-keys (clean-name field-name)))
-        (.setType (str/upper-case (name type)))
-        (cond-> mode (.setMode (str/upper-case (name mode))))
-        (cond-> description (.setDescription description))
-        (cond-> nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
+  (for [{:keys [mode description] nested-fields :fields :as d} defs]
+    (let [data-type (normalize-field (:type d))
+          base-schema (-> (TableFieldSchema.)
+                          (.setName (transform-keys (clean-name (:name d))))
+                          (.setType data-type))]
+      (cond-> base-schema
+        mode (.setMode (normalize-field mode))
+        (string? description) (.setDescription description)
+        nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
 
 (defn ->schema ^TableSchema
   ([defs transform-keys]
    (if (instance? TableSchema defs)
      defs
      (let [fields (clj->TableFieldSchema defs transform-keys)]
-       (-> (TableSchema.) (.setFields fields)))))
+       (-> (TableSchema.)
+           (.setFields fields)))))
   ([defs] (->schema defs name)))
 
 (defn ->time-partitioning ^TimePartitioning
   [{:keys [type expiration-ms field require-partition-filter]
     :or   {type :day}}]
-  (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
+  (let [tp (-> (TimePartitioning.)
+               (.setType (normalize-field type)))]
     (cond-> tp
       (int? expiration-ms)                   (.setExpirationMs expiration-ms)
       (string? field)                        (.setField (clean-name field))
@@ -161,9 +181,12 @@
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
   [table-spec]
-  (let [{:keys [exit out] :as return} (sh "bq" "--format=json" "show" (name table-spec))]
+  (let [{:keys [exit] :as return} (sh "bq" "--format=json" "show" (name table-spec))]
     (if (zero? exit)
-      (-> (charred/read-json out :key-fn keyword) (:schema) (:fields))
+      (-> (:out return)
+          (charred/read-json :key-fn keyword)
+          :schema
+          :fields)
       (throw (ex-info (str "Could not get bq table schema for table " table-spec)
                       {:table table-spec
                        :bq-return return})))))
@@ -197,10 +220,10 @@
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
     :json-schema {:docstr "Specifies bq schema in json"
                   :action (fn [transform json-schema] (let [sch (charred/read-json json-schema)
-                                                            full-sch (if (get sch "fields")
-                                                                       (ds/write-json-str sch)
-                                                                       (ds/write-json-str {"fields" sch}))]
-                                                        (.withJsonSchema transform full-sch)))}
+                                                           full-sch (if (get sch "fields")
+                                                                      (ds/write-json-str sch)
+                                                                      (ds/write-json-str {"fields" sch}))]
+                                                       (.withJsonSchema transform full-sch)))}
     :table-description {:docstr "Specifies table description"
                         :action (fn [transform description] (.withTableDescription transform description))}
     :write-disposition {:docstr "Choose write disposition."
