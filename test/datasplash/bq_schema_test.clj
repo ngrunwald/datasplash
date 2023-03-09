@@ -92,7 +92,98 @@
                                    "description" "desc"}]}
               rslt (sut/->schema [test-schema])]
           (is (= expected
-                 rslt)))))))
+                 rslt))))
+
+      (testing "variable length options"
+        (let [test-schema (assoc schema :maxLength 200)
+              expected {"fields" [{"name" "a"
+                                   "type" "STRING"
+                                   "maxLength" 200}]}
+              rslt (sut/->schema [test-schema])]
+          (is (= expected
+                 rslt)
+              "int maxLength is added to STRING type"))
+
+        (let [test-schema (assoc schema :type :bytes :maxLength 200)
+              expected {"fields" [{"name" "a"
+                                   "type" "BYTES"
+                                   "maxLength" 200}]}
+              rslt (sut/->schema [test-schema])]
+          (is (= expected
+                 rslt)
+              "int maxLength is added to BYTES type"))
+
+        (testing "invalid values"
+          (let [expected {"fields" [{"name" "a"
+                                     "type" "STRING"}]}]
+            (is (= expected
+                   (sut/->schema [(assoc schema :maxLength "30")]))
+                "string maxLength is ignored")
+            (is (= expected
+                   (sut/->schema [(assoc schema :maxLength 3.1)]))
+                "decimal maxLength is ignored")))
+
+        (testing "n/a cases"
+          (let [expected {"fields" [{"name" "a", "type" "NUMERIC"}]}]
+            (is (= expected
+                   (sut/->schema [(assoc schema :type :numeric :maxLength 20)]))
+                "not addded to types not string or bytes"))))
+
+      (testing "exact-numeric options"
+        (let [test-schema (assoc schema :type :numeric)]
+          (testing "nomical case"
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "NUMERIC"
+                                       "precision" 10}]}
+                  rslt (sut/->schema [(assoc test-schema :precision 10)])]
+              (is (= expected
+                     rslt)
+                  "precision value is added to numeric type"))
+
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "NUMERIC"
+                                       "precision" 10
+                                       "scale" 3}]}
+                  rslt (sut/->schema [(assoc test-schema :precision 10 :scale 3)])]
+              (is (= expected
+                     rslt)
+                  "precision and scale are added to numeric type"))
+
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "BIGNUMERIC"
+                                       "precision" 10}]}
+                  rslt (sut/->schema [(assoc test-schema :type :bignumeric :precision 10)])]
+              (is (= expected
+                     rslt)
+                  "precision is added to bignumeric"))
+
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "BIGNUMERIC"
+                                       "precision" 10
+                                       "scale" 3}]}
+                  rslt (sut/->schema [(assoc test-schema :type :bignumeric :precision 10 :scale 3)])]
+              (is (= expected
+                     rslt)
+                  "precision and scale are added to bignumeric")))
+
+          (testing "invalid values"
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "NUMERIC"}]}]
+
+              (is (= expected (sut/->schema [(assoc test-schema :precision "30")]))
+                  "string value is ignored")
+              (is (= expected (sut/->schema [(assoc test-schema :precision 12.1)]))
+                  "decimal value is ignored")
+
+              (is (= expected (sut/->schema [(assoc test-schema :scale 3)]))
+                  "scale is not added when precision is not set")))
+
+          (testing "n/a cases"
+            (let [expected {"fields" [{"name" "a"
+                                       "type" "STRING"}]}]
+
+              (is (= expected (sut/->schema [(assoc test-schema :type :string :precision 10)]))
+                  "not added to types no numeric or bignumeric"))))))))
 
 (deftest ->time-partitioning-test
   (testing "nominal case"

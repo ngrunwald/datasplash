@@ -141,17 +141,34 @@
 (defn- normalize-field [t]
   (str/upper-case (name t)))
 
+(defn- has-variable-length?
+  [data-type]
+  (or (= data-type "STRING")
+      (= data-type "BYTES")))
+
+(defn- has-exact-numeric?
+  [data-type]
+  (or (= data-type "NUMERIC")
+      (= data-type "BIGNUMERIC")))
+
 (defn- clj->TableFieldSchema
   [defs transform-keys]
   (for [{:keys [mode description] nested-fields :fields :as d} defs]
     (let [data-type (normalize-field (:type d))
           base-schema (-> (TableFieldSchema.)
                           (.setName (transform-keys (clean-name (:name d))))
-                          (.setType data-type))]
+                          (.setType data-type))
+          max-length (when (has-variable-length? data-type)
+                       (:maxLength d))
+          [precision scale] (when (has-exact-numeric? data-type) ; TODO: check bounds?
+                              [(:precision d) (:scale d)])]
       (cond-> base-schema
         mode (.setMode (normalize-field mode))
         (string? description) (.setDescription description)
-        nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))))))
+        nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))
+        (int? max-length) (.setMaxLength max-length)
+        (int? precision) (.setPrecision precision)
+        (and precision (int? scale)) (.setScale scale)))))
 
 (defn ->schema ^TableSchema
   ([defs transform-keys]
