@@ -399,6 +399,16 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
       (when result
         (.output c (.element c))))))
 
+(defn keep-fn
+  "Returns a function that map f on elements but keep only non nil results.
+   It is almost like Clojure `keep` but it discards only nil values."
+  [f]
+  (fn [^DoFn$ProcessContext c]
+    (let [elt (get-element-from-context c)
+          result (f elt)]
+      (when (some? result)
+        (output-to-context c result)))))
+
 (defn didentity
   {:doc "Identity function for use in a ParDo."
    :added "0.1.0"}
@@ -649,6 +659,23 @@ returns true.
 ```"
            pardo-schema)}
   dfilter (map-op filter-fn {:label :filter :isomorph? true}))
+
+(def
+  ^{:arglists [['f 'pcoll] ['f 'options 'pcoll]]
+    :added "0.7.17"
+    :doc
+    (with-opts-docstr
+      "Returns a PCollection of non nil results of f applied to every item in the source PCollection.
+Function f should be a function of one argument.
+
+Example:
+```
+(ds/keep (fn [x] (when (even? x) x)) numbers-pcoll)
+```
+
+Note: Unlike Clojure `keep` it discards only nil results."
+      pardo-schema)}
+  dkeep (map-op keep-fn {:label :keep}))
 
 (defn generate-input
   {:doc (with-opts-docstr

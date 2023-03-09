@@ -505,6 +505,35 @@
     (let [status (sut/wait-pipeline-result (sut/run-pipeline p))]
       (is (= :done status)))))
 
+(deftest keep-test
+  (testing "it keeps all elements"
+    (let [values [false true false]
+          input (sut/generate-input values (sut/make-pipeline []))
+          rslt (sut/keep identity {:name :keep-test1} input)]
+
+      (.containsInAnyOrder (PAssert/that rslt) values)
+
+      (is (str/starts-with? (.getName rslt) "keep-test1"))
+      (is (= :done (sut/wait-pipeline-result (sut/run-pipeline input))))))
+
+  (testing "it discards all elements"
+    (let [input (sut/generate-input ["a" "b" "c"] (sut/make-pipeline []))
+          rslt (sut/keep parse-long {:name :keep-test2} input)]
+
+      (.empty (PAssert/that rslt))
+
+      (is (str/starts-with? (.getName rslt) "keep-test2"))
+      (is (= :done (sut/wait-pipeline-result (sut/run-pipeline input))))))
+
+  (testing "it keeps some elements"
+    (let [input (sut/generate-input ["a" "1" "b"] (sut/make-pipeline []))
+          rslt (sut/keep parse-long {:name :keep-test3} input)]
+
+      (.containsInAnyOrder (PAssert/that rslt) [1])
+
+      (is (str/starts-with? (.getName rslt) "keep-test3"))
+      (is (= :done (sut/wait-pipeline-result (sut/run-pipeline input)))))))
+
 (deftest with-keys-test
   (tio/with-tempdir [tmp-dir]
     (let [p (sut/make-pipeline [])
