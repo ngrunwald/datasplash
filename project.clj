@@ -30,5 +30,4 @@
                    :resource-paths ["test/resources"]
                    :aot  [clojure.tools.logging.impl datasplash.api-test datasplash.examples clj-time.core datasplash.core clojure.tools.reader.reader-types]}
              :uberjar {:aot :all}}
-  :eftest {:multithread? false}
   :main datasplash.examples)
