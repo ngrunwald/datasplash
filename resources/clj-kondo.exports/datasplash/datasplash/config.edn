@@ -1,4 +1,5 @@
 {:lint-as {datasplash.api/->> clojure.core/->>
            datasplash.api/pt->> clojure.core/->>
            datasplash.options/defoptions clojure.core/def
-           datasplash.testing/with-test-pipeline clojure.core/let}}
+           datasplash.testing/with-test-pipeline clojure.core/let}
+ :hooks {:analyze-call {datasplash.core/ptransform hooks.core/ptransform}}}
