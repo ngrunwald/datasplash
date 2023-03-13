@@ -4,6 +4,7 @@
    [clj-time.coerce :as tc]
    [clj-time.format :as tf]
    [clojure.java.shell :refer [sh]]
+   [clojure.spec.alpha :as s]
    [clojure.string :as str]
    [clojure.tools.logging :as log]
    [clojure.walk :refer [postwalk prewalk]]
@@ -327,3 +328,50 @@
    (let [opts (assoc options :label :write-bq-table)]
      (ds/apply-transform pcoll (write-bq-table-clj-transform to opts) ds/named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
+
+
+;; From https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
+
+(s/def ::name (s/or :k keyword?
+                    :s (s/and string? not-empty)))
+(s/def ::mode #{:nullable :required :repeated})
+
+(s/def :simple/type
+  #{:string
+    :bytes
+    :integer :int64
+    :float :float64
+    :boolean :bool
+    :timestamp :date :time :datetime
+    :geography
+    :numeric :bignumeric})
+(s/def :nested/type
+  #{:record :struct})
+
+(s/def :field/base
+  (s/keys :req-un [::name]
+          :opt-un [::mode]))
+
+(s/def :field/simple
+  (s/merge :field/base
+           (s/keys :req-un [:simple/type])))
+
+(s/def :field/nested
+  (s/merge :field/base
+           (s/keys :req-un [:nested/type
+                            :table/fields])))
+
+(s/def ::table-field (s/or :simple :field/simple
+                           :nested :field/nested))
+
+(s/def :table/fields
+  (s/coll-of ::table-field
+             :distinct true
+             :gen-max 3
+             :min-count 1))
+
+(s/def ::table-schema
+  (s/coll-of ::table-field :distinct true :min-count 1
+             :max-gen 3))
+
+(s/def ::partition-type #{:day :hour :month :year})
