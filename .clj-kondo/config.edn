@@ -1,4 +1,3 @@
-{:lint-as {datasplash.api/->> clojure.core/->>
-           datasplash.options/defoptions clojure.core/def}
- :linters {:unsorted-required-namespaces {:level :warning}
-           :unresolved-symbol {:exclude [(tools.io/with-tempdir)]}}}
+{:linters {:unresolved-symbol {:exclude [(tools.io/with-tempdir)]}
+           :unresolved-var {:exclude [taoensso.nippy/*thaw-serializable-allowlist*]}}
+ :config-paths ["../resources/clj-kondo.exports/datasplash/datasplash"]}

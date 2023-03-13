@@ -1,0 +1,14 @@
+(ns hooks.core
+  (:require [clj-kondo.hooks-api :as api]))
+
+(defn ptransform [{:keys [:node]}]
+  (let [[*name pcoll-list & body] (rest (:children node))
+        pcoll (first (:children pcoll-list))]
+    (when-not (and *name pcoll)
+      (throw (ex-info "No transform name and pcoll provided" {})))
+    (let [new-node (api/list-node
+                    (list*
+                     (api/token-node 'let)
+                     (api/vector-node [pcoll-list *name])
+                     body))]
+      {:node new-node})))
