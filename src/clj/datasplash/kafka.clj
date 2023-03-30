@@ -2,16 +2,16 @@
   (:require
    [datasplash.core :as ds])
   (:import
-   (org.apache.beam.sdk.io.kafka
-    KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord)
-   (org.apache.kafka.common.header Header)
-   (org.joda.time Duration Instant)
    (org.apache.beam.sdk Pipeline)
-   (org.apache.beam.sdk.values PBegin PCollection))
+   (org.apache.beam.sdk.io.kafka KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord)
+   (org.apache.beam.sdk.values PBegin PCollection)
+   (org.apache.kafka.common.header Header)
+   (org.joda.time Duration Instant))
   (:gen-class))
 
 (defn- kafka-record->clj
-  "Maps a `KafkaRecord` (https://beam.apache.org/releases/javadoc/2.17.0/org/apache/beam/sdk/io/kafka/KafkaRecord.html) to a clojure map"
+  "Maps a `KafkaRecord` to a clojure map.
+   See: https://beam.apache.org/releases/javadoc/2.17.0/org/apache/beam/sdk/io/kafka/KafkaRecord.html"
   [^KafkaRecord r]
   (let [kv (.getKV r)]
     {:payload   (.getValue kv)
@@ -78,7 +78,7 @@
                                                       (.withTopicPartitions transform topic-partitions))}}))
 
 (defn- read-kafka-raw
-  "Connects and reads form Kafka"
+  "Connects and reads form Kafka."
   [bootstrap-servers topic key-deserializer value-deserializer options p]
   (let [opts (assoc options :label :read-kafka-raw)
         ptrans (-> (KafkaIO/read)
@@ -93,7 +93,6 @@
         (ds/apply-transform ptrans read-kafka-schema opts))))
 
 (defn- read-kafka-clj-transform
-  ""
   [bootstrap-servers topic key-deserializer value-deserializer options]
   (let [safe-opts (dissoc options :name)]
     (ds/ptransform
@@ -159,7 +158,7 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
                                              (.withProducerConfigUpdates transform config-map))}}))
 
 (defn- write-kafka-raw
-  "Connects and writes to Kafka"
+  "Connects and writes to Kafka."
   [bootstrap-servers topic key-serializer value-serializer options p]
   (let [opts (assoc options :label :write-kafka-raw)
         ptrans (-> (KafkaIO/write)
@@ -172,7 +171,6 @@ Using `StringDeserializer` from `org.apache.kafka.common.serialization` (https:/
         (ds/apply-transform ptrans write-kafka-schema opts))))
 
 (defn- write-kafka-clj-transform
-  ""
   [bootstrap-servers topic key-serializer value-serializer options]
   (let [safe-opts (dissoc options :name)]
     (ds/ptransform

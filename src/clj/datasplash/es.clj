@@ -5,11 +5,12 @@
   (:import
    (datasplash.fns ExtractKeyFn)
    (org.apache.beam.sdk Pipeline)
+   (org.apache.beam.sdk.io.elasticsearch ElasticsearchIO
+                                         ElasticsearchIO$ConnectionConfiguration
+                                         ElasticsearchIO$Read
+                                         ElasticsearchIO$RetryConfiguration
+                                         ElasticsearchIO$Write)
    (org.apache.beam.sdk.values PBegin PCollection)
-   (org.apache.beam.sdk.io.elasticsearch
-    ElasticsearchIO ElasticsearchIO$Read ElasticsearchIO$Write
-    ElasticsearchIO$RetryConfiguration
-    ElasticsearchIO$ConnectionConfiguration)
    (org.joda.time Duration))
   (:gen-class))
 
@@ -50,7 +51,7 @@
                         :action (fn [^ElasticsearchIO$Read transform ^String q] (.withQuery transform q))}}))
 
 (defn- read-es-raw
-  "Connects and reads form Elasticserach, returns a PColl of strings"
+  "Connects and reads form Elasticserach, returns a PColl of strings."
   [hosts index type options p]
   (let [opts (assoc options :label :read-es-raw)
         ptrans (-> (ElasticsearchIO/read)
@@ -60,7 +61,7 @@
         (ds/apply-transform ptrans read-es-schema opts))))
 
 (defn- read-es-clj-transform
-  "Connects to ES, reads, and convert serialized json to clojure map"
+  "Connects to ES, reads, and convert serialized json to clojure map."
   [hosts index type options]
   (let [safe-opts (dissoc options :name)
         key-fn    (or (get options :key-fn) false)]

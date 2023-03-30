@@ -1,4 +1,5 @@
 (ns datasplash.examples
+  (:gen-class)
   (:require
    [clojure.edn :as edn]
    [clojure.string :as str]
@@ -9,11 +10,10 @@
    [datasplash.options :as options :refer [defoptions]]
    [datasplash.pubsub :as ps])
   (:import
-   (java.util UUID)
-   (com.google.datastore.v1 Query PropertyFilter$Operator)
+   (com.google.datastore.v1 PropertyFilter$Operator Query)
    (com.google.datastore.v1.client DatastoreHelper)
-   (org.apache.beam.sdk.options PipelineOptionsFactory))
-  (:gen-class))
+   (java.util UUID)
+   (org.apache.beam.sdk.options PipelineOptionsFactory)))
 
 ;;;;;;;;;;;;;;;
 ;; WordCount ;;

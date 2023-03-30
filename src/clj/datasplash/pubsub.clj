@@ -15,13 +15,15 @@
            :string (PubsubIO/writeStrings)}})
 
 (defn ^:no-doc pubsub-message->clj
-  "Converts a pubsub message to a clojure usable object. Assumes the payload is UTF-8 encoded"
+  "Converts a pubsub message to a clojure usable object.
+   Assumes the payload is UTF-8 encoded."
   [^PubsubMessage m]
   {:payload (String. (.getPayload m) "UTF-8")
    :attributes (into {} (.getAttributeMap m))})
 
 (defn ^:no-doc clj->pubsub-message
-  "Converts a clojure map containing a payload and an attributes keys. payload must be a string and attributes a map"
+  "Converts a clojure map containing a payload and an attributes keys.
+   Payload must be a string and attributes a map."
   [{:keys [payload attributes]}]
   (let [attributes-map (->> attributes
                             (ds/dmap (fn [k v] [(if (keyword? k) (name k) (str k)) (str v)]))
@@ -29,16 +31,20 @@
     (PubsubMessage. (.getBytes payload StandardCharsets/UTF_8) attributes-map)))
 
 (defn encode-messages
-  "Converts the input to PubsubMessages. To use before `write-to-pubsub` with type `:raw`.
+  "Converts the input to PubsubMessages.
+   To use before `write-to-pubsub` with type `:raw`.
 
-  Takes as input a map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
+   Takes as input a map with a `:payload` key and an `:attributes` key,
+   assumes the payload is UTF-8 encoded."
   [options p]
   (ds/dmap clj->pubsub-message (assoc options :coder (PubsubMessageWithAttributesCoder/of)) p))
 
 (defn decode-messages
-  "Converts the input PubsubMessages to clojure objects. To use after `read-from-pubsub` with type `:raw`.
+  "Converts the input PubsubMessages to clojure objects.
+   To use after `read-from-pubsub` with type `:raw`.
 
-  Returns an map with a `:payload` key and an `:attributes` key, assumes the payload is UTF-8 encoded"
+   Returns an map with a `:payload` key and an `:attributes` key, assumes
+   the payload is UTF-8 encoded."
   [options p]
   (ds/dmap pubsub-message->clj options p))
 
