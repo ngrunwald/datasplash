@@ -6,8 +6,7 @@
    (com.google.datastore.v1.client DatastoreHelper)
    (com.google.protobuf ByteString NullValue)
    (java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date)
-   (org.apache.beam.sdk.io.gcp.datastore DatastoreIO))
-  (:gen-class))
+   (org.apache.beam.sdk.io.gcp.datastore DatastoreIO)))
 
 (defn write-datastore-raw
   "Write a pcoll of already generated datastore entity in datastore."
