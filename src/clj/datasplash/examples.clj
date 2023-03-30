@@ -12,8 +12,7 @@
   (:import
    (com.google.datastore.v1 PropertyFilter$Operator Query)
    (com.google.datastore.v1.client DatastoreHelper)
-   (java.util UUID)
-   (org.apache.beam.sdk.options PipelineOptionsFactory)))
+   (java.util UUID)))
 
 ;;;;;;;;;;;;;;;
 ;; WordCount ;;
@@ -46,7 +45,8 @@
 (defn run-word-count
   [str-args]
   (let [p (ds/make-pipeline WordCountOptions str-args)
-        {:keys [input output numShards]} (ds/get-pipeline-options p)]
+        {:keys [input output numShards] :as opts} (ds/get-pipeline-options p)]
+    (println "Preparing job WordCount with options:" opts)
     (->> p
          (ds/read-text-file input {:name "King-Lear"})
          (count-words)
@@ -243,7 +243,7 @@
 ;; Query is not wrapped yet, use Interop
 ;; PR welcome :)
 (defn make-ancestor-kind-query
-  [{:keys [kind namespace] :as opts}]
+  [{:keys [kind] :as opts}]
   (let [qb (Query/newBuilder)]
     (-> qb (.addKindBuilder) (.setName kind))
     (.setFilter qb (DatastoreHelper/makeFilter
@@ -334,23 +334,27 @@
 ;;;;;;;;;;
 
 (defn -main
-  [job & args]
+  [job-name & args]
   (compile 'datasplash.examples)
-  (some-> (cond
-            (= job "word-count") (run-word-count args)
-            (= job "dedup") (run-dedup args)
-            (= job "filter") (run-filter args)
-            (= job "combine-per-key") (run-combine-per-key args)
-            (= job "max-per-key") (run-max-per-key args)
-            (= job "standard-sql") (run-standard-sql-query args)
-            (= job "datastore-word-count") (run-datastore-word-count args)
-            (= job "pub-sub") (run-pub-sub args)
-            (re-find #"help" job)
-            (do
-              (doseq [klass [WordCountOptions]]
-                (PipelineOptionsFactory/register (Class/forName (name klass))))
-              (-> (PipelineOptionsFactory/fromArgs
-                   (into-array String (concat [job] args)))
-                  (.create)
-                  (.run))))
-          (ds/run-pipeline)))
+  (let [job (cond
+              (= job-name "word-count") run-word-count
+              (= job-name "dedup") run-dedup
+              (= job-name "filter") run-filter
+              (= job-name "combine-per-key") run-combine-per-key
+              (= job-name "max-per-key") run-max-per-key
+              (= job-name "standard-sql") run-standard-sql-query
+              (= job-name "datastore-word-count") run-datastore-word-count
+              (= job-name "pub-sub") run-pub-sub)]
+    (if (nil? job)
+      (println "Failed to identity Dataflow job for:" job-name)
+      (let [p (job args)]
+        (ds/wait-pipeline-result (ds/run-pipeline p))
+        (println "Job" job-name "done.")))))
+
+
+(comment
+  (-main "word-count"
+         "--runner=DirectRunner"
+         "--input=gs://apache-beam-samples/shakespeare/kinglear.txt"
+         "--output=tmp/kinglear-freq.txt"
+         "--numShards=1"))
