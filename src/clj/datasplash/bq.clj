@@ -9,15 +9,15 @@
    [clojure.walk :refer [postwalk prewalk]]
    [datasplash.core :as ds])
   (:import
-   (com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema TimePartitioning
-    Clustering)
+   (com.google.api.services.bigquery.model Clustering TableFieldSchema TableRow TableSchema TimePartitioning)
    (org.apache.beam.sdk Pipeline)
-   (org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO
-    BigQueryIO$Write$WriteDisposition BigQueryIO$Write$SchemaUpdateOption
-    BigQueryIO$Write$CreateDisposition TableDestination InsertRetryPolicy
-    BigQueryIO$Write$Method)
+   (org.apache.beam.sdk.io.gcp.bigquery BigQueryIO
+                                        BigQueryIO$Write$CreateDisposition
+                                        BigQueryIO$Write$Method
+                                        BigQueryIO$Write$SchemaUpdateOption
+                                        BigQueryIO$Write$WriteDisposition
+                                        InsertRetryPolicy
+                                        TableDestination)
    (org.apache.beam.sdk.values PBegin PCollection)))
 
 

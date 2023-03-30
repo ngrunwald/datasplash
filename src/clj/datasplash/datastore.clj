@@ -1,7 +1,8 @@
 (ns datasplash.datastore
-  (:require [datasplash.core :as ds])
+  (:require
+   [datasplash.core :as ds])
   (:import
-   (com.google.datastore.v1 Entity Value Key Entity$Builder Value$Builder Value$ValueTypeCase Key$PathElement)
+   (com.google.datastore.v1 Entity Entity$Builder Key Key$PathElement Value Value$Builder Value$ValueTypeCase)
    (com.google.datastore.v1.client DatastoreHelper)
    (com.google.protobuf ByteString NullValue)
    (java.util Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry Date)
@@ -9,7 +10,7 @@
   (:gen-class))
 
 (defn write-datastore-raw
-  "Write a pcoll of already generated datastore entity in datastore"
+  "Write a pcoll of already generated datastore entity in datastore."
   [{:keys [project-id] :as options} pcoll]
   (let [opts (assoc options :label :write-datastore-raw)
         ptrans (-> (DatastoreIO/v1)
@@ -18,7 +19,7 @@
     (ds/apply-transform pcoll ptrans ds/named-schema opts)))
 
 (defn read-datastore-raw
-  "Read a datastore source return a pcoll of raw datastore entities"
+  "Read a datastore source return a pcoll of raw datastore entities."
   [{:keys [project-id query namespace num-query-split] :as options} pcoll]
   (let [opts (assoc options :label :write-datastore)
         ptrans (-> (DatastoreIO/v1)
@@ -30,7 +31,7 @@
     (ds/apply-transform pcoll ptrans ds/named-schema opts)))
 
 (defn delete-datastore-raw
-  "delete a pcoll of already generated datastore entity from datastore"
+  "Delete a pcoll of already generated datastore entity from datastore."
   [{:keys [project-id] :as options} pcoll]
   (let [opts (assoc options :label :delete-datastore-raw)
         ptrans (-> (DatastoreIO/v1)
@@ -57,7 +58,7 @@
    (Value$ValueTypeCase/valueOf "NULL_VALUE") (constantly nil)})
 
 (defn value->clj
-  "Converts a Datastore Value to its Clojure equivalent"
+  "Converts a Datastore Value to its Clojure equivalent."
   [^Value v]
   (let [t (.getValueTypeCase v)
         tx (type-mapping t)]
@@ -71,7 +72,11 @@
     name-or-id))
 
 (defn entity->clj
-  "Converts a Datastore Entity to a Clojure map with the same properties. Repeated fields are handled as vectors and nested Entities as maps. All keys are turned to keywords. If the entity has a Key, Kind or Namespace, these can be found as :key, :kind, :namespace and :path in the meta of the returned map"
+  "Converts a Datastore Entity to a Clojure map with the same properties.
+   Repeated fields are handled as vectors and nested Entities as maps.
+   All keys are turned to keywords.
+   If the entity has a Key, Kind or Namespace, these can be found as :key,
+   :kind, :namespace and :path in the meta of the returned map."
   [^Entity e]
   (let [props (persistent!
                (reduce (fn [acc ^Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry kv]
@@ -90,8 +95,8 @@
         (cond-> k (with-meta {:key key-name :kind kind :namespace namespace :path path})))))
 
 (defprotocol IValDS
-  "Protocol governing to conversion to datastore Value types"
-  (make-ds-value-builder [v] "Returns a Datastore Value builder for this particular value"))
+  "Protocol governing to conversion to datastore Value types."
+  (make-ds-value-builder [v] "Returns a Datastore Value builder for this particular value."))
 
 (declare make-ds-value)
 (declare make-ds-entity)
@@ -106,13 +111,13 @@
   Date
   (make-ds-value-builder [^java.util.Date v] (DatastoreHelper/makeValue v))
   clojure.lang.PersistentList
-  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv make-ds-value v)))
   clojure.lang.PersistentHashSet
-  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv make-ds-value v)))
   clojure.lang.PersistentTreeSet
-  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv make-ds-value v)))
   clojure.lang.PersistentVector
-  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv #(make-ds-value %) v)))
+  (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Iterable (mapv make-ds-value v)))
   clojure.lang.PersistentHashMap
   (make-ds-value-builder [v] (DatastoreHelper/makeValue ^Entity (make-ds-entity v)))
   clojure.lang.PersistentArrayMap
@@ -158,7 +163,13 @@
   (.build ^Value$Builder (make-ds-value-builder v)))
 
 (defn make-ds-entity
-  "Builds a Datastore Entity with the given Clojure value which is a map or seq of KVs corresponding to the desired entity, and options contains an optional key, path, namespace, kind and an optional set of field names that shoud not be indexed (only supported for top level fields for now). Supports repeated fields and nested entities (as nested map)"
+  "Builds a Datastore Entity with the given Clojure value.
+   Input value is a map or seq of KVs corresponding to the desired entity.
+   Supports repeated fields and nested entities (as nested map).
+
+   Options contains an optional :key, :path, :namespace, :kind and
+   an optional :exclude-from-index set of field names that shoud not be
+   indexed (only supported for top level fields for now)."
   ([raw-values {:keys [key] :as options}]
    (let [^Entity$Builder builder (-> (make-ds-entity-builder raw-values options)
                                      (cond-> key (add-ds-key-namespace-kind options)))]

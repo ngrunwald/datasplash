@@ -12,28 +12,40 @@
    ;; to make aot work
    [taoensso.nippy :as nippy])
   (:import
-   (clojure.lang MapEntry ExceptionInfo)
-   (datasplash.fns
-    ClojureDoFn ClojureStatefulDoFn ClojureCombineFn ClojurePTransform ClojureCustomCoder)
+   (clojure.lang ExceptionInfo MapEntry)
+   (datasplash.fns ClojureCombineFn ClojureCustomCoder ClojureDoFn ClojurePTransform ClojureStatefulDoFn)
    (datasplash.pipelines PipelineWithOptions)
-   (java.io InputStream OutputStream DataInputStream DataOutputStream StringWriter)
+   (java.io DataInputStream DataOutputStream InputStream OutputStream StringWriter)
    (org.apache.beam.sdk Pipeline)
-   (org.apache.beam.sdk.coders StringUtf8Coder KvCoder)
-   (org.apache.beam.sdk.io TextIO FileIO TextIO Compression)
+   (org.apache.beam.sdk.coders KvCoder StringUtf8Coder)
+   (org.apache.beam.sdk.io Compression FileIO TextIO)
    (org.apache.beam.sdk.io.fs EmptyMatchTreatment)
    (org.apache.beam.sdk.options PipelineOptionsFactory)
-   (org.apache.beam.sdk.transforms
-    Contextful DoFn DoFn$ProcessContext ParDo Create PTransform
-    Partition Partition$PartitionFn
-    SerializableFunction WithKeys GroupByKey Distinct Count
-    Flatten Combine$CombineFn Combine View View$AsSingleton Sample
-    Watch$Growth Sets)
-   (org.apache.beam.sdk.transforms.join KeyedPCollectionTuple CoGroupByKey CoGbkResult)
-   (org.apache.beam.sdk.transforms.windowing
-    BoundedWindow Window FixedWindows SlidingWindows Sessions Trigger)
+   (org.apache.beam.sdk.transforms Combine
+                                   Combine$CombineFn
+                                   Contextful
+                                   Count
+                                   Create
+                                   Distinct
+                                   DoFn
+                                   DoFn$ProcessContext
+                                   Flatten
+                                   GroupByKey
+                                   ParDo
+                                   Partition
+                                   Partition$PartitionFn
+                                   PTransform
+                                   Sample
+                                   SerializableFunction
+                                   Sets
+                                   View
+                                   View$AsSingleton
+                                   Watch$Growth
+                                   WithKeys)
+   (org.apache.beam.sdk.transforms.join CoGbkResult CoGroupByKey KeyedPCollectionTuple)
+   (org.apache.beam.sdk.transforms.windowing BoundedWindow FixedWindows Sessions SlidingWindows Trigger Window)
    (org.apache.beam.sdk.util UserCodeException)
-   (org.apache.beam.sdk.values
-    KV PCollection TupleTag TupleTagList PBegin PCollectionList PInput PCollectionTuple)
+   (org.apache.beam.sdk.values KV PBegin PCollection PCollectionList PCollectionTuple PInput TupleTag TupleTagList)
    (org.joda.time DateTimeUtils DateTimeZone Duration Instant)
    (org.joda.time.format DateTimeFormat)))
 
