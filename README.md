@@ -18,18 +18,20 @@ battle tested) any other [Apache Beam][beam] backend.
 You can also see ports of the official Dataflow examples in the
 `datasplash.examples` namespace.
 
-Here is the classic word count:
+Here is the classic word count example.
+
+:information_source: You will need to run `(compile 'datasplash.examples)`
+every time you make a change.
 
 ```clojure
 (ns datasplash.examples
   (:require [clojure.string :as str]
-            [datasplash
-             [api :as ds]
-             [options :refer [defoptions]]])
+            [datasplash.api :as ds]
+            [datasplash.options :refer [defoptions]])
   (:gen-class))
 
 (defn tokenize
-  [l]
+  [^String l]
   (remove empty? (.split (str/trim l) "[^a-zA-Z']+")))
 
 (defn count-words
@@ -45,10 +47,8 @@ Here is the classic word count:
 (defoptions WordCountOptions
   {:input {:default "gs://dataflow-samples/shakespeare/kinglear.txt"
            :type String}
-   :output {:default "kinglear-freqs.txt"
-            :type String}
-   :numShards {:default 0
-               :type Long}})
+   :output {:default "kinglear-freqs.txt" :type String}
+   :numShards {:default 0 :type Long}})
 
 (defn -main
   [& str-args]
@@ -59,28 +59,44 @@ Here is the classic word count:
          (count-words)
          (ds/map format-count {:name :format-count})
          (ds/write-text-file output {:num-shards numShards})
-		 (ds/run-pipeline))))
+         (ds/run-pipeline))))
 ```
-Run it from the repl with:
+
+### Run it from the repl
+
+Locally on your machine using a DirectRunner:
+
 ```clojure
 (in-ns 'datasplash.examples)
 (clojure.core/compile 'datasplash.examples)
-(-main "--input=in.txt" "--output=out.txt")
+(-main "--input=sometext.txt" "--output=out-freq.txt" "--numShards=1")
 ```
-Note that you will need to run `(compile 'datasplash.examples)` every time you
-make a change.
 
-Run an example from the examples namespace locally with:
+Remotely on Google Cloud using a DataflowRunner:
+
+You should have properly configured your Google Cloud account and Dataflow
+access from your machine.
+
+```clojure
+(in-ns 'datasplash.examples)
+(clojure.core/compile 'datasplash.examples)
+(-main "--project=my-project"
+       "--runner=DataflowRunner"
+       "--gcpTempLocation=gs://bucket/tmp"
+       "--input=gs://apache-beam-samples/shakespeare/kinglear.txt"
+       "--output=gs://bucket/outputs/kinglear-freq.txt"
+       "--numShards=1")
+```
+
+### Run it as a standalone program
+
+Datasplash needs to be AOT compiled, so you should prepare an uberjar and
+run from your main entry like so:
 
 ```bash
-lein run example-name --input=in.txt --output=out.txt
+java -jar my-dataflow-job-uber.jar [beam-args]
 ```
 
-Run in on Google Cloud (if you have done a `gcloud init` on this machine):
-
-```bash
-lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --output=gs://my-project-tmp/results.txt  --runner=DataflowRunner --project=my-project --stagingLocation=gs://my-project-staging
-```
 
 ## Caveats
 
@@ -105,8 +121,8 @@ lein run example-name --input=gs://dataflow-samples/shakespeare/kinglear.txt --o
   probably forgot to compile your namespace.
 - Whenever you need to check some spec in user code, you will have to first require
   those specs because they may not be loaded in your Clojure runtime. But don't
-  use `(require)` because it's not thread safe. See [[this issue]](https://clojure.atlassian.net/browse/CLJ-1876)
-  for a workaround.
+  use `(require)` because it's not thread safe.
+  See [[this issue]](https://clojure.atlassian.net/browse/CLJ-1876) for a workaround.
 - If you see a `java.io.IOException: No such file or directory` when invoking
   `compile`, make sure there is a directory in your project root that matches
   the value of `*compile-path*` (default `classes`).
