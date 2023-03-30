@@ -11,8 +11,7 @@
                                          ElasticsearchIO$RetryConfiguration
                                          ElasticsearchIO$Write)
    (org.apache.beam.sdk.values PBegin PCollection)
-   (org.joda.time Duration))
-  (:gen-class))
+   (org.joda.time Duration)))
 
 
 (def ^:no-doc es-connection-schema

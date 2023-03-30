@@ -34,6 +34,4 @@
                          datasplash.api-test
                          datasplash.core
                          datasplash.examples
-                         datasplash.testing.assert-test]}
-             :uberjar {:aot :all}}
-  :main datasplash.examples)
+                         datasplash.testing.assert-test]}})

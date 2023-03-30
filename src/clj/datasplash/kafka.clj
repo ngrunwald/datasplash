@@ -6,8 +6,7 @@
    (org.apache.beam.sdk.io.kafka KafkaIO KafkaIO$Read KafkaIO$Write KafkaRecord)
    (org.apache.beam.sdk.values PBegin PCollection)
    (org.apache.kafka.common.header Header)
-   (org.joda.time Duration Instant))
-  (:gen-class))
+   (org.joda.time Duration Instant)))
 
 (defn- kafka-record->clj
   "Maps a `KafkaRecord` to a clojure map.
