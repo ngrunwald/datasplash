@@ -1,5 +1,15 @@
 # Changes for Datasplash
 
+## [v0.7.17] - 2023-04-07
+- add ds/distinct-by, ds/keep
+- normalize BQ schema
+- support for maxLength, precision, scale fields in BQ tables
+- new PAssert testing utilities
+- clean up aot files to reduce size
+- BQ specs for schema-validation
+- new exported clj-kondo config
+- bump charred to 1.028, beam sdk to 2.46.0
+
 ## [v0.7.16] - 2023-01-27
 - Bump charred to 1.019, beam to 2.44.0
 
@@ -205,7 +215,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.16...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.17...devel
+[v0.7.17]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.16...v0.7.17
 [v0.7.16]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.15...v0.7.16
 [v0.7.15]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.14...v0.7.15
 [v0.7.14]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.13...v0.7.14
