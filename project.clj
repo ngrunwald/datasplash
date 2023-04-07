@@ -25,7 +25,7 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.3.4" :upgrade false]
-                                  [com.oscaro/tools-io "0.3.29"]]
+                                  [com.oscaro/tools-io "0.3.30"]]
                    :source-paths ["test"]
                    :resource-paths ["test/resources"]
                    :aot [clj-time.core

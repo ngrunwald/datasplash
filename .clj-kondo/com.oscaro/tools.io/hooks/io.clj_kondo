@@ -1,0 +1,22 @@
+(ns hooks.io
+  (:require [clj-kondo.hooks-api :as api]))
+
+(defn- with-generated-string
+  [{:keys [:node]} *name]
+  (let [[name-in-list & body] (rest (:children node))]
+
+    (when-not (= 1 (count (:children name-in-list)))
+      (throw (ex-info (str *name " expects single argument") {})))
+    (let [n (first (:children name-in-list))
+          new-node (api/list-node
+                    (list*
+                     (api/token-node 'let)
+                     (api/vector-node [n (api/string-node "tmp-name")])
+                     body))]
+      {:node new-node})))
+
+(defn with-tempdir [expr]
+  (with-generated-string expr "tempdir"))
+
+(defn with-tempfile [expr]
+  (with-generated-string expr "tempfile"))

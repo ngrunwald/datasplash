@@ -1,3 +1,2 @@
-{:linters {:unresolved-symbol {:exclude [(tools.io/with-tempdir)]}
-           :unresolved-var {:exclude [taoensso.nippy/*thaw-serializable-allowlist*]}}
+{:linters {:unresolved-var {:exclude [taoensso.nippy/*thaw-serializable-allowlist*]}}
  :config-paths ["../resources/clj-kondo.exports/datasplash/datasplash"]}
