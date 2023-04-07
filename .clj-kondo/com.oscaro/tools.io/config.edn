@@ -1,0 +1,2 @@
+{:hooks {:analyze-call {tools.io/with-tempdir hooks.io/with-tempdir
+                        tools.io/with-tempfile hooks.io/with-tempfile}}}
