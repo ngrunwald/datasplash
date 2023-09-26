@@ -1,5 +1,10 @@
 # Changes for Datasplash
 
+## Unreleased
+- Bump beam to 2.50.0
+- Bump charred to 1.033
+- Bump superstring to 3.2.0
+
 ## [v0.7.17] - 2023-04-07
 - add ds/distinct-by, ds/keep
 - normalize BQ schema
