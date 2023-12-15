@@ -1,7 +1,8 @@
 # Changes for Datasplash
 
 ## [Unreleased]
-
+- Bump beam to 2.52.0
+- Add taoensso/encore required dependency for nippy.
 
 ## [v0.7.18] - 2023-09-29
 - Bump beam to 2.50.0
