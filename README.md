@@ -130,7 +130,7 @@ java -jar my-dataflow-job-uber.jar [beam-args]
 
 ## License
 
-Copyright © 2015-2023 Oscaro.com
+Copyright © 2015-2024 Oscaro.com
 
 Distributed under the Eclipse Public License either version 1.0 or (at your
 option) any later version.

@@ -1,6 +1,6 @@
 # Changes for Datasplash
 
-## [Unreleased]
+## [0.7.19] - 2023-12-15
 - Bump beam to 2.52.0
 - Add taoensso/encore required dependency for nippy.
 
@@ -224,7 +224,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/v0.7.18...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.19...devel
+[0.7.19]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.18...0.7.19
 [v0.7.18]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.17...v0.7.18
 [v0.7.17]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.16...v0.7.17
 [v0.7.16]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.15...v0.7.16
