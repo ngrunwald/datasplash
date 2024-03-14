@@ -5,6 +5,10 @@
 ### Added
 
 ### Changed
+* Bump beam to 2.54.0
+* Bump charred to 1.034
+* Bump math.combinatronics
+* Bump clojure
 
 ### Fixed
 
