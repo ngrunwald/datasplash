@@ -1,9 +1,6 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.20] - 2024-03-16
 ### Changed
 * Bump beam to 2.54.0
 * Bump charred to 1.034
@@ -11,9 +8,6 @@
 * Bump clojure
 * Downgrade slf4j to 1.7.x as v2 is not compatible with beam > 2.53.0
 * Replace :dev profile logback dep with slj4j-simple
-
-### Fixed
-
 
 ## [0.7.19] - 2023-12-15
 - Bump beam to 2.52.0
@@ -239,7 +233,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.19...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.20...devel
+[0.7.20]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.19...0.7.20
 [0.7.19]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.18...0.7.19
 [v0.7.18]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.17...v0.7.18
 [v0.7.17]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.16...v0.7.17
