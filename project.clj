@@ -22,7 +22,9 @@
                  [org.apache.kafka/kafka-clients "3.7.0"]
                  [superstring "3.2.0"]
 
-                 [org.slf4j/slf4j-api "2.0.9"]]
+                 ;; as of 2.53.0, beam is no longer compatible with slf4j-2. See:
+                 ;; https://cwiki.apache.org/confluence/display/BEAM/Java+Tips
+                 [org.slf4j/slf4j-api "1.7.36"]]
   :pedantic? false
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
