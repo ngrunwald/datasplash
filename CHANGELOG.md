@@ -10,6 +10,7 @@
 * Bump math.combinatronics
 * Bump clojure
 * Downgrade slf4j to 1.7.x as v2 is not compatible with beam > 2.53.0
+* Replace :dev profile logback dep with slj4j-simple
 
 ### Fixed
 

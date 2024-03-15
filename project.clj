@@ -30,7 +30,7 @@
   :java-source-paths ["src/java"]
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
-  :profiles {:dev {:dependencies [[ch.qos.logback/logback-core "1.3.14" :upgrade false]
+  :profiles {:dev {:dependencies [[org.slf4j/slf4j-simple "1.7.36"]
                                   [com.oscaro/tools-io "0.3.37"]]
                    :source-paths ["test"]
                    :resource-paths ["test/resources"]
