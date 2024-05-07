@@ -154,22 +154,42 @@
 
 (defn- clj->TableFieldSchema
   [defs transform-keys]
-  (for [{:keys [mode description] nested-fields :fields :as d} defs]
+  (for [{:keys [mode] nested-fields :fields :as d} defs]
     (let [data-type (normalize-field (:type d))
+          description (when-let [desc (:description d)]
+                        (cond-> desc
+                          (> (count desc) 1024)
+                          (subs 0 1024)))
           base-schema (-> (TableFieldSchema.)
                           (.setName (transform-keys (clean-name (:name d))))
                           (.setType data-type))
           max-length (when (has-variable-length? data-type)
                        (:maxLength d))
           [precision scale] (when (has-exact-numeric? data-type) ; TODO: check bounds?
-                              [(:precision d) (:scale d)])]
+                              [(:precision d) (:scale d)])
+          collation (when (= "STRING" data-type)
+                      (:collation d))]
       (cond-> base-schema
-        mode (.setMode (normalize-field mode))
-        (string? description) (.setDescription description)
-        nested-fields (.setFields (clj->TableFieldSchema nested-fields transform-keys))
-        (int? max-length) (.setMaxLength max-length)
-        (int? precision) (.setPrecision precision)
-        (and precision (int? scale)) (.setScale scale)))))
+        mode
+        (.setMode (normalize-field mode))
+
+        (seq description)
+        (.setDescription description)
+
+        nested-fields
+        (.setFields (clj->TableFieldSchema nested-fields transform-keys))
+
+        (int? max-length)
+        (.setMaxLength max-length)
+
+        (int? precision)
+        (.setPrecision precision)
+
+        (and precision (int? scale))
+        (.setScale scale)
+
+        collation
+        (.setCollation collation)))))
 
 (defn ->schema ^TableSchema
   ([defs transform-keys]
@@ -333,38 +353,74 @@
 ;; From https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
 
 (s/def ::name (s/or :k keyword?
-                    :s (s/and string? not-empty)))
+                    :s (s/and string? seq)))
 (s/def ::mode #{:nullable :required :repeated})
+(s/def ::description (s/and string? seq))
 
-(s/def :simple/type
-  #{:string
-    :bytes
-    :integer :int64
+(s/def :ds.bigquery.field/common
+  (s/keys :req-un [::name]
+          :opt-un [::mode
+                   ::description]))
+
+;; types
+(s/def :ds.bigquery.string/type
+  #{:string})
+
+(s/def :ds.bigquery.bytes/type
+  #{:bytes})
+
+(s/def :ds.bigquery.simple/type
+  #{:integer :int64
     :float :float64
     :boolean :bool
     :timestamp :date :time :datetime
     :geography
+    :json
     :numeric :bignumeric})
-(s/def :nested/type
+
+(s/def :ds.bigquery.nested/type
   #{:record :struct})
 
-(s/def :field/base
-  (s/keys :req-un [::name]
-          :opt-un [::mode]))
+(s/def :ds.bigquery.ranged/type
+  #{:range})
 
-(s/def :field/simple
-  (s/merge :field/base
-           (s/keys :req-un [:simple/type])))
+;; with corresponding required / opt fields
+(s/def :ds.bigquery.field/maxLength nat-int?)
+(s/def :ds.bigquery.string/collation #{"und:ci" ""})
+(s/def :ds.bigquery.ranged/rangeElementType #{:date :datetime :timestamp})
 
-(s/def :field/nested
-  (s/merge :field/base
-           (s/keys :req-un [:nested/type
-                            :table/fields])))
+(s/def :ds.bigquery.field/string
+  (s/merge :ds.bigquery.field/common
+           (s/keys :req-un [:ds.bigquery.string/type]
+                   :opt-un [:ds.bigquery.field/maxLength
+                            :ds.bigquery.string/collation])))
 
-(s/def ::table-field (s/or :simple :field/simple
-                           :nested :field/nested))
+(s/def :ds.bigquery.field/bytes
+  (s/merge :ds.bigquery.field/common
+           (s/keys :req-un [:ds.bigquery.bytes/type]
+                   :opt-un [:ds.bigquery.field/maxLength])))
 
-(s/def :table/fields
+(s/def :ds.bigquery.field/simple
+  (s/merge :ds.bigquery.field/common
+           (s/keys :req-un [:ds.bigquery.simple/type])))
+
+(s/def :ds.bigquery.field/nested
+  (s/merge :ds.bigquery.field/common
+           (s/keys :req-un [:ds.bigquery.nested/type
+                            :ds.bigquery.table/fields])))
+
+(s/def :ds.bigquery.field/ranged
+  (s/merge :ds.bigquery.field/common
+           (s/keys :req-un [:ds.bigquery.ranged/type
+                            :ds.bigquery.ranged/rangeElementType])))
+
+(s/def ::table-field (s/or :string :ds.bigquery.field/string
+                           :bytes  :ds.bigquery.field/bytes
+                           :simple :ds.bigquery.field/simple
+                           :nested :ds.bigquery.field/nested
+                           :ranged :ds.bigquery.field/ranged))
+
+(s/def :ds.bigquery.table/fields
   (s/coll-of ::table-field
              :distinct true
              :gen-max 3

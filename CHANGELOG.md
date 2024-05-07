@@ -6,6 +6,8 @@
 
 ### Changed
 * Bump beam to 2.56.0
+* update of BQ schema spec types to now allow `:json` and `:range`
+* add support to set collation for STRING type
 
 ### Fixed
 

@@ -132,6 +132,15 @@
           (is (= expected
                  rslt))))
 
+      (testing "collation"
+        (let [test-schema (assoc schema :collation "und:ci'")
+              expected {"fields" [{"name" "a"
+                                   "type" "STRING"
+                                   "collation" "und:ci'"}]}
+              rslt (sut/->schema [test-schema])]
+          (is (= expected
+                 rslt))))
+
       (testing "variable length options"
         (let [test-schema (assoc schema :maxLength 200)
               expected {"fields" [{"name" "a"
