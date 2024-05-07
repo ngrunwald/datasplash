@@ -119,7 +119,7 @@
                        (prewalk coerce-by-bq-val)
                        (bqize-keys))
 
-        my-mapper (org.codehaus.jackson.map.ObjectMapper.)
+        my-mapper (com.fasterxml.jackson.databind.ObjectMapper.)
 
         ^TableRow row (.readValue my-mapper (ds/write-json-str clean-map) TableRow)]
     row))
