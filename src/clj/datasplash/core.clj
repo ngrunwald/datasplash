@@ -1416,10 +1416,13 @@ Example:
                      :label (str "read-json-file-from-"
                                  (clean-filename from))
                      :coder (or (:coder options) (make-nippy-coder)))
-         decode-fn  #(charred/read-json % (cond-> {:eof-error? false :eof-value nil}
-                                            key-fn (assoc :key-fn key-fn)
-                                            return-type (assoc :value-fn return-type)
-                                            eof-error? (assoc :eof-error? eof-error?)))]
+         initialize-fn (fn []
+                         (safe-exec
+                          (charred/parse-json-fn (cond-> {:eof-error? false :eof-value nil}
+                                                   key-fn (assoc :key-fn key-fn)
+                                                   return-type (assoc :value-fn return-type)
+                                                   eof-error? (assoc :eof-error? eof-error?)))) )
+         decode-fn (fn [s] ((system) s))]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))
       p
@@ -1427,7 +1430,7 @@ Example:
                                (dissoc :coder)
                                (assoc :name "read-text-file")))
       (dmap decode-fn
-            (assoc opts :name "json-decode")))))
+            (assoc opts :name "json-decode" :initialize-fn initialize-fn)))))
   ([from p] (read-json-file from {} p)))
 
 (defn read-json-files
