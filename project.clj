@@ -3,7 +3,7 @@
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.11.2"]
+  :dependencies [[org.clojure/clojure "1.11.3"]
                  [org.clojure/math.combinatorics "0.3.0"]
                  [org.clojure/tools.logging "1.3.0"]
 
@@ -13,14 +13,17 @@
 
                  [com.taoensso/nippy "3.3.0"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.54.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.54.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.54.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.54.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.54.0"]
-                 [org.apache.beam/beam-runners-core-java "2.54.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.56.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.56.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.56.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.56.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.56.0"]
+                 [org.apache.beam/beam-runners-core-java "2.56.0"]
                  [org.apache.kafka/kafka-clients "3.7.0"]
                  [superstring "3.2.0"]
+
+                 ;; required as of beam 2.55.0
+                 [junit/junit "4.13.1"]
 
                  ;; as of 2.53.0, beam is no longer compatible with slf4j-2. See:
                  ;; https://cwiki.apache.org/confluence/display/BEAM/Java+Tips
