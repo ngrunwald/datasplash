@@ -1,16 +1,10 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.21] - 2024-05-07
 ### Changed
 * Bump beam to 2.56.0
 * update of BQ schema spec types to now allow `:json` and `:range`
 * add support to set collation for STRING type
-
-### Fixed
-
 
 ## [0.7.20] - 2024-03-16
 ### Changed
@@ -245,8 +239,9 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.20...devel
-[0.7.20]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.19...0.7.20
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.21...devel
+[0.7.21]: https://github.com/ngrunwald/datasplash/-/compare/0.7.20...0.7.21
+[0.7.20]: https://github.com/ngrunwald/datasplash/-/compare/0.7.19...0.7.20
 [0.7.19]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.18...0.7.19
 [v0.7.18]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.17...v0.7.18
 [v0.7.17]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.16...v0.7.17
