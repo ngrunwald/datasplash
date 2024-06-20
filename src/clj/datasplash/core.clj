@@ -1174,12 +1174,11 @@ See https://beam.apache.org/documentation/programming-guide/#creating-a-pipeline
     o))
 
 (def compression-type-enum
-  {:auto Compression/AUTO
-   :bzip2 Compression/BZIP2
-   :gzip Compression/GZIP
-   :zip Compression/ZIP
-   :deflate Compression/DEFLATE
-   :uncompressed Compression/UNCOMPRESSED})
+  (into {}
+        (map (fn [compression]
+               (vector (-> (.name compression) str/lower-case keyword)
+                       compression)))
+        (Compression/values)))
 
 (def empty-match-treatment-enum
   {:allow EmptyMatchTreatment/ALLOW

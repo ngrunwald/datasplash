@@ -34,7 +34,15 @@
   :java-source-paths ["src/java"]
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
-  :profiles {:dev {:dependencies [[org.slf4j/slf4j-simple "1.7.36"]
-                                  [com.oscaro/tools-io "0.3.37"]]}
+  :profiles {:dev {:dependencies
+                   [[com.oscaro/tools-io "0.3.37"]
+                    ;; include compression libs for tests
+                    ;;  zstd
+                    [com.github.luben/zstd-jni "1.5.6-3"]
+                    ;;  lzo & lzop
+                    [io.airlift/aircompressor "0.27"]
+                    [com.facebook.presto.hadoop/hadoop-apache2 "2.7.4-12"]
+                    ;; compatible log implementation for local runs
+                    [org.slf4j/slf4j-simple "1.7.36"]]}
              :test {:source-paths ["test"]
                     :aot :all}})

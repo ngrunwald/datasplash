@@ -127,6 +127,23 @@ java -jar my-dataflow-job-uber.jar [beam-args]
   `compile`, make sure there is a directory in your project root that matches
   the value of `*compile-path*` (default `classes`).
 
+## About compression libraries
+
+The Beam Java SDK does not pull in the Zstd library by default, so it is the
+user's responsibility to declare an explicit dependency on `zstd-jni`. Attempts
+to read or write _.zst_ files without this library loaded will result in
+`NoClassDefFoundError` at runtime.
+
+The Beam Java SDK does not pull in the required libraries for LZOP compression
+by default, so it is the user's responsibility to declare an explicit
+dependency on `io.airlift:aircompressor` and
+`com.facebook.presto.hadoop:hadoop-apache2`. Attempts to read or write _.lzo_
+files without those libraries loaded will result in a `NoClassDefFoundError`
+at runtime.
+
+See Apache Beam [Compression enum][] for details.
+
+[Compression enum]: https://beam.apache.org/releases/javadoc/current/org/apache/beam/sdk/io/Compression.html
 
 ## License
 
