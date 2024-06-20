@@ -29,18 +29,12 @@
                  ;; https://cwiki.apache.org/confluence/display/BEAM/Java+Tips
                  [org.slf4j/slf4j-api "1.7.36"]]
   :pedantic? false
+  :target-path "target/%s/"
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies [[org.slf4j/slf4j-simple "1.7.36"]
-                                  [com.oscaro/tools-io "0.3.37"]]
-                   :source-paths ["test"]
-                   :resource-paths ["test/resources"]
-                   :aot [clj-time.core
-                         clojure.tools.logging.impl
-                         clojure.tools.reader.reader-types
-                         datasplash.api-test
-                         datasplash.core
-                         datasplash.examples
-                         datasplash.testing.assert-test]}})
+                                  [com.oscaro/tools-io "0.3.37"]]}
+             :test {:source-paths ["test"]
+                    :aot :all}})
