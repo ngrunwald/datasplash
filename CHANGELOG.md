@@ -5,6 +5,8 @@
 ### Added
 
 ### Changed
+* Build compression-type map from Compression enum.
+* Bump beam to 2.57.0.
 
 ### Fixed
 
