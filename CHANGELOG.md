@@ -1,5 +1,14 @@
 # Changes for Datasplash
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+
 ## [0.7.22] - 2024-07-01
 ### Changed
 * Build compression-type map from Compression enum.
