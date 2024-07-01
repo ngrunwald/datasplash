@@ -1,15 +1,9 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.22] - 2024-07-01
 ### Changed
 * Build compression-type map from Compression enum.
 * Bump beam to 2.57.0.
-
-### Fixed
-
 
 ## [0.7.21] - 2024-05-07
 ### Changed
@@ -250,7 +244,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.21...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.22...devel
+[0.7.22]: https://github.com/ngrunwald/datasplash/-/compare/0.7.21...0.7.22
 [0.7.21]: https://github.com/ngrunwald/datasplash/-/compare/0.7.20...0.7.21
 [0.7.20]: https://github.com/ngrunwald/datasplash/-/compare/0.7.19...0.7.20
 [0.7.19]: https://github.com/ngrunwald/datasplash/-/compare/v0.7.18...0.7.19
