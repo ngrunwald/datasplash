@@ -1,2 +1,0 @@
-{:linters {:unresolved-var {:exclude [taoensso.nippy/*thaw-serializable-allowlist*]}}
- :config-paths ["../resources/clj-kondo.exports/datasplash/datasplash"]}
