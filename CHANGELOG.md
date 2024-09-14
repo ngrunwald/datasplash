@@ -5,6 +5,7 @@
 ### Added
 
 ### Changed
+* Bump beam to 2.59.0. Downgrade kafka-clients to match beam's version.
 
 ### Fixed
 

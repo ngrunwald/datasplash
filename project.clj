@@ -13,13 +13,13 @@
 
                  [com.taoensso/nippy "3.4.2"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.57.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.57.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.57.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.57.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.57.0"]
-                 [org.apache.beam/beam-runners-core-java "2.57.0"]
-                 [org.apache.kafka/kafka-clients "3.7.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.59.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.59.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.59.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.59.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.59.0"]
+                 [org.apache.beam/beam-runners-core-java "2.59.0"]
+                 [org.apache.kafka/kafka-clients "2.4.1"]
                  [superstring "3.2.0"]
 
                  ;; required as of beam 2.55.0
@@ -38,9 +38,9 @@
                    [[com.oscaro/tools-io "0.3.38"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.6-3"]
+                    [com.github.luben/zstd-jni "1.5.6-5"]
                     ;;  lzo & lzop
-                    [io.airlift/aircompressor "0.27"]
+                    [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
                     [org.slf4j/slf4j-simple "1.7.36"]]}
