@@ -1,5 +1,14 @@
 # Changes for Datasplash
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+
 ## [0.7.23] - 2024-09-16
 ### Changed
 * Bump beam to 2.59.0. Downgrade kafka-clients to match beam's version.
