@@ -43,6 +43,7 @@
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
-                    [org.slf4j/slf4j-simple "1.7.36"]]}
+                    [org.slf4j/slf4j-simple "1.7.36"]]
+                   :plugins [[dev.weavejester/lein-cljfmt "0.12.0"]]}
              :test {:source-paths ["test"]
                     :aot :all}})

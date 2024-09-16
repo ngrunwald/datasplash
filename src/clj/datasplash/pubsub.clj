@@ -7,7 +7,6 @@
    (org.apache.beam.sdk.io.gcp.pubsub PubsubIO PubsubMessage PubsubMessageWithAttributesCoder)
    (org.apache.beam.sdk.values PBegin)))
 
-
 (def ^:no-doc message-types
   {:read {:raw (PubsubIO/readMessagesWithAttributes)
           :string (PubsubIO/readStrings)}

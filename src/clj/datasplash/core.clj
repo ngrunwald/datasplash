@@ -428,9 +428,10 @@ See https://cloud.google.com/dataflow/java-sdk/JavaDoc/com/google/cloud/dataflow
   (.output c (.element c)))
 
 (alter-var-root #'nippy/*thaw-serializable-allowlist*
-                (fn [_] (into nippy/default-thaw-serializable-allowlist
-                             #{"org.apache.beam.sdk.values.KV"
-                               "com.google.datastore.v1.Entity"})))
+                (fn [_]
+                  (into nippy/default-thaw-serializable-allowlist
+                        #{"org.apache.beam.sdk.values.KV"
+                          "com.google.datastore.v1.Entity"})))
 
 (defn make-nippy-coder
   {:doc "Returns an instance of a CustomCoder using nippy for serialization."
@@ -1043,12 +1044,12 @@ map. Each value will be a list of the values that match key.
       (str/lower-case)
       (str/replace #"[^-a-z0-9]" "0")))
 
-
 (defn args->cli-args
   "Merge args and convert to cli args to be used with `PipelineOptionsFactory/fromArgs`."
   [str-args kw-args]
-  (let [atomic-args (into {} (map (fn [kv] (let [[k v] (str/split kv #"=" 2)]
-                                            [(str/camel-case (str/replace k #"^--" "")) v]))
+  (let [atomic-args (into {} (map (fn [kv]
+                                    (let [[k v] (str/split kv #"=" 2)]
+                                      [(str/camel-case (str/replace k #"^--" "")) v]))
                                   str-args))
         clean-args (into {} (map (fn [[k v]] [(str/camel-case (name k)) v]) kw-args))
         args (merge clean-args atomic-args)
@@ -1420,7 +1421,7 @@ Example:
                           (charred/parse-json-fn (cond-> {:eof-error? false :eof-value nil}
                                                    key-fn (assoc :key-fn key-fn)
                                                    return-type (assoc :value-fn return-type)
-                                                   eof-error? (assoc :eof-error? eof-error?)))) )
+                                                   eof-error? (assoc :eof-error? eof-error?)))))
          decode-fn (fn [s] ((system) s))]
      (pt->>
       (or (:name opts) (str "read-json-file-from-" (clean-filename from)))

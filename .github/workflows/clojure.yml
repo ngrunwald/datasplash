@@ -20,6 +20,9 @@ jobs:
         distribution: 'zulu'
         java-version: 8
 
+    - name: Lint
+      run: lein cljfmt check
+
     - name: Install dependencies
       run: lein deps
 

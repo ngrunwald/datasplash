@@ -80,13 +80,12 @@
   "Connects and reads form Kafka."
   [bootstrap-servers topic key-deserializer value-deserializer options p]
   (let [opts (assoc options :label :read-kafka-raw)
-        ptrans (-> (KafkaIO/read)
-                   (.withBootstrapServers bootstrap-servers)
-                   (.withKeyDeserializerAndCoder key-deserializer (ds/make-nippy-coder))
-                   (.withValueDeserializerAndCoder value-deserializer (ds/make-nippy-coder))
-                   (cond->
-                       (coll? topic) (.withTopics topic)
-                       (string? topic) (.withTopic topic)))]
+        ptrans (cond-> (-> (KafkaIO/read)
+                           (.withBootstrapServers bootstrap-servers)
+                           (.withKeyDeserializerAndCoder key-deserializer (ds/make-nippy-coder))
+                           (.withValueDeserializerAndCoder value-deserializer (ds/make-nippy-coder)))
+                 (coll? topic) (.withTopics topic)
+                 (string? topic) (.withTopic topic))]
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
         (ds/apply-transform ptrans read-kafka-schema opts))))

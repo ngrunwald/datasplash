@@ -21,14 +21,13 @@
                                         TableDestination)
    (org.apache.beam.sdk.values PBegin PCollection)))
 
-
 (defn read-bq-raw
   [{:keys [query table standard-sql? query-location] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
-                               standard-sql? (.usingStandardSql)
-                               query-location (.withQueryLocation query-location))
+                         standard-sql? (.usingStandardSql)
+                         query-location (.withQueryLocation query-location))
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
@@ -98,12 +97,13 @@
   "Recursively transforms all map keys to BQ-valid strings."
   {:added "1.1"}
   [m]
-  (postwalk (fn [x] (if (map? x) ; only apply to maps
-                     (persistent! (reduce (fn [acc [k v]]
-                                            (assoc! acc (clean-name k) v))
-                                          (transient {})
-                                          x))
-                     x))
+  (postwalk (fn [x]
+              (if (map? x) ; only apply to maps
+                (persistent! (reduce (fn [acc [k v]]
+                                       (assoc! acc (clean-name k) v))
+                                     (transient {})
+                                     x))
+                x))
             m))
 
 (defn clj->table-row ^TableRow
@@ -210,7 +210,6 @@
       (string? field)                        (.setField (clean-name field))
       (boolean? require-partition-filter)    (.setRequirePartitionFilter require-partition-filter))))
 
-
 (defn ->clustering ^Clustering
   [fields]
   (let [obj (Clustering.)]
@@ -257,11 +256,11 @@
    {:schema {:docstr "Specifies bq schema."
              :action (fn [transform schema] (.withSchema transform (->schema schema)))}
     :json-schema {:docstr "Specifies bq schema in json"
-                  :action (fn [transform json-schema] (let [sch (charred/read-json json-schema)
-                                                           full-sch (if (get sch "fields")
-                                                                      (ds/write-json-str sch)
-                                                                      (ds/write-json-str {"fields" sch}))]
-                                                       (.withJsonSchema transform full-sch)))}
+                  :action (fn [transform json-schema] (let [sch (charred/read-json json-schema)]
+                                                        (->> (if (get sch "fields")
+                                                               (ds/write-json-str sch)
+                                                               (ds/write-json-str {"fields" sch}))
+                                                             (.withJsonSchema transform))))}
     :table-description {:docstr "Specifies table description"
                         :action (fn [transform description] (.withTableDescription transform description))}
     :write-disposition {:docstr "Choose write disposition."
@@ -348,7 +347,6 @@
    (let [opts (assoc options :label :write-bq-table)]
      (ds/apply-transform pcoll (write-bq-table-clj-transform to opts) ds/named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
-
 
 ;; From https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
 

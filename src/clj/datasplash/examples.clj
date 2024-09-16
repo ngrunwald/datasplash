@@ -57,7 +57,6 @@
 ;; DeDup ;;
 ;;;;;;;;;;;
 
-
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DeDupExample.java
 
 (defoptions DeDupOptions
@@ -114,7 +113,7 @@
       (bq/write-bq-table (bq/custom-output-fn (fn [x]
                                                 (str output "_" (:year (.getValue x)))))
                          {:schema [{:name "year" :type "INTEGER"}
-                                   {:name "month":type "INTEGER"}
+                                   {:name "month" :type "INTEGER"}
                                    {:name "day"  :type "INTEGER"}
                                    {:name "mean_temp" :type "FLOAT"}]
                           :create-disposition :if-needed
@@ -217,7 +216,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;; DatastoreWordCount ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
-
+;;
 ;; Port of https://github.com/GoogleCloudPlatform/DataflowJavaSDK/blob/master/examples/src/main/java/com/google/cloud/dataflow/examples/cookbook/DatastoreWordCount.java
 
 (defoptions DatastoreWordCountOptions
@@ -247,9 +246,9 @@
   (let [qb (Query/newBuilder)]
     (-> qb (.addKindBuilder) (.setName kind))
     (.setFilter qb (DatastoreHelper/makeFilter
-                     "__key__"
-                     (PropertyFilter$Operator/valueOf "HAS_ANCESTOR")
-                     (dts/make-ds-value (make-ancestor-key opts))))
+                    "__key__"
+                    (PropertyFilter$Operator/valueOf "HAS_ANCESTOR")
+                    (dts/make-ds-value (make-ancestor-key opts))))
     (.build qb)))
 
 (defn run-datastore-word-count
@@ -282,7 +281,6 @@
          (ds/write-text-file output {:num-shards numShards}))
     p))
 
-
 ;;;;;;;;;;;;;
 ;; Pub/Sub ;;
 ;;;;;;;;;;;;;
@@ -296,24 +294,23 @@
                    :type String}})
 
 (defn stream-interactions-from-pubsub
- [pipeline read-topic write-transformed-topic]
- (->> pipeline
-      (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub" :kind :topic})
-      (ds/map (fn [message]
-                (log/info (str "Got message:\n" message))
-                (str/reverse message))
-              {:name "log-message"})
-      (ps/write-to-pubsub write-transformed-topic {:name "write-forwarded-interactions-to-pubsub"})))
+  [pipeline read-topic write-transformed-topic]
+  (->> pipeline
+       (ps/read-from-pubsub read-topic {:name "read-interactions-from-pubsub" :kind :topic})
+       (ds/map (fn [message]
+                 (log/info (str "Got message:\n" message))
+                 (str/reverse message))
+               {:name "log-message"})
+       (ps/write-to-pubsub write-transformed-topic {:name "write-forwarded-interactions-to-pubsub"})))
 
 (defn stream-forwarded-interactions-from-pubsub
- [pipeline read-transformed-subscription]
- (->> pipeline
-      (ps/read-from-pubsub read-transformed-subscription {:name "read-transformed-interactions-from-pubsub"})
-      (ds/map (fn [message]
-                (log/info (str "Got transformed message:\n" message))
-                message)
-              {:name "log-transformed-message"})))
-
+  [pipeline read-transformed-subscription]
+  (->> pipeline
+       (ps/read-from-pubsub read-transformed-subscription {:name "read-transformed-interactions-from-pubsub"})
+       (ds/map (fn [message]
+                 (log/info (str "Got transformed message:\n" message))
+                 message)
+               {:name "log-transformed-message"})))
 
 (defn run-pub-sub
   [str-args]
@@ -350,7 +347,6 @@
       (let [p (job args)]
         (ds/wait-pipeline-result (ds/run-pipeline p))
         (println "Job" job-name "done.")))))
-
 
 (comment
   (-main "word-count"
