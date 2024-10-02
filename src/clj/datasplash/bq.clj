@@ -35,7 +35,7 @@
         ptrans (cond (and temp-project temp-dataset)
                        (.withQueryTempProjectAndDataset ptrans temp-project temp-dataset)
                      temp-dataset
-                       (.withQueryTempDataset ptrans temp-project temp-dataset)
+                       (.withQueryTempDataset ptrans temp-dataset)
                      (and temp-project (not temp-dataset))
                        (throw (ex-info
                                 "Error with options of read-bq-table, temp-project requires temp-dataset to be set"
