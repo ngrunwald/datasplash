@@ -22,7 +22,7 @@
    (org.apache.beam.sdk.values PBegin PCollection)))
 
 (defn read-bq-raw
-  [{:keys [query table standard-sql? query-location] :as options} p]
+  [{:keys [query table standard-sql? query-location temp-project temp-dataset] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
@@ -31,7 +31,15 @@
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
-                               {:options options})))]
+                               {:options options})))
+        ptrans (cond
+                 (and temp-project temp-dataset) (.withQueryTempProjectAndDataset ptrans temp-project temp-dataset)
+                 temp-dataset (.withQueryTempDataset ptrans temp-dataset)
+                 (and temp-project (not temp-dataset)) (throw (ex-info
+                                                               "Error with options of read-bq-table, temp-project requires temp-dataset to be set"
+                                                               {:options options}))
+                 :else ptrans)]
+
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
         (ds/apply-transform
