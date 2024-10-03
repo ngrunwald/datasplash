@@ -26,21 +26,19 @@
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
-                               standard-sql? (.usingStandardSql)
-                               query-location (.withQueryLocation query-location))
+                         standard-sql? (.usingStandardSql)
+                         query-location (.withQueryLocation query-location))
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
                                {:options options})))
-        ptrans (cond (and temp-project temp-dataset)
-                       (.withQueryTempProjectAndDataset ptrans temp-project temp-dataset)
-                     temp-dataset
-                       (.withQueryTempDataset ptrans temp-dataset)
-                     (and temp-project (not temp-dataset))
-                       (throw (ex-info
-                                "Error with options of read-bq-table, temp-project requires temp-dataset to be set"
-                                {:options options}))
-                    :else ptrans)]
+        ptrans (cond
+                 (and temp-project temp-dataset) (.withQueryTempProjectAndDataset ptrans temp-project temp-dataset)
+                 temp-dataset (.withQueryTempDataset ptrans temp-dataset)
+                 (and temp-project (not temp-dataset)) (throw (ex-info
+                                                               "Error with options of read-bq-table, temp-project requires temp-dataset to be set"
+                                                               {:options options}))
+                 :else ptrans)]
 
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
