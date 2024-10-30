@@ -3,7 +3,7 @@
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.11.3"]
+  :dependencies [[org.clojure/clojure "1.11.4"]
                  [org.clojure/math.combinatorics "0.3.0"]
                  [org.clojure/tools.logging "1.3.0"]
 
@@ -13,12 +13,12 @@
 
                  [com.taoensso/nippy "3.4.2"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.59.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.59.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.59.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.59.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.59.0"]
-                 [org.apache.beam/beam-runners-core-java "2.59.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.60.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.60.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.60.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.60.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.60.0"]
+                 [org.apache.beam/beam-runners-core-java "2.60.0"]
                  [org.apache.kafka/kafka-clients "2.4.1"]
                  [superstring "3.2.0"]
 
@@ -35,15 +35,15 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
-                   [[com.oscaro/tools-io "0.3.38"]
+                   [[com.oscaro/tools-io "0.3.39"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.6-5"]
+                    [com.github.luben/zstd-jni "1.5.6-7"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
                     [org.slf4j/slf4j-simple "1.7.36"]]
-                   :plugins [[dev.weavejester/lein-cljfmt "0.12.0"]]}
+                   :plugins [[dev.weavejester/lein-cljfmt "0.13.0"]]}
              :test {:source-paths ["test"]
                     :aot :all}})
