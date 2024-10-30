@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+* BQ: temp-dataset and temp-project options for reading.
 
 ### Changed
 * Bump beam to 2.60.0.
