@@ -3,13 +3,18 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+
+## [0.7.24] - 2024-10-30
+### Added
 * BQ: temp-dataset and temp-project options for reading.
 
 ### Changed
 * Bump beam to 2.60.0.
-
-### Fixed
-
 
 ## [0.7.23] - 2024-09-16
 ### Changed
@@ -259,7 +264,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.23...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.24...devel
+[0.7.24]: https://github.com/ngrunwald/datasplash/-/compare/0.7.23...0.7.24
 [0.7.23]: https://github.com/ngrunwald/datasplash/-/compare/0.7.22...0.7.23
 [0.7.22]: https://github.com/ngrunwald/datasplash/-/compare/0.7.21...0.7.22
 [0.7.21]: https://github.com/ngrunwald/datasplash/-/compare/0.7.20...0.7.21
