@@ -27,8 +27,7 @@
         ptrans (cond
                  query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
                          standard-sql? (.usingStandardSql)
-                         query-location (.withQueryLocation query-location)
-                         without-validation (.withoutValidation))
+                         query-location (.withQueryLocation query-location))
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
@@ -39,7 +38,9 @@
                  (and temp-project (not temp-dataset)) (throw (ex-info
                                                                "Error with options of read-bq-table, temp-project requires temp-dataset to be set"
                                                                {:options options}))
-                 :else ptrans)]
+                 :else ptrans)
+        ptrans (cond-> ptrans
+                       without-validation (.withoutValidation))]
 
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
