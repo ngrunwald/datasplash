@@ -22,12 +22,13 @@
    (org.apache.beam.sdk.values PBegin PCollection)))
 
 (defn read-bq-raw
-  [{:keys [query table standard-sql? query-location temp-project temp-dataset] :as options} p]
+  [{:keys [query table standard-sql? query-location temp-project temp-dataset without-validation] :as options} p]
   (let [opts (assoc options :label :read-bq-table-raw)
         ptrans (cond
                  query (cond-> (.fromQuery (BigQueryIO/readTableRows) query)
                          standard-sql? (.usingStandardSql)
-                         query-location (.withQueryLocation query-location))
+                         query-location (.withQueryLocation query-location)
+                         without-validation (.withoutValidation))
                  table (.from (BigQueryIO/readTableRows) table)
                  :else (throw (ex-info
                                "Error with options of read-bq-table, should specify one of :table or :query"
