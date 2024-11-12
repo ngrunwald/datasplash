@@ -40,7 +40,7 @@
                                                                {:options options}))
                  :else ptrans)
         ptrans (cond-> ptrans
-                       without-validation (.withoutValidation))]
+                 without-validation (.withoutValidation))]
 
     (-> p
         (cond-> (instance? Pipeline p) (PBegin/in))
