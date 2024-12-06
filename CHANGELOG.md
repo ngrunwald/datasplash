@@ -3,8 +3,10 @@
 ## [Unreleased]
 
 ### Added
+* without-validation option in read-bw-raw.
 
 ### Changed
+* Bump beam to 2.61.0.
 
 ### Fixed
 

@@ -13,12 +13,12 @@
 
                  [com.taoensso/nippy "3.4.2"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.60.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.60.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.60.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.60.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.60.0"]
-                 [org.apache.beam/beam-runners-core-java "2.60.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.61.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.61.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.61.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.61.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.61.0"]
+                 [org.apache.beam/beam-runners-core-java "2.61.0"]
                  [org.apache.kafka/kafka-clients "2.4.1"]
                  [superstring "3.2.0"]
 
@@ -38,7 +38,7 @@
                    [[com.oscaro/tools-io "0.3.39"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.6-7"]
+                    [com.github.luben/zstd-jni "1.5.6-8"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
