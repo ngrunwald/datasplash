@@ -5,6 +5,9 @@
 ### Added
 
 ### Changed
+* Bump beam to 2.61.0.
+* Bump charred to 1.036.
+* Bump superstring to 3.2.1.
 
 ### Fixed
 

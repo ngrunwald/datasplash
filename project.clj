@@ -7,20 +7,20 @@
                  [org.clojure/math.combinatorics "0.3.0"]
                  [org.clojure/tools.logging "1.3.0"]
 
-                 [com.cnuernber/charred "1.034"]
+                 [com.cnuernber/charred "1.036"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
 
                  [com.taoensso/nippy "3.4.2"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.61.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.61.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.61.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.61.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.61.0"]
-                 [org.apache.beam/beam-runners-core-java "2.61.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.62.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.62.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.62.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.62.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.62.0"]
+                 [org.apache.beam/beam-runners-core-java "2.62.0"]
                  [org.apache.kafka/kafka-clients "2.4.1"]
-                 [superstring "3.2.0"]
+                 [superstring "3.2.1"]
 
                  ;; required as of beam 2.55.0
                  [junit/junit "4.13.2"]
@@ -35,10 +35,10 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
-                   [[com.oscaro/tools-io "0.3.39"]
+                   [[com.oscaro/tools-io "0.3.40"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.6-8"]
+                    [com.github.luben/zstd-jni "1.5.6-9"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
