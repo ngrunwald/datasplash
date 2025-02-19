@@ -5,13 +5,14 @@
 ### Added
 
 ### Changed
+* Bump beam to 2.63.0.
 
 ### Fixed
 
 
 ## [0.7.26] - 2025-02-03
 ### Changed
-* Bump beam to 2.61.0.
+* Bump beam to 2.62.0.
 * Bump charred to 1.036.
 * Bump superstring to 3.2.1.
 
