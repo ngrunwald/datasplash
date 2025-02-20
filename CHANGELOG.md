@@ -1,14 +1,8 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.27] - 2025-02-20
 ### Changed
 * Bump beam to 2.63.0.
-
-### Fixed
-
 
 ## [0.7.26] - 2025-02-03
 ### Changed
@@ -278,7 +272,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.26...devel
+[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.27...devel
+[0.7.27]: https://github.com/ngrunwald/datasplash/-/compare/0.7.26...0.7.27
 [0.7.26]: https://github.com/ngrunwald/datasplash/-/compare/0.7.25...0.7.26
 [0.7.25]: https://github.com/ngrunwald/datasplash/-/compare/0.7.24...0.7.25
 [0.7.24]: https://github.com/ngrunwald/datasplash/-/compare/0.7.23...0.7.24
