@@ -88,6 +88,10 @@ Examples:
   ([hosts index type p]
    (read-es hosts index type {} p)))
 
+(defn- ->ExtractKeyfn ^ExtractKeyFn
+  [doc-key-fn]
+  (ExtractKeyFn. (comp doc-key-fn (charred/parse-json-fn))))
+
 (def ^:no-doc write-es-schema
   (merge
    es-connection-schema
@@ -99,20 +103,14 @@ Examples:
                            :action (fn [^ElasticsearchIO$Write transform [^Long max-attempts ^Long max-duration-ms]]
                                      (.withRetryConfiguration transform (retry-config max-attempts max-duration-ms)))}
     :id-fn                {:doctstr "Provide a function to extract the id from the document."
-                           :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn #(charred/read-json % :key-fn key-fn)
-                                           id-fn (ExtractKeyFn. serializing-key-fn)]
-                                       (.withIdFn transform id-fn)))}
+                           :action (fn [^ElasticsearchIO$Write transform doc-key-fn]
+                                     (.withIdFn transform (->ExtractKeyfn doc-key-fn)))}
     :index-fn             {:doctstr "Provide a function to extract the target index from the document allowing for dynamic document routing."
-                           :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn #(charred/read-json % :key-fn key-fn)
-                                           index-fn (ExtractKeyFn. serializing-key-fn)]
-                                       (.withIndexFn transform index-fn)))}
+                           :action (fn [^ElasticsearchIO$Write transform doc-key-fn]
+                                     (.withIndexFn transform (->ExtractKeyfn doc-key-fn)))}
     :type-fn              {:docstr "Provide a function to extract the target type from the document allowing for dynamic document routing."
-                           :action (fn [^ElasticsearchIO$Write transform key-fn]
-                                     (let [serializing-key-fn #(charred/read-json % :key-fn key-fn)
-                                           type-fn (ExtractKeyFn. serializing-key-fn)]
-                                       (.withTypeFn transform type-fn)))}
+                           :action (fn [^ElasticsearchIO$Write transform doc-key-fn]
+                                     (.withTypeFn transform (->ExtractKeyfn doc-key-fn)))}
     :use-partial-update   {:docstr "Provide an instruction to control whether partial updates or inserts (default) are issued to Elasticsearch."
                            :action (fn [^ElasticsearchIO$Write transform is-partial-update]
                                      (.withUsePartialUpdate transform is-partial-update))}}))

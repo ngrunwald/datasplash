@@ -7,6 +7,7 @@
 ### Changed
 
 ### Fixed
+* Fix bug on Elasticsearch write when using id, type & index functions.
 
 
 ## [0.7.27] - 2025-02-20
