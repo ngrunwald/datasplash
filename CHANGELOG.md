@@ -1,9 +1,6 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.28] - 2025-04-17
 ### Changed
 * Bump beam to 2.64.0.
 * Bump slf4j to 2.x.
@@ -12,7 +9,6 @@
 
 ### Fixed
 * Fix bug on Elasticsearch write when using id, type & index functions.
-
 
 ## [0.7.27] - 2025-02-20
 ### Changed
@@ -286,7 +282,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://https://github.com/ngrunwald/datasplash/0.7.27...devel
+[Unreleased]: https://github.com/ngrunwald/datasplash/0.7.28...devel
+[0.7.28]: https://github.com/ngrunwald/datasplash/-/compare/0.7.27...0.7.28
 [0.7.27]: https://github.com/ngrunwald/datasplash/-/compare/0.7.26...0.7.27
 [0.7.26]: https://github.com/ngrunwald/datasplash/-/compare/0.7.25...0.7.26
 [0.7.25]: https://github.com/ngrunwald/datasplash/-/compare/0.7.24...0.7.25
