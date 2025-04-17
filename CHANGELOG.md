@@ -5,6 +5,7 @@
 ### Added
 
 ### Changed
+* Bump beam to 2.64.0.
 
 ### Fixed
 * Fix bug on Elasticsearch write when using id, type & index functions.

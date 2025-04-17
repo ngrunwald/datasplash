@@ -107,10 +107,10 @@
 ```
     {:payload   \"Deserialized with `value-deserializer`\"
      :key       \"Deserialized with `key-deserializer`\"
-     :offset    \"...\"     
+     :offset    \"...\"
      :partition \"...\"
-     :timestamp \"...\"   
-     :topic     \"...\"   
+     :timestamp \"...\"
+     :topic     \"...\"
      :headers   \"A map of `{key values}` of `Header` (https://www.javadoc.io/static/org.apache.kafka/kafka-clients/1.0.0/org/apache/kafka/common/header/Header.html)\"}
 ```
 
