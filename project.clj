@@ -38,7 +38,7 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
-                   [[com.oscaro/tools-io "0.3.40"]
+                   [[com.oscaro/tools-io "0.3.41"]
                     ;; include compression libs for tests
                     ;;  zstd
                     [com.github.luben/zstd-jni "1.5.7-2"]
