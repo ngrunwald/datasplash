@@ -28,9 +28,9 @@
                  ;; required as of beam 2.55.0
                  [junit/junit "4.13.2"]
 
-                 ;; as of 2.53.0, beam is no longer compatible with slf4j-2. See:
-                 ;; https://cwiki.apache.org/confluence/display/BEAM/Java+Tips
-                 [org.slf4j/slf4j-api "1.7.36"]]
+                 ;; as of 2.64.0, beam is now compatibla with slf4j 2.x. See
+                 ;; https://github.com/apache/beam/pull/33574
+                 [org.slf4j/slf4j-api "2.0.17"]]
   :pedantic? false
   :target-path "target/%s/"
   :source-paths ["src/clj"]
@@ -46,7 +46,7 @@
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
-                    [org.slf4j/slf4j-simple "1.7.36"]]
-                   :plugins [[dev.weavejester/lein-cljfmt "0.13.0"]]}
+                    [org.slf4j/slf4j-simple "2.0.17"]]
+                   :plugins [[dev.weavejester/lein-cljfmt "0.13.1"]]}
              :test {:source-paths ["test"]
                     :aot :all}})
