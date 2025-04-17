@@ -8,6 +8,7 @@
 * Bump beam to 2.64.0.
 * Bump slf4j to 2.x.
 * Bump charred to 1.037.
+* Bump nippy to 3.5.0.
 
 ### Fixed
 * Fix bug on Elasticsearch write when using id, type & index functions.
