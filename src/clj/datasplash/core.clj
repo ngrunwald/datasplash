@@ -707,7 +707,8 @@ Example:
                                          (assoc options :label :generate-input))
          ptrans (if (empty? coll)
                   (Create/empty coder)
-                  (Create/of coll))]
+                  (-> (Create/of coll)
+                      (.withCoder coder)))]
      (apply-transform p ptrans base-schema opts)))
   ([coll p] (generate-input coll {} p))
   ([p] (generate-input [] {} p)))

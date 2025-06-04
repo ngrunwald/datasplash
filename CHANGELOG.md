@@ -7,7 +7,7 @@
 ### Changed
 
 ### Fixed
-
+* Fix generate-input not passing a coder when a collection was passed.
 
 ## [0.7.29] - 2025-05-14
 ### Changed

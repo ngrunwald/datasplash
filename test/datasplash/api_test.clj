@@ -290,6 +290,24 @@
                     {:id "2" :label "cc"}]]
         (-> (sut/generate-input values p)
             (assert/as-iterable)
+            (assert/contains-only values))))
+
+    (dt/with-test-pipeline [p (dt/test-pipeline)]
+      (let [x {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6 :g 7 :h 8}
+            y {:a 1 :b 2 :c 3 :d 4 :e 5 :f 6 :g 7 :h 8 :i 9 :j 10}
+            values [x y]]
+
+        (is (not= (.getClass x)  ; x => clojure.lang.PersistentArrayMap
+                  (.getClass y)) ; y => clojure.lang.PersistentHashMap
+            "underlying representation differs")
+
+        ;; test fix for java.lang.IllegalArgumentException due to
+        ;; generate-input not using a coder when a collection was
+        ;; passed. This throws an exception in cases where the two
+        ;; underlying types were different. See
+        ;; https://github.com/clojure/clojure/blob/master/src/jvm/clojure/lang/PersistentArrayMap.java
+        (-> (sut/generate-input values p)
+            (assert/as-iterable)
             (assert/contains-only values)))))
 
   (testing "booleans"
