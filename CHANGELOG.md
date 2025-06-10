@@ -1,9 +1,6 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.30] - 2025-06-10
 ### Changed
 * bump to clojure 1.12.1.
 
@@ -296,8 +293,9 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://github.com/ngrunwald/datasplash/0.7.29...devel
-[0.7.29]: https://github.com/ngrunwald/datasplash/-/compare/0.7.27...0.7.29
+[Unreleased]: https://github.com/ngrunwald/datasplash/0.7.30...devel
+[0.7.30]: https://github.com/ngrunwald/datasplash/-/compare/0.7.29...0.7.30
+[0.7.29]: https://github.com/ngrunwald/datasplash/-/compare/0.7.28...0.7.29
 [0.7.28]: https://github.com/ngrunwald/datasplash/-/compare/0.7.27...0.7.28
 [0.7.27]: https://github.com/ngrunwald/datasplash/-/compare/0.7.26...0.7.27
 [0.7.26]: https://github.com/ngrunwald/datasplash/-/compare/0.7.25...0.7.26
