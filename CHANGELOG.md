@@ -5,6 +5,7 @@
 ### Added
 
 ### Changed
+* bump to clojure 1.12.1.
 
 ### Fixed
 * Fix generate-input not passing a coder when a collection was passed.
