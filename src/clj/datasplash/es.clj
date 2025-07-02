@@ -96,7 +96,7 @@ Examples:
   (merge
    es-connection-schema
    {:max-batch-size       {:docstr "Specify the max number of documents in a bulk. Default to 1000"
-                           :action (fn [^ElasticsearchIO$Write transform ^Long b] (.withMaxBatchSizeBytes transform b))}
+                           :action (fn [^ElasticsearchIO$Write transform ^Long b] (.withMaxBatchSize transform b))}
     :max-batch-size-bytes {:docstr "Specify the max number of bytes in a bulk. Default to 5MB"
                            :action (fn [^ElasticsearchIO$Write transform ^Long b] (.withMaxBatchSizeBytes transform b))}
     :retry-configuration  {:docstr "Creates RetryConfiguration for ElasticsearchIO with provided max-attempts, max-durations and exponential backoff based retries"
