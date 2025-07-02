@@ -5,9 +5,10 @@
 ### Added
 
 ### Changed
+* bump beam to 2.66.0
 
 ### Fixed
-
+* pubsub and ES ns fixes by @leathekd.
 
 ## [0.7.30] - 2025-06-10
 ### Changed
