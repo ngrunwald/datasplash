@@ -25,7 +25,7 @@
    Payload must be a string and attributes a map."
   [{:keys [payload attributes]}]
   (let [attributes-map (->> attributes
-                            (ds/dmap (fn [k v] [(if (keyword? k) (name k) (str k)) (str v)]))
+                            (map (fn [[k v]] [(if (keyword? k) (name k) (str k)) (str v)]))
                             (into {}))]
     (PubsubMessage. (.getBytes payload StandardCharsets/UTF_8) attributes-map)))
 
