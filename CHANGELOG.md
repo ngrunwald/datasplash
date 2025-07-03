@@ -1,5 +1,14 @@
 # Changes for Datasplash
 
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+
 ## [0.7.31] - 2025-07-03
 ### Changed
 * bump beam to 2.66.0
