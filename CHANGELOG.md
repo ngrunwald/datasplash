@@ -6,6 +6,7 @@
 
 ### Changed
 * bump beam to 2.67.0
+* bump clj to 1.12.2
 
 ### Fixed
 
