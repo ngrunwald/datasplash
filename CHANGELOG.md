@@ -5,6 +5,7 @@
 ### Added
 
 ### Changed
+* bump beam to 2.71.0
 
 ### Fixed
 
