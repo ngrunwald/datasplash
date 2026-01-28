@@ -5,7 +5,7 @@
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.12.2"]
                  [org.clojure/math.combinatorics "0.3.0"]
-                 [org.clojure/tools.logging "1.3.0"]
+                 [org.clojure/tools.logging "1.3.1"]
 
                  [com.cnuernber/charred "1.037"]
                  [clj-stacktrace "0.2.8"]
@@ -38,10 +38,10 @@
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
-                   [[com.oscaro/tools-io "0.3.41"]
+                   [[com.oscaro/tools-io "0.3.42"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.7-4"]
+                    [com.github.luben/zstd-jni "1.5.7-6"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.2"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]

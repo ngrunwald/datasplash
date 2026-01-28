@@ -6,6 +6,7 @@
 
 ### Changed
 * bump beam to 2.71.0
+* bump tools.logging to 1.3.1, tools-io to 0.3.42
 
 ### Fixed
 
