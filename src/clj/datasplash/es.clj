@@ -19,7 +19,7 @@
    {:username          {:docstr "username"}
     :password          {:docstr "password"}
     :keystore-password {:docstr "If Elasticsearch uses SSL/TLS with mutual authentication (via shield), provide the password to open the client keystore."}
-    :keystore-path     {:docstr "If Elasticsearch uses SSL/TLS with mutual authentication (via shield), provide the password to open the client keystore."}}))
+    :keystore-path     {:docstr "Path to a file to add to the keystore."}}))
 
 (defn- es-config
   "Creates a new Elasticsearch connection configuration."
@@ -62,7 +62,7 @@
   "Connects to ES, reads, and convert serialized json to clojure map."
   [hosts index type options]
   (let [safe-opts (dissoc options :name)
-        key-fn    (or (get options :key-fn) false)]
+        key-fn    (get options :key-fn false)]
     (ds/ptransform
      :read-es-to-clj
      [^PCollection pcoll]
