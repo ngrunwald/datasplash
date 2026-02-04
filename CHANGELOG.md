@@ -11,7 +11,7 @@
 * bump math.combinatorics to 0.3.2
 
 ### Fixed
-
+* ES conf can be created without a document type
 
 ## [0.7.32] - 2025-10-24
 ### Changed

@@ -1,6 +1,7 @@
 (ns datasplash.es
   (:require
    [charred.api :as charred]
+   [clojure.string :as str]
    [datasplash.core :as ds])
   (:import
    (datasplash.fns ExtractKeyFn)
@@ -24,8 +25,11 @@
 (defn- es-config
   "Creates a new Elasticsearch connection configuration."
   [hosts index type {:keys [username password keystore-password keystore-path]}]
-  (let [hosts-array (into-array String hosts)]
-    (cond-> (ElasticsearchIO$ConnectionConfiguration/create hosts-array index type)
+  (let [hosts-array (into-array String hosts)
+        conf (if (str/blank? type)
+               (ElasticsearchIO$ConnectionConfiguration/create hosts-array index)
+               (ElasticsearchIO$ConnectionConfiguration/create hosts-array index type))]
+    (cond-> conf
       username          (.withUsername username)
       password          (.withPassword password)
       keystore-password (.withKeystorePassword keystore-password)
