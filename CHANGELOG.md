@@ -6,6 +6,7 @@
 
 ### Changed
 * Bump charred to 1.038.
+* bump tools-io to 0.3.43, aircompressor to 2.0.3
 
 ### Fixed
 
