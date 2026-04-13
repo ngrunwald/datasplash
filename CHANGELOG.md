@@ -1,17 +1,11 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.7.34] - 2026-04-13
 ### Changed
 * Bump charred to 1.038.
 * bump tools-io to 0.3.43, aircompressor to 2.0.3
 * bump beam to 2.72.0
 * bump nippy to 3.6.2
-
-### Fixed
-
 
 ## [0.7.33] - 2026-02-04
 ### Changed
@@ -329,7 +323,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://github.com/ngrunwald/datasplash/0.7.33...devel
+[Unreleased]: https://github.com/ngrunwald/datasplash/0.7.34...devel
+[0.7.34]: https://github.com/ngrunwald/datasplash/-/compare/0.7.33...0.7.34
 [0.7.33]: https://github.com/ngrunwald/datasplash/-/compare/0.7.32...0.7.33
 [0.7.32]: https://github.com/ngrunwald/datasplash/-/compare/0.7.31...0.7.32
 [0.7.31]: https://github.com/ngrunwald/datasplash/-/compare/0.7.30...0.7.31
