@@ -94,7 +94,7 @@ Examples:
 
 (defn- ->ExtractKeyfn ^ExtractKeyFn
   [doc-key-fn]
-  (ExtractKeyFn. (comp doc-key-fn (charred/parse-json-fn))))
+  (ExtractKeyFn. (comp doc-key-fn charred/read-json)))
 
 (def ^:no-doc write-es-schema
   (merge
