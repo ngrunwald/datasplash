@@ -5,8 +5,11 @@
 ### Added
 
 ### Changed
+* bump clj to 1.12.5
+* bump slf4j-pi to 2.0.18
 
 ### Fixed
+* ES unserializable function when parsing JSON.
 
 
 ## [0.7.34] - 2026-04-13
