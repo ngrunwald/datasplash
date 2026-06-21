@@ -7,6 +7,7 @@
 ### Changed
 * bump clj to 1.12.5
 * bump slf4j-pi to 2.0.18
+* bump charred to 1.039
 
 ### Fixed
 * ES unserializable function when parsing JSON.
