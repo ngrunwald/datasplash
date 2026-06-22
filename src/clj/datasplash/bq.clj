@@ -56,30 +56,21 @@
     Long/parseLong))
 
 (defn table-row->clj
-  ([{:keys [auto-parse] :as opts} ^TableRow row]
-   (let [keyset (.keySet row)]
-     (persistent!
-      (reduce
-       (fn [acc k]
-         (assoc! acc (keyword k)
-                 (let [raw-v (get row k)]
+  ([{:keys [auto-parse]} ^TableRow row]
+   (let [convert (fn -conv [x]
                    (cond
-                     (instance? java.util.List raw-v)
-                     (let [with-map? (instance? java.util.AbstractMap (first raw-v))]
-                       (map (fn [v]
-                              (cond
-                                with-map?  (table-row->clj opts v)
-                                auto-parse (auto-parse-val v)
-                                :else v))
-                            raw-v))
+                     (instance? java.util.AbstractMap x)
+                     (into {}
+                           (map #(vector (keyword (key %)) (-conv (val %))))
+                           x)
 
-                     (instance? java.util.AbstractMap raw-v)
-                     (table-row->clj opts raw-v)
+                     (instance? java.util.List x)
+                     (mapv -conv x)
 
                      :else
-                     (cond-> raw-v
-                       auto-parse auto-parse-val)))))
-       (transient {}) keyset))))
+                     (cond-> x
+                       auto-parse auto-parse-val)))]
+     (ds/safe-exec (convert row))))
   ([row] (table-row->clj {} row)))
 
 (defn coerce-by-bq-val
