@@ -57,12 +57,13 @@
     Long/parseLong))
 
 (defn table-row->clj
-  ([{:keys [auto-parse]} ^TableRow row]
-   (let [convert (fn -conv [x]
+  ([{:keys [auto-parse key-fn]} ^TableRow row]
+   (let [key-fn (or key-fn keyword)
+         convert (fn -conv [x]
                    (cond
                      (instance? AbstractMap x)
                      (into {}
-                           (map #(vector (keyword (key %)) (-conv (val %))))
+                           (map #(vector (key-fn (key %)) (-conv (val %))))
                            x)
 
                      (instance? List x)
