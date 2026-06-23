@@ -11,6 +11,7 @@
    [datasplash.core :as ds])
   (:import
    (com.google.api.services.bigquery.model Clustering TableFieldSchema TableRow TableSchema TimePartitioning)
+   (java.util Date AbstractMap List)
    (org.apache.beam.sdk Pipeline)
    (org.apache.beam.sdk.io.gcp.bigquery BigQueryIO
                                         BigQueryIO$Write$CreateDisposition
@@ -59,12 +60,12 @@
   ([{:keys [auto-parse]} ^TableRow row]
    (let [convert (fn -conv [x]
                    (cond
-                     (instance? java.util.AbstractMap x)
+                     (instance? AbstractMap x)
                      (into {}
                            (map #(vector (keyword (key %)) (-conv (val %))))
                            x)
 
-                     (instance? java.util.List x)
+                     (instance? List x)
                      (mapv -conv x)
 
                      :else
@@ -76,16 +77,19 @@
 (defn coerce-by-bq-val
   [v]
   (cond
-    (instance? java.util.Date v) (try (->> (tc/from-long (.getTime v))
-                                           (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
-                                      (catch Exception e
-                                        (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
+    (instance? Date v)
+    (try
+      (->> (tc/from-long (.getTime ^Date v))
+           (tf/unparse (tf/formatter "yyyy-MM-dd HH:mm:ss")))
+      (catch Exception e
+        (log/errorf "error when parsing date %s (%s)" v (.getMessage e))))
+
     (set? v) (into '() v)
     (keyword? v) (name v)
     (symbol? v) (name v)
     :else v))
 
-(defn clean-name
+(defn clean-name ^String
   [s]
   (let [stringified (cond-> s
                       (number? s) str
@@ -100,16 +104,15 @@
   [m]
   (postwalk (fn [x]
               (if (map? x) ; only apply to maps
-                (persistent! (reduce (fn [acc [k v]]
-                                       (assoc! acc (clean-name k) v))
-                                     (transient {})
-                                     x))
+                (into {}
+                      (map #(vector (clean-name (key %)) (val %)))
+                      x)
                 x))
             m))
 
 (defn clj->table-row ^TableRow
   [hmap]
-  (let [^TableRow row (TableRow.)]
+  (let [row (TableRow.)]
     (doseq [[k v] hmap]
       (.set row (clean-name k) (coerce-by-bq-val v)))
     row))
@@ -120,10 +123,8 @@
                        (prewalk coerce-by-bq-val)
                        (bqize-keys))
 
-        my-mapper (com.fasterxml.jackson.databind.ObjectMapper.)
-
-        ^TableRow row (.readValue my-mapper (ds/write-json-str clean-map) TableRow)]
-    row))
+        my-mapper (com.fasterxml.jackson.databind.ObjectMapper.)]
+    (.readValue my-mapper (ds/write-json-str clean-map) TableRow)))
 
 (defn- read-bq-clj-transform
   [options]
@@ -345,8 +346,9 @@
 
 (defn write-bq-table
   ([to options ^PCollection pcoll]
-   (let [opts (assoc options :label :write-bq-table)]
-     (ds/apply-transform pcoll (write-bq-table-clj-transform to opts) ds/named-schema opts)))
+   (let [opts (assoc options :label :write-bq-table)
+         ptrans (write-bq-table-clj-transform to opts)]
+     (ds/apply-transform pcoll ptrans ds/named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
 
 ;; From https://cloud.google.com/bigquery/docs/reference/rest/v2/tables#TableFieldSchema
