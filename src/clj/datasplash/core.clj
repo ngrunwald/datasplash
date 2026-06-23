@@ -53,7 +53,7 @@
 
 (def fast-charred-write (charred/write-json-fn {:indent-str nil :escape-slash false}))
 
-(defn write-json-str [data]
+(defn write-json-str ^String [data]
   (let [w (StringWriter.)]
     (fast-charred-write w data)
     (.toString w)))
