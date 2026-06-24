@@ -35,7 +35,7 @@
   :target-path "target/%s/"
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
-  :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
+  :javac-options ["-target" "11" "-source" "11" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
                    [[com.oscaro/tools-io "0.3.43"]
