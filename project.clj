@@ -13,12 +13,12 @@
 
                  [com.taoensso/nippy "3.6.2"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.72.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.72.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.72.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.72.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.72.0"]
-                 [org.apache.beam/beam-runners-core-java "2.72.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.74.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.74.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.74.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.74.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.74.0"]
+                 [org.apache.beam/beam-runners-core-java "2.74.0"]
                  ;; org.apache.kafka/kafka-clients is required it in
                  ;; the kafka ns. Match the version provided by beam. See:
                  ;; https://mvnrepository.com/artifact/org.apache.beam/beam-sdks-java-io-kafka
@@ -35,7 +35,7 @@
   :target-path "target/%s/"
   :source-paths ["src/clj"]
   :java-source-paths ["src/java"]
-  :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:unchecked"]
+  :javac-options ["-target" "11" "-source" "11" "-Xlint:unchecked"]
   :deploy-repositories {"releases" {:url "https://repo.clojars.org"}}
   :profiles {:dev {:dependencies
                    [[com.oscaro/tools-io "0.3.43"]
