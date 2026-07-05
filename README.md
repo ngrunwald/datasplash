@@ -4,9 +4,11 @@
 
 [![cljdoc badge](https://cljdoc.org/badge/datasplash/datasplash)](https://cljdoc.org/d/datasplash/datasplash/CURRENT)
 
-
 Clojure API for a more dynamic [Google Cloud Dataflow][gcloud] and (not really
 battle tested) any other [Apache Beam][beam] backend.
+
+NOTE: datasplash `0.7.36` is the last to target java 8. Subsequent
+versions will target java 11 as required by Beam (see the [`2.74.0` release notes](https://github.com/apache/beam/releases/tag/v2.74.0)).
 
 [gcloud]: https://cloud.google.com/dataflow/
 [beam]: https://beam.apache.org/
