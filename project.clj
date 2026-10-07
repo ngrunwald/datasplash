@@ -13,16 +13,16 @@
 
                  [com.taoensso/nippy "3.8.0"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.74.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.74.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.74.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.74.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.74.0"]
-                 [org.apache.beam/beam-runners-core-java "2.74.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.77.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.77.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.77.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.77.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.77.0"]
+                 [org.apache.beam/beam-runners-core-java "2.77.0"]
                  ;; org.apache.kafka/kafka-clients is required it in
                  ;; the kafka ns. Match the version provided by beam. See:
                  ;; https://mvnrepository.com/artifact/org.apache.beam/beam-sdks-java-io-kafka
-                 [org.apache.kafka/kafka-clients "2.4.1"]
+                 [org.apache.kafka/kafka-clients "3.9.2"]
                  [superstring "3.2.1"]
 
                  ;; required as of beam 2.55.0
