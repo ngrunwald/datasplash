@@ -5,7 +5,7 @@
 ### Added
 
 ### Changed
-* bump charred to 1.041.
+* bump charred to 1.043.
 * bump nippy to 3.8.0.
 
 ### Fixed
