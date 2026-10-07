@@ -3,26 +3,26 @@
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.12.5"]
+  :dependencies [[org.clojure/clojure "1.12.6"]
                  [org.clojure/math.combinatorics "0.3.2"]
                  [org.clojure/tools.logging "1.3.1"]
 
-                 [com.cnuernber/charred "1.041"]
+                 [com.cnuernber/charred "1.043"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
 
                  [com.taoensso/nippy "3.8.0"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.74.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.74.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.74.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.74.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.74.0"]
-                 [org.apache.beam/beam-runners-core-java "2.74.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.77.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.77.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.77.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.77.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.77.0"]
+                 [org.apache.beam/beam-runners-core-java "2.77.0"]
                  ;; org.apache.kafka/kafka-clients is required it in
                  ;; the kafka ns. Match the version provided by beam. See:
                  ;; https://mvnrepository.com/artifact/org.apache.beam/beam-sdks-java-io-kafka
-                 [org.apache.kafka/kafka-clients "2.4.1"]
+                 [org.apache.kafka/kafka-clients "3.9.2"]
                  [superstring "3.2.1"]
 
                  ;; required as of beam 2.55.0
@@ -30,7 +30,7 @@
 
                  ;; as of 2.64.0, beam is now compatibla with slf4j 2.x. See
                  ;; https://github.com/apache/beam/pull/33574
-                 [org.slf4j/slf4j-api "2.0.18"]]
+                 [org.slf4j/slf4j-api "2.0.20"]]
   :pedantic? false
   :target-path "target/%s/"
   :source-paths ["src/clj"]
@@ -41,12 +41,12 @@
                    [[com.oscaro/tools-io "0.3.43"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.7-11"]
+                    [com.github.luben/zstd-jni "1.5.7-22"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.3"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
-                    [org.slf4j/slf4j-simple "2.0.18"]]
+                    [org.slf4j/slf4j-simple "2.0.20"]]
                    :plugins [[dev.weavejester/lein-cljfmt "0.16.3"]]}
              :test {:source-paths ["test"]
                     :aot :all}})

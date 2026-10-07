@@ -5,8 +5,10 @@
 ### Added
 
 ### Changed
-* bump charred to 1.041.
+* bump charred to 1.043.
 * bump nippy to 3.8.0.
+* bump slf4j-api to 2.0.20.
+* bump beam to 2.77.0 & kafka-clients to 3.9.2, bumped as of beam 2.76.0.
 
 ### Fixed
 
