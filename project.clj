@@ -30,7 +30,7 @@
 
                  ;; as of 2.64.0, beam is now compatibla with slf4j 2.x. See
                  ;; https://github.com/apache/beam/pull/33574
-                 [org.slf4j/slf4j-api "2.0.18"]]
+                 [org.slf4j/slf4j-api "2.0.20"]]
   :pedantic? false
   :target-path "target/%s/"
   :source-paths ["src/clj"]
@@ -41,12 +41,12 @@
                    [[com.oscaro/tools-io "0.3.43"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.7-11"]
+                    [com.github.luben/zstd-jni "1.5.7-22"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.3"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
                     ;; compatible log implementation for local runs
-                    [org.slf4j/slf4j-simple "2.0.18"]]
+                    [org.slf4j/slf4j-simple "2.0.20"]]
                    :plugins [[dev.weavejester/lein-cljfmt "0.16.3"]]}
              :test {:source-paths ["test"]
                     :aot :all}})
