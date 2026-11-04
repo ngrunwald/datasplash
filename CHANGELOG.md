@@ -1,17 +1,11 @@
 # Changes for Datasplash
 
-## [Unreleased]
-
-### Added
-
+## [0.8.1] - 2026-11-04
 ### Changed
 * bump charred to 1.043.
 * bump nippy to 3.8.0.
 * bump slf4j-api to 2.0.20.
 * bump beam to 2.77.0 & kafka-clients to 3.9.2, bumped as of beam 2.76.0.
-
-### Fixed
-
 
 ## [0.8.0] - 2026-07-09
 ### Changed
@@ -358,7 +352,8 @@
 - Add pubsub namespace #6 (Thanks to @MartinSahlen)
 - Put slf4j deps in :dev profiles #8 (Thanks to @torbjornvatn)
 
-[Unreleased]: https://github.com/ngrunwald/datasplash/0.8.0...devel
+[Unreleased]: https://github.com/ngrunwald/datasplash/0.8.1...devel
+[0.8.1]: https://github.com/ngrunwald/datasplash/-/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/ngrunwald/datasplash/-/compare/0.7.36...0.8.0
 [0.7.36]: https://github.com/ngrunwald/datasplash/-/compare/0.7.35...0.7.36
 [0.7.35]: https://github.com/ngrunwald/datasplash/-/compare/0.7.34...0.7.35
