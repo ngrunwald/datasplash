@@ -15,7 +15,8 @@
    (clojure.lang ExceptionInfo MapEntry)
    (datasplash.fns ClojureCombineFn ClojureCustomCoder ClojureDoFn ClojurePTransform ClojureStatefulDoFn)
    (datasplash.pipelines PipelineWithOptions)
-   (java.io DataInputStream DataOutputStream InputStream OutputStream StringWriter)
+   (java.io ByteArrayOutputStream DataInputStream DataOutputStream InputStream
+            NotSerializableException ObjectOutputStream OutputStream StringWriter)
    (org.apache.beam.sdk Pipeline)
    (org.apache.beam.sdk.coders KvCoder StringUtf8Coder)
    (org.apache.beam.sdk.io Compression FileIO TextIO)
@@ -218,6 +219,19 @@
 (def ^{:dynamic true :no-doc true} *extra* {})
 
 (def ^{:private true :no-doc true} no-op (constantly nil))
+
+(defn ensure-serializable-fns!
+  {:doc "Throws unless this JVM can serialize Clojure fns, which Clojure 1.12.7+ only allows under `-Dclojure.serializable.fns=true`."
+   :no-doc true}
+  []
+  (try
+    (with-open [out (ObjectOutputStream. (ByteArrayOutputStream.))]
+      (.writeObject out no-op))
+    (catch NotSerializableException e
+      (throw (ex-info (str "Clojure fns are not serializable in this JVM, so no pipeline can be built. "
+                           "Start it with -Dclojure.serializable.fns=true.")
+                      {:clojure-version (clojure-version)}
+                      e)))))
 
 (defn dofn
   {:doc "Returns an Instance of DoFn from given Clojure fn."
@@ -1070,6 +1084,7 @@ map. Each value will be a list of the values that match key.
 
 (defn make-pipeline*
   ([itf str-args kw-args]
+   (ensure-serializable-fns!)
    (let [reformed-args (args->cli-args str-args kw-args)
          builder (PipelineOptionsFactory/fromArgs
                   (into-array String reformed-args))

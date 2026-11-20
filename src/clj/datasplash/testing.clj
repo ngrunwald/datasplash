@@ -24,6 +24,7 @@
 (defn test-pipeline
   "Returns a TestPipeline."
   ^TestPipeline []
+  (ds/ensure-serializable-fns!)
   (-> (TestPipeline/create)
       (.enableAbandonedNodeEnforcement true)))
 
