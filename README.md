@@ -96,8 +96,30 @@ Datasplash needs to be AOT compiled, so you should prepare an uberjar and
 run from your main entry like so:
 
 ```bash
-java -jar my-dataflow-job-uber.jar [beam-args]
+java -Dclojure.serializable.fns=true -jar my-dataflow-job-uber.jar [beam-args]
 ```
+
+### Serializable fns (Clojure 1.12.7 and later)
+
+Beam ships transforms to the workers as serialized Java objects, Clojure fns
+included. Since Clojure 1.12.7, fns refuse to serialize unless the JVM runs with
+`-Dclojure.serializable.fns=true` (see
+[GHSA-x4c4-68gp-vrhc](https://github.com/clojure/clojure/security/advisories/GHSA-x4c4-68gp-vrhc)).
+Clojure reads the property once, when it loads, so Clojure code cannot set it.
+
+- The JVM that builds the pipeline (including REPLs, tests and the
+  DirectRunner) needs the flag on its command line: `:jvm-opts` with
+  Leiningen or in a deps.edn alias, or `JAVA_TOOL_OPTIONS` when you don't
+  control the command line. Without it, `make-pipeline` throws.
+- On the workers, datasplash sets the property with a Beam `JvmInitializer`
+  registered in `META-INF/services`. This works on Dataflow and portable
+  runners, provided your uberjar merges `META-INF/services` files, which
+  Leiningen and tools.build do by default. The non-portable Flink and Spark
+  runners don't run `JvmInitializer`s, so set the flag on their JVMs.
+
+With the property set, a JVM that deserializes untrusted Java data is exposed
+to the attack described in the advisory. This includes thawing nippy data from
+an untrusted producer, since datasplash lets nippy Java-deserialize `KV`.
 
 
 ## Caveats
