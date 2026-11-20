@@ -5,7 +5,15 @@
    [datasplash.core :as sut]
    [datasplash.testing :as dt]
    [datasplash.testing.assert :as dta]
-   [tools.io :as tio]))
+   [tools.io :as tio])
+  (:import
+   (datasplash.harness SerializableFnsInitializer)
+   (java.util ServiceLoader)
+   (org.apache.beam.sdk.harness JvmInitializer)))
+
+(deftest serializable-fns-initializer-registered-test
+  (is (some #(instance? SerializableFnsInitializer %)
+            (ServiceLoader/load JvmInitializer))))
 
 (deftest args->cli-args-test
   (let [f (fn [str-args kw-args]

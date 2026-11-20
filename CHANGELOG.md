@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+* set `clojure.serializable.fns=true` on Beam workers through a `JvmInitializer`, as fns no longer serialize without it as of Clojure 1.12.7.
 
 ### Changed
 
