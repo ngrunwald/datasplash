@@ -3,7 +3,7 @@
   :url "https://github.com/ngrunwald/datasplash"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.12.6"]
+  :dependencies [[org.clojure/clojure "1.12.7"]
                  [org.clojure/math.combinatorics "0.3.2"]
                  [org.clojure/tools.logging "1.3.1"]
 
@@ -31,6 +31,7 @@
                  ;; as of 2.64.0, beam is now compatibla with slf4j 2.x. See
                  ;; https://github.com/apache/beam/pull/33574
                  [org.slf4j/slf4j-api "2.0.20"]]
+  :jvm-opts ["-Dclojure.serializable.fns=true"]
   :pedantic? false
   :target-path "target/%s/"
   :source-paths ["src/clj"]

@@ -7,6 +7,7 @@
 * `make-pipeline` and `test-pipeline` throw an explicit error when fns cannot be serialized.
 
 ### Changed
+* bump clj to 1.12.7. The JVM building the pipeline needs `-Dclojure.serializable.fns=true`, see README.
 
 ### Fixed
 
