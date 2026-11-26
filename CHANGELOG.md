@@ -9,6 +9,7 @@
 ### Changed
 * bump clj to 1.12.7. The JVM building the pipeline needs `-Dclojure.serializable.fns=true`, see README.
 * bump charred to 1.044.
+* bump tools.logging to 1.3.2
 
 ### Fixed
 
