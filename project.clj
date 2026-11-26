@@ -11,7 +11,7 @@
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
 
-                 [com.taoensso/nippy "3.8.0"]
+                 [com.taoensso/nippy "3.9.0"]
 
                  [org.apache.beam/beam-sdks-java-core "2.77.0"]
                  [org.apache.beam/beam-sdks-java-io-elasticsearch "2.77.0"]
