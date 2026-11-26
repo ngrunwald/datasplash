@@ -11,6 +11,7 @@
 * bump charred to 1.044.
 * bump tools.logging to 1.3.2
 * bump nippy to 3.9.0
+* bump beam to 2.78.0
 
 ### Fixed
 
