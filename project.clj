@@ -5,20 +5,20 @@
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.12.7"]
                  [org.clojure/math.combinatorics "0.3.2"]
-                 [org.clojure/tools.logging "1.3.1"]
+                 [org.clojure/tools.logging "1.3.2"]
 
-                 [com.cnuernber/charred "1.043"]
+                 [com.cnuernber/charred "1.044"]
                  [clj-stacktrace "0.2.8"]
                  [clj-time "0.15.2"]
 
-                 [com.taoensso/nippy "3.8.0"]
+                 [com.taoensso/nippy "3.9.0"]
 
-                 [org.apache.beam/beam-sdks-java-core "2.77.0"]
-                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.77.0"]
-                 [org.apache.beam/beam-sdks-java-io-kafka "2.77.0"]
-                 [org.apache.beam/beam-runners-direct-java "2.77.0"]
-                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.77.0"]
-                 [org.apache.beam/beam-runners-core-java "2.77.0"]
+                 [org.apache.beam/beam-sdks-java-core "2.78.0"]
+                 [org.apache.beam/beam-sdks-java-io-elasticsearch "2.78.0"]
+                 [org.apache.beam/beam-sdks-java-io-kafka "2.78.0"]
+                 [org.apache.beam/beam-runners-direct-java "2.78.0"]
+                 [org.apache.beam/beam-runners-google-cloud-dataflow-java "2.78.0"]
+                 [org.apache.beam/beam-runners-core-java "2.78.0"]
                  ;; org.apache.kafka/kafka-clients is required it in
                  ;; the kafka ns. Match the version provided by beam. See:
                  ;; https://mvnrepository.com/artifact/org.apache.beam/beam-sdks-java-io-kafka
@@ -42,7 +42,7 @@
                    [[com.oscaro/tools-io "0.3.43"]
                     ;; include compression libs for tests
                     ;;  zstd
-                    [com.github.luben/zstd-jni "1.5.7-25"]
+                    [com.github.luben/zstd-jni "1.6.0-1"]
                     ;;  lzo & lzop
                     [io.airlift/aircompressor "2.0.3"]
                     [com.facebook.presto.hadoop/hadoop-apache2 "3.2.0-1"]
